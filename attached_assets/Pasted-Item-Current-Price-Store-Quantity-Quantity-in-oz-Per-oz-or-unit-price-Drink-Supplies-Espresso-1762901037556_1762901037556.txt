@@ -1,0 +1,1037 @@
+Item	Current Price	Store	Quantity	Quantity in oz	Per oz or unit price
+Drink Supplies					
+Espresso Beans ($9 + tarriff of 10%)	$9.90	Numinous	1lb	16	$0.62
+House Beans	$9.90	Numinous	1lb	16	$0.62
+Decaf Beans	$9.90	Numinous	1lb	16	$0.62
+Rishi Masala Chai (32 oz)	$70.00	Numinous	12 quarts	384	$0.18
+HEB Creamy Creations Vanilla Ice Cream	$6.65	HEB	64oz	64	$0.10
+HEB Whole Frozen Strawberries (5 lbs)	$10.98	HEB	5lb bag	80	$0.14
+HEB Whole Frozen Blueberries (5 lbs)	$11.98	HEB	5lb bag	80	$0.15
+HEB Frozen Mango Chunks (16 oz)	$3.26	HEB	16oz	16	$0.20
+HEB More Fruit Peach & Mango Fruit Spread (15.5oz)	$3.88	HEB	15.5oz	16	$0.25
+Hill Country Fare Strawberry Preserves (32 oz)	$4.24	HEB	32oz	32	$0.13
+Fresh Granny Smith Apples (3 lb Bag)	$4.17	HEB	3lb bag	48	$0.09
+HEB Fresh Bananas	$1.30	HEB	2.58lbs	41	$0.03
+HEB Spinach (9oz Bag) 	$1.74	HEB	9oz bag	9	$0.19
+HEB Bag of Lemons	$4.08	HEB	2lb bag (~10 lemons)	32	$0.13
+HCF Whole Milk	$3.98	HEB	1 gal	128	$0.03
+HCF Fat Free Milk	$3.98	HEB	1 gal	128	$0.03
+HEB Original Coconut Milk	$3.35	HEB	64oz	64	$0.05
+HEB Original Oat Milk	$3.88	HEB	64oz	64	$0.06
+HEB Half & Half (64oz)	$5.64	HEB	64oz	64	$0.09
+HEB Heavy Whipping Cream (32oz)	$5.29	HEB	32oz	32	$0.17
+HEB Real Original Dairy Whip Cream (13oz)	$2.99	HEB	13oz (37 Servings)	37	$0.08
+HEB Original Pancake & Waffle Syrup (36 oz)		HEB	36oz	36	$0.00
+HEB Sweetened Condensed Milk (14 oz)		HEB	14oz	14	$0.00
+La Costena Pickled Jalapeno Naco Slices (15.5oz)	$1.88	HEB	15.5oz	15.5	$0.12
+Honest KidsJuice Pouches (32 pack - 6.75oz)	$15.92	Amazon	32 Pack	32	$0.50
+Amazon Fresh Hazelnut Spread (26.5oz)	$5.55	Amazon	26.5	26.5	$0.21
+Lipton Black Tea Bags (100 bags)	$4.49	Amazon	100 bags	100	$0.04
+Taylors Organic Peppermint Herbal Tea (50 count)	$7.40	Amazon	50 teabag 	50	$0.15
+Taylors Lemon & Ginger Tea (20 count - 6 pack)	$23.99	Amazon	120 teabag 	120	$0.20
+Taylors Earl Gray Tea (50 count)	$7.46	Amazon	50 teabag	50	$0.15
+Taylors English Breakfast Tea (50 count)	$7.00	Amazon	50 teabag	50	$0.14
+Taylors Green Tea with Jasmine (50 count)	$7.29	Amazon	50 teabag	50	$0.15
+Gold Standard Whey Protein Powder, Vanilla Ice Cream (5lb)	$67.99	Amazon	5 lb	80	$0.85
+Z Natural Foods Bee Pollen Granules (1lb)	$21.99	Amazon	16oz	16	$1.37
+Califia Farms Oat Barista Milk Original 32oz (Case of 6)	$25.68	Amazon	32oz - 6 pack	192	$0.13
+Torani Sugar-Free Vanilla Syrup 25.4oz (4 pack)	$25.92	Amazon	25.4oz - 4 pack	102	$0.26
+Da Vinci Classic Vanilla Syrup 25.4 (4 pack)	$27.52	Amazon	25.4oz - 4 pack	102	$0.27
+Da Vinci Classic Caramel Syrup 25.4oz (4 pack)	$29.56	Amazon	25.4oz - 4 pack	102	$0.29
+Da Vinci Classic Hazelnut Syrup 25.4oz (4 pack)	$29.56	Amazon	25.4oz - 4 pack	102	$0.29
+Da Vinci Classic Irish Cream Syrup 25.4oz (4 pack)	$31.95	Amazon	25.4oz - 4 pack	102	$0.31
+Da Vinci Sugar Free-Irish Cream Syrup 25.4oz (4 pack)	$27.76	Amazon	25.4oz - 4pack	102	$0.27
+Da Vinci Classic Raspberry Syrup 25.4oz (4 pack)	$29.56	Amazon	25.4oz - 4 pack	102	$0.29
+Da Vinci Classic Coconut Syrup 25.4oz (4 pack)	$29.56	Amazon	25.4oz - 4 pack	102	$0.29
+Da Vinci Lavendar Syrup 25.4oz (1 pack)	$8.80	Amazon	25.4oz	25	$0.35
+Da Vinci Rose Syrup 25.4oz (1 pack)	$18.50	Amazon	25.4oz	25	$0.74
+Da Vinci Classic Cinnamon Syrup 25.4oz (4 pack)	$28.90	Amazon	25.4oz - 4 pack	102	$0.28
+Da Vinci Classic Cane Sugar Syrup 25.4oz (4 pack)	$29.56	Amazon	25.4oz - 4 pack	102	$0.29
+Da Vinci Classic Strawberry Syrup 25.4oz (4 pack)	$26.99	Amazon	25.4oz - 4 pack	102	$0.27
+Da Vinci Classic Blueberry Syrup 25.4oz (4 pack)	$29.56	Amazon	25.4oz - 4 pack	102	$0.29
+Califia Farms Almond Barista Milk Unsweetened 32oz (Case of 6)	$17.09	Amazon	32oz - 6 pack	192	$0.09
+Pacific Barista Series Original Coconut Milk 32 oz (12 Pack)	$64.44	Amazon	32oz - 12 pack	384	$0.17
+Ghirardelli White Chocolate Sauce (87.3oz)	$21.99	Amazon	87.3 oz	87	$0.25
+Ghirardelli Caramel Sauce Syrup (90.4.3oz)	$32.41	Amazon	90.4 oz	90	$0.36
+Bluemania Energy Prime (24 cans)	$29.99	Amazon	24 cans	24	$1.25
+Bluemania Sugar-Free Energy Prime (24 cans)	$29.99	Amazon	24 cans	24	$1.25
+Amazon Grocery Nutmeg, Ground (3.25 oz)	$2.96	Amazon	3.25oz	3	$0.91
+Solimo Coconut MCT Oil Unflavored (32oz)	$16.25	Amazon	32oz	32	$0.51
+CBD Oil 2000mg 2.2oz bottle		Vendor	2000mg - 2.2oz	133	$0.00
+Better Body Foods Organic Superfood Blend (12.7 oz - 30 Servings)	$14.24	Amazon	30 servings	12.7	$1.12
+Nitrogen Gas Cyclinder Tank (24 x 5 Gallon Keg)	$55.00	Vendor 	4 gallon	512	$0.11
+					
+Food Supplies					
+HEB Creamy Tomato Basil Soup (31.4oz jar)	$7.98	HEB	31.4oz	31	$0.25
+HEB Organic Tomato Basil Soup (17.3oz box)	$2.58	HEB	17.3oz	17	$0.15
+HEB Sourdough bread (12 slices)	$3.98	HEB	12 slices	12	$0.33
+Thomas Everything Bagels (6 ct)	$3.97	HEB	6 count	6	$0.66
+Thomas Plan Bagels (6 ct)	$3.97	HEB	6 count	6	$0.66
+Hill Country Fare Sliced Mozzarella Cheese	$1.79	HEB	10 Slices	10	$0.18
+Hill Country Fare Shredded Cheddar Cheese	$6.97	HEB	32oz	32	$0.22
+Cafe Olympia Traditional Feta Cheese Crumbles (6 oz)		HEB	6oz	6	$0.00
+Oven Roasted Turkey Breast Mega Pack (22oz) (42 slices)	$9.99	HEB	42 slices	42	$0.24
+Fresh Roma Tomato (avg .29 lb/each)	$0.26	HEB	1	0	$1.00
+HEB Grape Tomatoes (10 oz)		HEB	10oz	10	$0.00
+HEB Marinara Sauce	$2.65	HEB	24oz jar	24	$0.11
+HEB Basil Pesto (6.7oz)	$2.19	HEB	6.7oz jar	6.5	$0.34
+Mantova Pesto Genovese (6.5oz)		HEB	6.5oz jar	7	$0.00
+HEB Real Mayonaisse (30oz)	$4.48	HEB	30oz	30	$0.15
+Libby's Pure Pumpkin Can (15oz)	$2.22	HEB	15oz Can	15	$0.15
+Toll House Semi-Sweet Chocolate Chips (4.5 lb)	$13.99	Costco	4.5 lb	72	$0.19
+HEB Unsweetened Cocoa Powder (8 oz)	$3.78	HEB	8oz	8	$0.47
+HEB Brown Sugar	$2.42	HEB	2lb bag	32	$0.08
+C&H Powdered Sugar	$2.42	HEB	32oz	32	$0.08
+Canyon Bakehouse Gluten Free Country White Bread (18oz)	$5.82	HEB	18oz	18	$0.32
+HCF Enriched Yellow Cornmeal (5lb)	$3.91	HEB	5lb bag	80	$0.05
+HCF Baking Powder (8.1oz)	$2.08	HEB	8.1oz	8	$0.26
+HCF Baking Soda (64oz)	$2.98	HEB	64oz	64	$0.05
+HCF Cornstarch (1lb)	$1.55	HEB	1lb	16	$0.10
+HEB Iodized salt (26oz)	$0.64	HEB	26oz can	26	$0.02
+Hill Country Fare Large White Eggs (36 pack)	$11.72	HEB	36 eggs	36	$0.33
+Hill Country Fare Egg Whites	$4.72	HEB	32oz	32	$0.15
+HEB Texas Heritage Original Smoked Sausage - Original (13oz)	$5.49	HEB	13oz	13	$0.42
+HCF Cheddar Cheese Sliced	$1.79	HEB	10 Slices	10	$0.18
+Waterloo Sparkling Water (12 Pack)	$6.96	HEB	12	32	$0.22
+Topo Chico (12oz-12 pack)	$13.97	HEB	12	12	$1.16
+HCF Original Pepperoni Slices - Texas Size Pack (21oz bag) (~90 slices)	$6.79	HEB	21oz	21	$0.32
+HCF Canola Cooking Spray (17oz)	$3.98	HEB	17oz can	17	$0.23
+Jif Peanut Butter (2 pack)	$10.99	Costco	6 lbs	96	$0.11
+Kirkland Unsalted Butter (16oz, 4-count)	$3.05	Costco	1lb	16	$0.19
+United Sugars Extra Fine Granulated Sugar (25lb)	$17.99	Costco	25lb	400	$0.04
+H&R All Purpose Flour (25lb)	$7.49	Costco	25lb	400	$0.02
+Kirkland Canola Oil (2-count, 2.84 L)	$10.99	Costco	192oz	192	$0.06
+Kirkland Wild Flower Honey (5 lbs)	$12.99	Costco	80oz	80	$0.16
+Kirkland Signature Pure Vanilla (16oz)	$9.99	Costco	16oz	16	$0.62
+Kirkland Pecan Halves (2 lbs)	$11.99	Costco	32 oz	32	$0.37
+Sunchips (variety 30 pack)	$21.99	Costco	30 bags	30	$0.73
+SEN CHA Naturals Organic Everyday Matcha Powder (1lb)	$19.99	Costco	16oz	16	$1.25
+Mrs. Vickie's Kettle Cooked Potato Chips (variety 28 pack)	$29.73	Amazon	28 bags (8oz)	28	$1.06
+McCormick Italian Seasoning (6.25oz)	$6.29	Amazon	6.25oz	6	$1.01
+McCormick Cream of Tartar (25oz)	$23.47	Amazon	25oz	25	$0.94
+McCormick Culinary Dried Basil Leaves (5 oz)	$8.28	Amazon	5 oz	5	$1.66
+(Old Brand Sanniti) Rani Ground Cardamom (16oz)	$33.99	Amazon	16oz	16	$2.12
+Fresh Finest Ground Cinnamon (5 lb)	$29.99	Amazon	5lb	80	$0.37
+Sugar In The Raw Packets (500 per case)	$26.09	Amazon	500 packets	500	$0.05
+ecoStick Packets Organic White Sugar (2000 Count)	$40.22	Amazon	2000 packets	2000	$0.02
+Pure Via Stevia Sweetener (800 packets)	$17.99	Amazon	800 packets	800	$0.02
+Splenda Sweetener Value Pack (800 packets)	$16.69	Amazon	800 packets	800	$0.02
+Complements Pink Sweetener Packets (2000 packets)	$15.95	Amazon	2000 packets	2000	$0.01
+Cholula Original Hot Sauce Packets (200 Packets)	$15.39	Amazon	200 packets	200	$0.08
+Kraft Mayo Packets (200 Packets)	$25.43	Amazon	200 packets	200	$0.13
+Heinz Mild Mustard Single Packet (200 Packets)	$16.99	Amazon	200 packets	200	$0.08
+Fiji Waters 16.9oz (24 Pack)	$21.98	Amazon	36 pack	36	$0.61
+Philidelphia Cream Cheese Packets (.75oz)	$67.97	Amazon	100 packets 	100	$0.68
+					
+Packaging Supplies 					
+TVTopValue 4oz White Paper Hot Cup (case of 600)	$26.89	Amazon	600 count 	600	$0.04
+4oz Black Hot Cup Lids (case of 500)	$45.66	Amazon	500 count	500	$0.09
+AOZITA 8oz White Paper Hot Cups (case of 592)	$39.64	Amazon	592 count	592	$0.07
+Karat PP 8oz Black Hot Cup Lids (case of 1000)	$50.00	Amazon	1000 count	1000	$0.05
+Karat C-K512WU 12oz White Paper Hot Cups (case of 1000)	$68.00	Amazon	1000 count	1000	$0.07
+Solo 316W 16oz Paper Hot Cup (case of 1000)	$97.20	Amazon	1000 count	1000	$0.10
+Karat 20oz Premium White Paper Hot Cup (case of 600)	$57.00	Amazon	600 count 	600	$0.10
+Karat C-KC16 16oz PET Plastic Cold Cups (case of 1000)	$97.20	Amazon	1000 count	1000	$0.10
+Karat C-KC20 20oz PET Plastic Cold Cups (case of 1000)	$104.10	Amazon	1000 count	1000	$0.10
+Karat C-KC24 24oz PET Plastic Cold Cups (Case of 600)	$60.86	Amazon	600 count	600	$0.10
+Karat 12-20oz Black Hot Cup Lids (case of 1000)	$44.16	Amazon	1000 count	1000	$0.04
+JOLLY CHEF Sipper Lids 98mm width, Fits for 12-20 Oz Lids (Case of 1000)	$50.99	Amazon	1000 count	1000	$0.05
+Karat Earth 16-24oz PET Dome Lids (Case of 1000)	$63.00	Amazon	1000 count	1000	$0.06
+FMP Brands - Kraft Coffee Cup Sleeves for 12-24 oz Cups (1000 Count)	$49.45	Amazon	1000 count	1000	$0.05
+DuraHome 8in Plastic Wrapped Straws Black (1000 Count)	$19.09	Amazon	1000 count	1000	$0.02
+StixToGo BLACK Circle Beverage Plug (400 Pieces)	$14.98	Amazon	400 count	400	$0.04
+Tork White Beverage Napkins (500 count - 8 Pack)	$29.08	Amazon	4000 count	4000	$0.01
+JA Kitchens Burger/Sandwich Wrapping Paper 12in (1000 Sheet)	$40.97	Amazon	1000 sheet	1000	$0.04
+QLSmypkg Large Muffin Greaseproof Baking Cup Natural (125 piece)	$14.99	Amazon	125 piece	125	$0.12
+"
+Bagcraft Ecocraft Grease-Resistant Sandwich Bags, 6.5"" X 8"", Natural, (2,000 count)"	$69.70	Amazon	2000 count	2000	$0.03
+Karat 12lb Kraft Brown Paper Bag (1000 count)	$49.00	Amazon	1000 count	1000	$0.05
+Karat 2oz Clear Portion Cup (2500 count)	$30.35	Amazon	2500 count	2500	$0.01
+Karat 2oz Clear Portion Lid (2500 count)	$31.68	Amazon	2500 count	2500	$0.01
+Choice Paper Hot Food Cup 12oz with Lid (250 count)	$39.49	Webstarant 	250 count	250	$0.16
+Choice Paper Hot Food Cup 8oz with Lid (250 count)	$36.99	Webstarant 	250 count	250	$0.15
+Daxwell 8x8x3" Hinged Plastic Take Out Container (Case of 200)	$59.78	Amazon	200 count	200	$0.30
+Comfy Bamboo Wooden Toothpick (2000 count)	$6.43	Amazon	2000 count	2000	$0.00
+Karat C5000 4 Cup Holder (Case of 300)	$43.26	Amazon	300	300	$0.14
+Disposable Fork Medium Weight, Black (Pack of 1000)	$21.49	Amazon	1000 count	1000	$0.02
+Disposable Soup Spoon Medium Weight, Black (Pack of 1000)	$21.49	Amazon	1000 count	1000	$0.02
+Disposable Knife Medium Weight, Black (Pack of 1000)	$21.49	Amazon	1000 count	1000	$0.02
+Next Day Flyers 2" Round Stickers (5,000 stickers)	$247.95	Vendor	5000 count	5000	$0.05
+					
+-------------------					
+Cleaning + Other Supplies 					
+SpringCare Nitrile Gloves Large (Pack of 1000)	$49.99	Amazon	1000	1000	$0.05
+Heavy Duty Scrub Sponge (50 Count)	$14.24	Amazon	50 Count	50	$0.28
+Reli Super Value 2-4 Gallon Small Trash Bags (2000 Count)	$49.99	Amazon	2000	2000	$0.02
+Aluf Plastics 26 Gallon For Slim Jim 1.25 MIL (eq) Black Heavy Duty Trash Bags - 29 inch X 44 inch - 1 Count (Pack of 200)	$34.56	Amazon	250	250	$0.14
+"
+Reli. 40 to 45 Gallon Trash Bags Heavy Duty  (250 count)"	$52.49	Amazon	250	250	$0.21
+Hill Country Fare Bleach 64 fl oz (Pack of 1) 	$1.28	HEB	1	64	$0.02
+Simple Green All Purpose Concentate (1 gallon - 2 Pack)	$39.89	Amazon	256 oz	256	$0.16
+Hydrion QT-40 Test Tape 15ft Roll 	$10.69	Amazon	1	1	$10.69
+iMark Premium Black Stamp Ink Refill (4oz)	$11.71	Amazon	1	4	$2.93
+Liquid Chalk Markers Multicolored (30 Pack)	$19.99	Amazon	30	30	$0.67
+Liquid Chalk Markers White (Pack of 12)	$7.59	Amazon	12	12	$0.63
+General Supply 2-Ply 9" Jumbo Toilet Paper (12 Rolls)	$35.85	Amazon	12 rolls	12	$2.99
+Lysol Power Toilet Bowl Cleaner Gel (24 Fl oz 2-pack)	$3.62	Amazon	48oz	48	$0.08
+Karat Commercial Paper Towel Rolls Kraft (6 Pack)	$39.37	Amazon	6 rolls	6	$6.56
+Milk Bone Mini Dog Treat (36 oz)	$9.96	Amazon	36	36	$0.28
+Steramine Sanitizing 150 Tablets (Pack of 4)	$26.20	Amazon	450	450	$0.06
+Sprayway Glass Cleaner (19oz - Pack of 3)	$7.77	Amazon	57	57	$0.14
+Palmolive Liquid Dish Soap (102oz)	$8.99	Costco	102	102	$0.09
+Amazon Basics Gentle & Mild Clear Liquid Hand Soap Refill, Triclosan-Free, 50 Fl Oz (Pack of 2)	$9.57	Amazon	100oz	100	$0.10
+12oz coffee bags (100 bags)	$52.19	Amazon	100	100	$0.52
+2.5oz coffee bags ()		Amazon	100oz	100	$0.00
+					
+Total % change if ordering 1 of everything					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
