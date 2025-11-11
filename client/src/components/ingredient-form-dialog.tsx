@@ -48,9 +48,10 @@ export function IngredientFormDialog({
     defaultValues: {
       name: "",
       category: "",
-      quantity: 1,
-      unit: "units",
-      costPerUnit: 0,
+      store: "",
+      purchaseQuantity: 1,
+      purchaseUnit: "units",
+      purchaseCost: 0,
     },
   });
 
@@ -59,17 +60,19 @@ export function IngredientFormDialog({
       form.reset({
         name: ingredient.name,
         category: ingredient.category,
-        quantity: ingredient.quantity,
-        unit: ingredient.unit,
-        costPerUnit: ingredient.costPerUnit,
+        store: ingredient.store || "",
+        purchaseQuantity: ingredient.purchaseQuantity,
+        purchaseUnit: ingredient.purchaseUnit,
+        purchaseCost: ingredient.purchaseCost,
       });
     } else {
       form.reset({
         name: "",
         category: "",
-        quantity: 1,
-        unit: "units",
-        costPerUnit: 0,
+        store: "",
+        purchaseQuantity: 1,
+        purchaseUnit: "units",
+        purchaseCost: 0,
       });
     }
   }, [ingredient, form]);
@@ -86,8 +89,8 @@ export function IngredientFormDialog({
           <DialogTitle>{ingredient ? "Edit Ingredient" : "Add New Ingredient"}</DialogTitle>
           <DialogDescription>
             {ingredient
-              ? "Update the ingredient details below."
-              : "Enter the ingredient information to add it to your database."}
+              ? "Update the ingredient purchase details. Per-unit costs will be auto-calculated."
+              : "Enter what you purchased from the store. Per-unit costs (oz, gram, cup, etc.) will be calculated automatically."}
           </DialogDescription>
         </DialogHeader>
 
@@ -129,17 +132,36 @@ export function IngredientFormDialog({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="store"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Store (Optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="e.g., HEB, Amazon, Costco"
+                      {...field}
+                      data-testid="input-ingredient-store"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="quantity"
+                name="purchaseQuantity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quantity</FormLabel>
+                    <FormLabel>Purchase Quantity</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         step="0.01"
+                        placeholder="e.g., 32"
                         {...field}
                         onChange={(e) => field.onChange(parseFloat(e.target.value))}
                         data-testid="input-ingredient-quantity"
@@ -152,10 +174,10 @@ export function IngredientFormDialog({
 
               <FormField
                 control={form.control}
-                name="unit"
+                name="purchaseUnit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Unit</FormLabel>
+                    <FormLabel>Purchase Unit</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-ingredient-unit">
@@ -178,14 +200,15 @@ export function IngredientFormDialog({
 
             <FormField
               control={form.control}
-              name="costPerUnit"
+              name="purchaseCost"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cost per Unit ($)</FormLabel>
+                  <FormLabel>Total Purchase Cost ($)</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       step="0.01"
+                      placeholder="e.g., 5.90"
                       {...field}
                       onChange={(e) => field.onChange(parseFloat(e.target.value))}
                       data-testid="input-ingredient-cost"

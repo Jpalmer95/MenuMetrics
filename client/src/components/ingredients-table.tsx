@@ -51,6 +51,12 @@ export function IngredientsTable({
     if (!sortColumn) return 0;
     const aVal = a[sortColumn];
     const bVal = b[sortColumn];
+    
+    // Handle null values
+    if (aVal === null && bVal === null) return 0;
+    if (aVal === null) return 1; // null values go to the end
+    if (bVal === null) return -1;
+    
     if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
     if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
     return 0;
@@ -70,9 +76,10 @@ export function IngredientsTable({
     setEditValues({
       name: ingredient.name,
       category: ingredient.category,
-      quantity: ingredient.quantity,
-      unit: ingredient.unit,
-      costPerUnit: ingredient.costPerUnit,
+      store: ingredient.store || "",
+      purchaseQuantity: ingredient.purchaseQuantity,
+      purchaseUnit: ingredient.purchaseUnit,
+      purchaseCost: ingredient.purchaseCost,
     });
   };
 
@@ -82,7 +89,7 @@ export function IngredientsTable({
   };
 
   const saveEdit = () => {
-    if (editingId && editValues.name && editValues.category && editValues.quantity && editValues.unit && editValues.costPerUnit !== undefined) {
+    if (editingId && editValues.name && editValues.category && editValues.purchaseQuantity && editValues.purchaseUnit && editValues.purchaseCost !== undefined) {
       onUpdate(editingId, editValues as InsertIngredient);
       setEditingId(null);
       setEditValues({});
@@ -130,25 +137,19 @@ export function IngredientsTable({
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
+              <TableHead className="font-semibold">Store</TableHead>
+              <TableHead className="font-semibold">Purchase Info</TableHead>
               <TableHead
                 className="text-right cursor-pointer font-semibold"
-                onClick={() => handleSort("quantity")}
+                onClick={() => handleSort("purchaseCost")}
               >
-                Quantity
-                {sortColumn === "quantity" && (
+                Total Cost
+                {sortColumn === "purchaseCost" && (
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
-              <TableHead className="font-semibold">Unit</TableHead>
-              <TableHead
-                className="text-right cursor-pointer font-semibold"
-                onClick={() => handleSort("costPerUnit")}
-              >
-                Cost/Unit
-                {sortColumn === "costPerUnit" && (
-                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
-                )}
-              </TableHead>
+              <TableHead className="text-right font-semibold">Per Oz</TableHead>
+              <TableHead className="text-right font-semibold">Per Gram</TableHead>
               <TableHead className="font-semibold">Last Updated</TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
@@ -156,7 +157,7 @@ export function IngredientsTable({
           <TableBody>
             {sortedIngredients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   {searchTerm
                     ? "No ingredients found matching your search."
                     : "No ingredients yet. Add your first ingredient to get started."}
@@ -193,36 +194,48 @@ export function IngredientsTable({
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell>
                       {isEditing ? (
                         <Input
-                          type="number"
-                          step="0.01"
-                          value={editValues.quantity || ""}
-                          onChange={(e) => setEditValues({ ...editValues, quantity: parseFloat(e.target.value) })}
-                          className="h-8 text-right"
-                          data-testid={`input-edit-quantity-${ingredient.id}`}
+                          value={editValues.store || ""}
+                          onChange={(e) => setEditValues({ ...editValues, store: e.target.value })}
+                          placeholder="e.g., HEB"
+                          className="h-8"
+                          data-testid={`input-edit-store-${ingredient.id}`}
                         />
                       ) : (
-                        ingredient.quantity.toFixed(2)
+                        <span className="text-muted-foreground">{ingredient.store || "-"}</span>
                       )}
                     </TableCell>
                     <TableCell>
                       {isEditing ? (
-                        <Select value={editValues.unit || ingredient.unit} onValueChange={(val) => setEditValues({ ...editValues, unit: val })}>
-                          <SelectTrigger className="h-8" data-testid={`select-edit-unit-${ingredient.id}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {measurementUnits.map((unit) => (
-                              <SelectItem key={unit} value={unit}>
-                                {unit}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={editValues.purchaseQuantity || ""}
+                            onChange={(e) => setEditValues({ ...editValues, purchaseQuantity: parseFloat(e.target.value) })}
+                            placeholder="Qty"
+                            className="h-8 w-20"
+                            data-testid={`input-edit-quantity-${ingredient.id}`}
+                          />
+                          <Select value={editValues.purchaseUnit || ingredient.purchaseUnit} onValueChange={(val) => setEditValues({ ...editValues, purchaseUnit: val })}>
+                            <SelectTrigger className="h-8 w-28" data-testid={`select-edit-unit-${ingredient.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {measurementUnits.map((unit) => (
+                                <SelectItem key={unit} value={unit}>
+                                  {unit}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       ) : (
-                        <span className="text-muted-foreground">{ingredient.unit}</span>
+                        <span className="text-muted-foreground">
+                          {ingredient.purchaseQuantity} {ingredient.purchaseUnit}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-medium">
@@ -230,14 +243,20 @@ export function IngredientsTable({
                         <Input
                           type="number"
                           step="0.01"
-                          value={editValues.costPerUnit !== undefined ? editValues.costPerUnit : ""}
-                          onChange={(e) => setEditValues({ ...editValues, costPerUnit: parseFloat(e.target.value) })}
+                          value={editValues.purchaseCost !== undefined ? editValues.purchaseCost : ""}
+                          onChange={(e) => setEditValues({ ...editValues, purchaseCost: parseFloat(e.target.value) })}
                           className="h-8 text-right"
                           data-testid={`input-edit-cost-${ingredient.id}`}
                         />
                       ) : (
-                        `$${ingredient.costPerUnit.toFixed(2)}`
+                        `$${ingredient.purchaseCost.toFixed(2)}`
                       )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                      {ingredient.costPerOunce ? `$${ingredient.costPerOunce.toFixed(3)}` : "-"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                      {ingredient.costPerGram ? `$${ingredient.costPerGram.toFixed(3)}` : "-"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {format(new Date(ingredient.lastUpdated), "MMM d, yyyy")}

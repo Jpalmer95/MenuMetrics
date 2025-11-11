@@ -6,10 +6,12 @@ import {
   type RecipeIngredient,
   type InsertRecipeIngredient,
   type RecipeWithIngredients,
+  type MeasurementUnit,
   ingredients,
   recipes,
   recipeIngredients,
 } from "@shared/schema";
+import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -45,17 +47,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createIngredient(insertIngredient: InsertIngredient): Promise<Ingredient> {
+    // Calculate all per-unit costs from purchase data
+    const unitCosts = calculateAllUnitCosts(
+      insertIngredient.purchaseQuantity,
+      insertIngredient.purchaseUnit as MeasurementUnit,
+      insertIngredient.purchaseCost
+    );
+    
     const [ingredient] = await db
       .insert(ingredients)
-      .values(insertIngredient)
+      .values({
+        ...insertIngredient,
+        ...unitCosts,
+      })
       .returning();
     return ingredient;
   }
 
   async updateIngredient(id: string, insertIngredient: InsertIngredient): Promise<Ingredient | undefined> {
+    // Recalculate all per-unit costs from updated purchase data
+    const unitCosts = calculateAllUnitCosts(
+      insertIngredient.purchaseQuantity,
+      insertIngredient.purchaseUnit as MeasurementUnit,
+      insertIngredient.purchaseCost
+    );
+    
     const [updated] = await db
       .update(ingredients)
-      .set({ ...insertIngredient, lastUpdated: new Date() })
+      .set({ 
+        ...insertIngredient, 
+        ...unitCosts,
+        lastUpdated: new Date() 
+      })
       .where(eq(ingredients.id, id))
       .returning();
 
@@ -154,36 +177,59 @@ export class DatabaseStorage implements IStorage {
     recipeQuantity: number,
     recipeUnit: string
   ): number {
-    const convertedQuantity = this.convertUnits(
-      recipeQuantity,
-      recipeUnit,
-      ingredient.unit
-    );
-    return (convertedQuantity / ingredient.quantity) * ingredient.costPerUnit;
-  }
-
-  private convertUnits(quantity: number, fromUnit: string, toUnit: string): number {
-    if (fromUnit === toUnit) return quantity;
-    if (fromUnit === "units" || toUnit === "units") return quantity;
-
-    const conversionToGrams: Record<string, number> = {
-      grams: 1,
-      kilograms: 1000,
-      ounces: 28.3495,
-      pounds: 453.592,
-      cups: 240,
-      teaspoons: 4.92892,
-      tablespoons: 14.7868,
-      milliliters: 1,
-      liters: 1000,
-      pints: 473.176,
-      quarts: 946.353,
-      gallons: 3785.41,
-      units: 1,
+    // Get the appropriate cost per unit based on the recipe unit
+    const costPerUnitMap: Record<string, number | null> = {
+      cups: ingredient.costPerCup,
+      ounces: ingredient.costPerOunce,
+      grams: ingredient.costPerGram,
+      units: ingredient.costPerUnit,
+      teaspoons: ingredient.costPerTsp,
+      tablespoons: ingredient.costPerTbsp,
+      pounds: ingredient.costPerPound,
+      kilograms: ingredient.costPerKg,
+      milliliters: ingredient.costPerMl,
+      liters: ingredient.costPerLiter,
+      pints: ingredient.costPerPint,
+      quarts: ingredient.costPerQuart,
+      gallons: ingredient.costPerGallon,
     };
 
-    const grams = quantity * (conversionToGrams[fromUnit] || 1);
-    return grams / (conversionToGrams[toUnit] || 1);
+    let costPerUnit = costPerUnitMap[recipeUnit];
+    
+    // Fallback: If pre-calculated cost is null, calculate on demand from purchase data using shared logic
+    if (costPerUnit === null || costPerUnit === undefined) {
+      // Check that we have valid purchase data for fallback calculation
+      if (
+        ingredient.purchaseQuantity &&
+        ingredient.purchaseUnit &&
+        ingredient.purchaseCost !== null &&
+        ingredient.purchaseCost !== undefined
+      ) {
+        // Use shared cost calculator to ensure consistency
+        costPerUnit = calculateCostPerUnit(
+          ingredient.purchaseQuantity,
+          ingredient.purchaseUnit as MeasurementUnit,
+          ingredient.purchaseCost,
+          recipeUnit as MeasurementUnit
+        );
+        
+        // Still null means incompatible units (e.g., "units" ↔ weight/volume)
+        if (costPerUnit === null) {
+          console.warn(
+            `Cannot convert between ${ingredient.purchaseUnit} and ${recipeUnit} for ingredient ${ingredient.name}`
+          );
+          return 0;
+        }
+      } else {
+        // Missing purchase data - cannot calculate cost
+        console.error(
+          `Missing purchase data for ingredient ${ingredient.name}, cannot calculate cost for ${recipeUnit}`
+        );
+        return 0;
+      }
+    }
+    
+    return recipeQuantity * costPerUnit;
   }
 
   async getRecipeIngredients(recipeId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>> {

@@ -51,9 +51,7 @@ export function RecipeBuilder({
   const calculateTotalCost = () => {
     return recipeIngredients.reduce((sum, ri) => {
       const cost = calculateIngredientCost(
-        ri.ingredientDetails.quantity,
-        ri.ingredientDetails.unit as any,
-        ri.ingredientDetails.costPerUnit,
+        ri.ingredientDetails,
         ri.quantity,
         ri.unit as any
       );
@@ -152,9 +150,7 @@ export function RecipeBuilder({
             <>
               {recipeIngredients.map((ri) => {
                 const cost = calculateIngredientCost(
-                  ri.ingredientDetails.quantity,
-                  ri.ingredientDetails.unit as any,
-                  ri.ingredientDetails.costPerUnit,
+                  ri.ingredientDetails,
                   ri.quantity,
                   ri.unit as any
                 );

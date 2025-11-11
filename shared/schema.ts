@@ -25,18 +25,52 @@ export const ingredients = pgTable("ingredients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   category: text("category").notNull(),
-  quantity: real("quantity").notNull(),
-  unit: text("unit").notNull(),
-  costPerUnit: real("cost_per_unit").notNull(),
+  
+  // Purchase information (what you bought from the store)
+  store: text("store"),
+  purchaseQuantity: real("purchase_quantity").notNull(),
+  purchaseUnit: text("purchase_unit").notNull(),
+  purchaseCost: real("purchase_cost").notNull(),
+  
+  // Calculated per-unit costs (auto-calculated from purchase data)
+  costPerOunce: real("cost_per_ounce"),
+  costPerGram: real("cost_per_gram"),
+  costPerCup: real("cost_per_cup"),
+  costPerTbsp: real("cost_per_tbsp"),
+  costPerTsp: real("cost_per_tsp"),
+  costPerPound: real("cost_per_pound"),
+  costPerKg: real("cost_per_kg"),
+  costPerLiter: real("cost_per_liter"),
+  costPerMl: real("cost_per_ml"),
+  costPerPint: real("cost_per_pint"),
+  costPerQuart: real("cost_per_quart"),
+  costPerGallon: real("cost_per_gallon"),
+  costPerUnit: real("cost_per_unit"), // For items sold as "each"
+  
   lastUpdated: timestamp("last_updated").defaultNow().notNull(),
 });
 
 export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   id: true,
   lastUpdated: true,
+  // Omit all calculated cost fields - these are auto-calculated from purchase data
+  costPerOunce: true,
+  costPerGram: true,
+  costPerCup: true,
+  costPerTbsp: true,
+  costPerTsp: true,
+  costPerPound: true,
+  costPerKg: true,
+  costPerLiter: true,
+  costPerMl: true,
+  costPerPint: true,
+  costPerQuart: true,
+  costPerGallon: true,
+  costPerUnit: true,
 }).extend({
-  quantity: z.number().positive("Quantity must be positive"),
-  costPerUnit: z.number().nonnegative("Cost must be non-negative"),
+  purchaseQuantity: z.number().positive("Purchase quantity must be positive"),
+  purchaseCost: z.number().nonnegative("Purchase cost must be non-negative"),
+  store: z.string().optional(),
 });
 
 export type InsertIngredient = z.infer<typeof insertIngredientSchema>;
