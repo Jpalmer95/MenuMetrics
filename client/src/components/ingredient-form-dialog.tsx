@@ -16,6 +16,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,7 +27,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Info } from "lucide-react";
+
+// Common ingredient density presets (grams per milliliter)
+const DENSITY_PRESETS = [
+  { name: "Water", density: 1.0 },
+  { name: "Whole Milk", density: 1.03 },
+  { name: "All-Purpose Flour", density: 0.5 },
+  { name: "Granulated Sugar", density: 0.85 },
+  { name: "Brown Sugar", density: 0.72 },
+  { name: "Butter", density: 0.91 },
+  { name: "Honey", density: 1.42 },
+  { name: "Olive Oil", density: 0.92 },
+  { name: "Cocoa Powder", density: 0.48 },
+  { name: "Salt", density: 1.22 },
+] as const;
 
 interface IngredientFormDialogProps {
   open: boolean;
@@ -43,6 +59,8 @@ export function IngredientFormDialog({
   ingredient,
   isLoading,
 }: IngredientFormDialogProps) {
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
+  
   const form = useForm<InsertIngredient>({
     resolver: zodResolver(insertIngredientSchema),
     defaultValues: {
@@ -52,6 +70,8 @@ export function IngredientFormDialog({
       purchaseQuantity: 1,
       purchaseUnit: "units",
       purchaseCost: 0,
+      gramsPerMilliliter: undefined,
+      densitySource: undefined,
     },
   });
 
@@ -64,7 +84,12 @@ export function IngredientFormDialog({
         purchaseQuantity: ingredient.purchaseQuantity,
         purchaseUnit: ingredient.purchaseUnit,
         purchaseCost: ingredient.purchaseCost,
+        gramsPerMilliliter: ingredient.gramsPerMilliliter || undefined,
+        densitySource: ingredient.densitySource || undefined,
       });
+      // Set preset if density matches a known value
+      const matchingPreset = DENSITY_PRESETS.find(p => p.density === ingredient.gramsPerMilliliter);
+      setSelectedPreset(matchingPreset ? matchingPreset.name : "");
     } else {
       form.reset({
         name: "",
@@ -73,13 +98,17 @@ export function IngredientFormDialog({
         purchaseQuantity: 1,
         purchaseUnit: "units",
         purchaseCost: 0,
+        gramsPerMilliliter: undefined,
+        densitySource: undefined,
       });
+      setSelectedPreset("");
     }
   }, [ingredient, form]);
 
   const handleSubmit = (data: InsertIngredient) => {
     onSubmit(data);
     form.reset();
+    setSelectedPreset("");
   };
 
   return (
@@ -218,6 +247,100 @@ export function IngredientFormDialog({
                 </FormItem>
               )}
             />
+
+            {/* Density Section */}
+            <div className="space-y-4 rounded-md border p-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Density (Optional)</div>
+                  <div className="text-xs text-muted-foreground">
+                    Required for accurate volume↔weight conversions (e.g., converting cups to ounces).
+                    If not provided, cross-family unit conversions will show as unavailable.
+                  </div>
+                </div>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="gramsPerMilliliter"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Density Preset</FormLabel>
+                    <Select
+                      value={selectedPreset}
+                      onValueChange={(value) => {
+                        setSelectedPreset(value);
+                        if (value === "none") {
+                          // User wants to skip density - clear all density fields
+                          field.onChange(undefined);
+                          form.setValue("densitySource", undefined);
+                        } else if (value === "custom") {
+                          // User wants to enter manually
+                          form.setValue("densitySource", "manual");
+                        } else {
+                          // Apply preset density
+                          const preset = DENSITY_PRESETS.find(p => p.name === value);
+                          if (preset) {
+                            field.onChange(preset.density);
+                            form.setValue("densitySource", "preset");
+                          }
+                        }
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-density-preset">
+                          <SelectValue placeholder="Choose a common ingredient or enter manually" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">None (skip density)</SelectItem>
+                        {DENSITY_PRESETS.map((preset) => (
+                          <SelectItem key={preset.name} value={preset.name}>
+                            {preset.name} ({preset.density} g/mL)
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="custom">Custom (enter manually)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {(selectedPreset === "custom" || (selectedPreset === "" && form.watch("gramsPerMilliliter"))) && (
+                <FormField
+                  control={form.control}
+                  name="gramsPerMilliliter"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Density (grams per milliliter)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g., 1.0 for water"
+                          {...field}
+                          value={field.value || ""}
+                          onChange={(e) => {
+                            const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                            field.onChange(value);
+                            if (value) {
+                              form.setValue("densitySource", "manual");
+                            }
+                          }}
+                          data-testid="input-density-manual"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Reference: Water = 1.0, Milk = 1.03, Flour = 0.5, Sugar = 0.85
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
 
             <DialogFooter>
               <Button
