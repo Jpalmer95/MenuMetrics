@@ -62,6 +62,7 @@ export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 export const recipes = pgTable("recipes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  description: text("description"),
   servings: real("servings").notNull().default(1),
   totalCost: real("total_cost").notNull().default(0),
   costPerServing: real("cost_per_serving").notNull().default(0),
@@ -83,3 +84,24 @@ export type Recipe = typeof recipes.$inferSelect;
 export interface RecipeWithIngredients extends Recipe {
   ingredients: Array<RecipeIngredient & { ingredientDetails: Ingredient }>;
 }
+
+import { relations } from "drizzle-orm";
+
+export const ingredientsRelations = relations(ingredients, ({ many }) => ({
+  recipeIngredients: many(recipeIngredients),
+}));
+
+export const recipesRelations = relations(recipes, ({ many }) => ({
+  recipeIngredients: many(recipeIngredients),
+}));
+
+export const recipeIngredientsRelations = relations(recipeIngredients, ({ one }) => ({
+  recipe: one(recipes, {
+    fields: [recipeIngredients.recipeId],
+    references: [recipes.id],
+  }),
+  ingredient: one(ingredients, {
+    fields: [recipeIngredients.ingredientId],
+    references: [ingredients.id],
+  }),
+}));

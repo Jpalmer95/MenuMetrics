@@ -6,8 +6,12 @@ import {
   type RecipeIngredient,
   type InsertRecipeIngredient,
   type RecipeWithIngredients,
+  ingredients,
+  recipes,
+  recipeIngredients,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getIngredient(id: string): Promise<Ingredient | undefined>;
@@ -30,52 +34,39 @@ export interface IStorage {
   deleteRecipeIngredient(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private ingredients: Map<string, Ingredient>;
-  private recipes: Map<string, Recipe>;
-  private recipeIngredients: Map<string, RecipeIngredient>;
-
-  constructor() {
-    this.ingredients = new Map();
-    this.recipes = new Map();
-    this.recipeIngredients = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async getIngredient(id: string): Promise<Ingredient | undefined> {
-    return this.ingredients.get(id);
+    const [ingredient] = await db.select().from(ingredients).where(eq(ingredients.id, id));
+    return ingredient || undefined;
   }
 
   async getAllIngredients(): Promise<Ingredient[]> {
-    return Array.from(this.ingredients.values());
+    return await db.select().from(ingredients);
   }
 
   async createIngredient(insertIngredient: InsertIngredient): Promise<Ingredient> {
-    const id = randomUUID();
-    const ingredient: Ingredient = {
-      ...insertIngredient,
-      id,
-      lastUpdated: new Date(),
-    };
-    this.ingredients.set(id, ingredient);
+    const [ingredient] = await db
+      .insert(ingredients)
+      .values(insertIngredient)
+      .returning();
     return ingredient;
   }
 
   async updateIngredient(id: string, insertIngredient: InsertIngredient): Promise<Ingredient | undefined> {
-    const existing = this.ingredients.get(id);
-    if (!existing) return undefined;
+    const [updated] = await db
+      .update(ingredients)
+      .set({ ...insertIngredient, lastUpdated: new Date() })
+      .where(eq(ingredients.id, id))
+      .returning();
 
-    const updated: Ingredient = {
-      ...insertIngredient,
-      id,
-      lastUpdated: new Date(),
-    };
-    this.ingredients.set(id, updated);
+    if (!updated) return undefined;
 
-    const affectedRecipes = Array.from(this.recipeIngredients.values())
-      .filter((ri) => ri.ingredientId === id)
-      .map((ri) => ri.recipeId);
+    const affectedRecipeIds = await db
+      .select({ recipeId: recipeIngredients.recipeId })
+      .from(recipeIngredients)
+      .where(eq(recipeIngredients.ingredientId, id));
 
-    for (const recipeId of new Set(affectedRecipes)) {
+    for (const { recipeId } of affectedRecipeIds) {
       await this.recalculateRecipeCost(recipeId);
     }
 
@@ -83,65 +74,58 @@ export class MemStorage implements IStorage {
   }
 
   async deleteIngredient(id: string): Promise<boolean> {
-    return this.ingredients.delete(id);
+    const result = await db.delete(ingredients).where(eq(ingredients.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 
   async getRecipe(id: string): Promise<Recipe | undefined> {
-    return this.recipes.get(id);
+    const [recipe] = await db.select().from(recipes).where(eq(recipes.id, id));
+    return recipe || undefined;
   }
 
   async getRecipeWithIngredients(id: string): Promise<RecipeWithIngredients | undefined> {
-    const recipe = this.recipes.get(id);
+    const recipe = await this.getRecipe(id);
     if (!recipe) return undefined;
 
-    const ingredients = await this.getRecipeIngredients(id);
+    const recipeIngs = await this.getRecipeIngredients(id);
     return {
       ...recipe,
-      ingredients,
+      ingredients: recipeIngs,
     };
   }
 
   async getAllRecipes(): Promise<Recipe[]> {
-    return Array.from(this.recipes.values());
+    return await db.select().from(recipes);
   }
 
   async createRecipe(insertRecipe: InsertRecipe): Promise<Recipe> {
-    const id = randomUUID();
-    const recipe: Recipe = {
-      ...insertRecipe,
-      id,
-      totalCost: 0,
-      costPerServing: 0,
-      createdAt: new Date(),
-    };
-    this.recipes.set(id, recipe);
+    const [recipe] = await db
+      .insert(recipes)
+      .values(insertRecipe)
+      .returning();
     return recipe;
   }
 
   async updateRecipe(id: string, insertRecipe: InsertRecipe): Promise<Recipe | undefined> {
-    const existing = this.recipes.get(id);
-    if (!existing) return undefined;
+    const [updated] = await db
+      .update(recipes)
+      .set(insertRecipe)
+      .where(eq(recipes.id, id))
+      .returning();
 
-    const updated: Recipe = {
-      ...existing,
-      ...insertRecipe,
-    };
-    this.recipes.set(id, updated);
+    if (!updated) return undefined;
     await this.recalculateRecipeCost(id);
-    return this.recipes.get(id);
+    return await this.getRecipe(id);
   }
 
   async deleteRecipe(id: string): Promise<boolean> {
-    const recipeIngs = Array.from(this.recipeIngredients.values())
-      .filter((ri) => ri.recipeId === id);
-    
-    recipeIngs.forEach((ri) => this.recipeIngredients.delete(ri.id));
-    
-    return this.recipes.delete(id);
+    await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, id));
+    const result = await db.delete(recipes).where(eq(recipes.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 
   async recalculateRecipeCost(recipeId: string): Promise<Recipe | undefined> {
-    const recipe = this.recipes.get(recipeId);
+    const recipe = await this.getRecipe(recipeId);
     if (!recipe) return undefined;
 
     const recipeIngs = await this.getRecipeIngredients(recipeId);
@@ -156,12 +140,12 @@ export class MemStorage implements IStorage {
 
     const costPerServing = recipe.servings > 0 ? totalCost / recipe.servings : 0;
 
-    const updated: Recipe = {
-      ...recipe,
-      totalCost,
-      costPerServing,
-    };
-    this.recipes.set(recipeId, updated);
+    const [updated] = await db
+      .update(recipes)
+      .set({ totalCost, costPerServing })
+      .where(eq(recipes.id, recipeId))
+      .returning();
+
     return updated;
   }
 
@@ -203,55 +187,61 @@ export class MemStorage implements IStorage {
   }
 
   async getRecipeIngredients(recipeId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>> {
-    const recipeIngs = Array.from(this.recipeIngredients.values())
-      .filter((ri) => ri.recipeId === recipeId);
+    const recipeIngs = await db
+      .select()
+      .from(recipeIngredients)
+      .where(eq(recipeIngredients.recipeId, recipeId));
 
-    return recipeIngs.map((ri) => {
-      const ingredientDetails = this.ingredients.get(ri.ingredientId);
-      if (!ingredientDetails) {
-        throw new Error(`Ingredient ${ri.ingredientId} not found`);
+    const result = [];
+    for (const ri of recipeIngs) {
+      const ingredient = await this.getIngredient(ri.ingredientId);
+      if (ingredient) {
+        result.push({
+          ...ri,
+          ingredientDetails: ingredient,
+        });
       }
-      return {
-        ...ri,
-        ingredientDetails,
-      };
-    });
+    }
+    return result;
   }
 
   async createRecipeIngredient(insertRecipeIngredient: InsertRecipeIngredient): Promise<RecipeIngredient> {
-    const id = randomUUID();
-    const recipeIngredient: RecipeIngredient = {
-      ...insertRecipeIngredient,
-      id,
-    };
-    this.recipeIngredients.set(id, recipeIngredient);
+    const [recipeIngredient] = await db
+      .insert(recipeIngredients)
+      .values(insertRecipeIngredient)
+      .returning();
+    
     await this.recalculateRecipeCost(insertRecipeIngredient.recipeId);
     return recipeIngredient;
   }
 
   async updateRecipeIngredientQuantity(id: string, quantity: number): Promise<RecipeIngredient | undefined> {
-    const existing = this.recipeIngredients.get(id);
-    if (!existing) return undefined;
+    const [updated] = await db
+      .update(recipeIngredients)
+      .set({ quantity })
+      .where(eq(recipeIngredients.id, id))
+      .returning();
 
-    const updated: RecipeIngredient = {
-      ...existing,
-      quantity,
-    };
-    this.recipeIngredients.set(id, updated);
-    await this.recalculateRecipeCost(existing.recipeId);
+    if (!updated) return undefined;
+    await this.recalculateRecipeCost(updated.recipeId);
     return updated;
   }
 
   async deleteRecipeIngredient(id: string): Promise<boolean> {
-    const recipeIngredient = this.recipeIngredients.get(id);
+    const [recipeIngredient] = await db
+      .select()
+      .from(recipeIngredients)
+      .where(eq(recipeIngredients.id, id));
+    
     if (!recipeIngredient) return false;
     
-    const deleted = this.recipeIngredients.delete(id);
-    if (deleted) {
+    const result = await db.delete(recipeIngredients).where(eq(recipeIngredients.id, id));
+    if (result.rowCount && result.rowCount > 0) {
       await this.recalculateRecipeCost(recipeIngredient.recipeId);
+      return true;
     }
-    return deleted;
+    return false;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
