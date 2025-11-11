@@ -47,11 +47,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createIngredient(insertIngredient: InsertIngredient): Promise<Ingredient> {
-    // Calculate all per-unit costs from purchase data
+    // Calculate all per-unit costs from purchase data (with density if provided)
     const unitCosts = calculateAllUnitCosts(
       insertIngredient.purchaseQuantity,
       insertIngredient.purchaseUnit as MeasurementUnit,
-      insertIngredient.purchaseCost
+      insertIngredient.purchaseCost,
+      insertIngredient.gramsPerMilliliter || undefined
     );
     
     const [ingredient] = await db
@@ -65,11 +66,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateIngredient(id: string, insertIngredient: InsertIngredient): Promise<Ingredient | undefined> {
-    // Recalculate all per-unit costs from updated purchase data
+    // Recalculate all per-unit costs from updated purchase data (with density if provided)
     const unitCosts = calculateAllUnitCosts(
       insertIngredient.purchaseQuantity,
       insertIngredient.purchaseUnit as MeasurementUnit,
-      insertIngredient.purchaseCost
+      insertIngredient.purchaseCost,
+      insertIngredient.gramsPerMilliliter || undefined
     );
     
     const [updated] = await db
@@ -205,19 +207,32 @@ export class DatabaseStorage implements IStorage {
         ingredient.purchaseCost !== null &&
         ingredient.purchaseCost !== undefined
       ) {
-        // Use shared cost calculator to ensure consistency
+        // Use shared cost calculator to ensure consistency (with density if available)
+        const options = ingredient.gramsPerMilliliter 
+          ? { densityGramsPerMl: ingredient.gramsPerMilliliter }
+          : undefined;
+        
         costPerUnit = calculateCostPerUnit(
           ingredient.purchaseQuantity,
           ingredient.purchaseUnit as MeasurementUnit,
           ingredient.purchaseCost,
-          recipeUnit as MeasurementUnit
+          recipeUnit as MeasurementUnit,
+          options
         );
         
-        // Still null means incompatible units (e.g., "units" ↔ weight/volume)
+        // Still null means incompatible units or missing density for cross-family conversion
         if (costPerUnit === null) {
-          console.warn(
-            `Cannot convert between ${ingredient.purchaseUnit} and ${recipeUnit} for ingredient ${ingredient.name}`
-          );
+          const purchaseFamily = ingredient.purchaseUnit;
+          const targetFamily = recipeUnit;
+          if (!ingredient.gramsPerMilliliter) {
+            console.warn(
+              `Cross-family conversion from ${purchaseFamily} to ${targetFamily} requires density for ingredient ${ingredient.name}. Add density to enable accurate cost calculation.`
+            );
+          } else {
+            console.warn(
+              `Cannot convert between ${purchaseFamily} and ${targetFamily} for ingredient ${ingredient.name}`
+            );
+          }
           return 0;
         }
       } else {

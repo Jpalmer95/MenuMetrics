@@ -62,19 +62,30 @@ export function calculateIngredientCost(
       ingredient.purchaseCost !== null &&
       ingredient.purchaseCost !== undefined
     ) {
-      // Use shared cost calculator to ensure consistency
+      // Use shared cost calculator to ensure consistency (with density if available)
+      const options = ingredient.gramsPerMilliliter 
+        ? { densityGramsPerMl: ingredient.gramsPerMilliliter }
+        : undefined;
+      
       costPerUnit = calculateCostPerUnit(
         ingredient.purchaseQuantity,
         ingredient.purchaseUnit as MeasurementUnit,
         ingredient.purchaseCost,
-        recipeUnit
+        recipeUnit,
+        options
       );
       
-      // Still null means incompatible units (e.g., "units" ↔ weight/volume)
+      // Still null means incompatible units or missing density for cross-family conversion
       if (costPerUnit === null) {
-        console.warn(
-          `Cannot convert between ${ingredient.purchaseUnit} and ${recipeUnit} for ingredient ${ingredient.name}`
-        );
+        if (!ingredient.gramsPerMilliliter) {
+          console.warn(
+            `Cross-family conversion from ${ingredient.purchaseUnit} to ${recipeUnit} requires density for ingredient ${ingredient.name}. Add density to enable accurate cost calculation.`
+          );
+        } else {
+          console.warn(
+            `Cannot convert between ${ingredient.purchaseUnit} and ${recipeUnit} for ingredient ${ingredient.name}`
+          );
+        }
         return 0;
       }
     } else {

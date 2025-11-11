@@ -32,6 +32,12 @@ export const ingredients = pgTable("ingredients", {
   purchaseUnit: text("purchase_unit").notNull(),
   purchaseCost: real("purchase_cost").notNull(),
   
+  // Density (for accurate volume↔weight conversions)
+  // Stored as grams per milliliter (g/mL)
+  // Example: Water = 1.0, Milk = 1.03, Flour = 0.5, Sugar = 0.85
+  gramsPerMilliliter: real("grams_per_milliliter"),
+  densitySource: text("density_source"), // "preset", "manual", "imported", "USDA", etc.
+  
   // Calculated per-unit costs (auto-calculated from purchase data)
   costPerOunce: real("cost_per_ounce"),
   costPerGram: real("cost_per_gram"),
@@ -71,6 +77,8 @@ export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   purchaseQuantity: z.number().positive("Purchase quantity must be positive"),
   purchaseCost: z.number().nonnegative("Purchase cost must be non-negative"),
   store: z.string().optional(),
+  gramsPerMilliliter: z.number().positive("Density must be positive").optional(),
+  densitySource: z.string().optional(),
 });
 
 export type InsertIngredient = z.infer<typeof insertIngredientSchema>;
