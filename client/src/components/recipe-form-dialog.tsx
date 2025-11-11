@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertRecipeSchema, type InsertRecipe, type Recipe } from "@shared/schema";
+import { insertRecipeSchema, type InsertRecipe, type Recipe, recipeCategories } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,15 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useEffect } from "react";
 
 interface RecipeFormDialogProps {
@@ -40,7 +48,10 @@ export function RecipeFormDialog({
     resolver: zodResolver(insertRecipeSchema),
     defaultValues: {
       name: "",
+      description: "",
+      category: "other",
       servings: 1,
+      menuPrice: undefined,
     },
   });
 
@@ -48,12 +59,18 @@ export function RecipeFormDialog({
     if (recipe) {
       form.reset({
         name: recipe.name,
+        description: recipe.description || "",
+        category: recipe.category as any,
         servings: recipe.servings,
+        menuPrice: recipe.menuPrice || undefined,
       });
     } else {
       form.reset({
         name: "",
+        description: "",
+        category: "other",
         servings: 1,
+        menuPrice: undefined,
       });
     }
   }, [recipe, form]);
@@ -97,6 +114,50 @@ export function RecipeFormDialog({
 
             <FormField
               control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="e.g., Rich espresso with creamy steamed milk and sweet caramel syrup"
+                      {...field}
+                      value={field.value || ""}
+                      data-testid="input-recipe-description"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-recipe-category">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {recipeCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat} data-testid={`option-category-${cat}`}>
+                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="servings"
               render={({ field }) => (
                 <FormItem>
@@ -108,6 +169,31 @@ export function RecipeFormDialog({
                       {...field}
                       onChange={(e) => field.onChange(parseFloat(e.target.value))}
                       data-testid="input-recipe-servings"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="menuPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Menu Price (Optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g., 5.99"
+                      {...field}
+                      value={field.value || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        field.onChange(value ? parseFloat(value) : undefined);
+                      }}
+                      data-testid="input-recipe-menu-price"
                     />
                   </FormControl>
                   <FormMessage />

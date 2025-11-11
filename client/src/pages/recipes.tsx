@@ -17,9 +17,11 @@ export default function RecipesPage() {
     queryKey: ["/api/recipes"],
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: InsertRecipe) =>
-      apiRequest("POST", "/api/recipes", data),
+  const createMutation = useMutation<Recipe, Error, InsertRecipe>({
+    mutationFn: async (data: InsertRecipe) => {
+      const response = await apiRequest("POST", "/api/recipes", data);
+      return await response.json();
+    },
     onSuccess: (newRecipe: Recipe) => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
       setIsFormOpen(false);
@@ -38,9 +40,11 @@ export default function RecipesPage() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: InsertRecipe }) =>
-      apiRequest("PATCH", `/api/recipes/${id}`, data),
+  const updateMutation = useMutation<Recipe, Error, { id: string; data: InsertRecipe }>({
+    mutationFn: async ({ id, data }: { id: string; data: InsertRecipe }) => {
+      const response = await apiRequest("PATCH", `/api/recipes/${id}`, data);
+      return await response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
       setIsFormOpen(false);
@@ -59,8 +63,10 @@ export default function RecipesPage() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/recipes/${id}`, undefined),
+  const deleteMutation = useMutation<void, Error, string>({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/recipes/${id}`, undefined);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
       toast({

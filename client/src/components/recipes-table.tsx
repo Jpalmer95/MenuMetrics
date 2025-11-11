@@ -11,7 +11,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Recipe } from "@shared/schema";
+import { calculateProfitMargin, recipeCategories } from "@shared/schema";
 import { format } from "date-fns";
 
 interface RecipesTableProps {
@@ -30,17 +38,25 @@ export function RecipesTable({
   onViewDetails,
 }: RecipesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortColumn, setSortColumn] = useState<keyof Recipe | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  const filteredRecipes = recipes.filter((recipe) =>
-    recipe.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRecipes = recipes.filter((recipe) => {
+    const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === "all" || recipe.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
 
   const sortedRecipes = [...filteredRecipes].sort((a, b) => {
     if (!sortColumn) return 0;
     const aVal = a[sortColumn];
     const bVal = b[sortColumn];
+    
+    if (aVal === null && bVal === null) return 0;
+    if (aVal === null) return sortDirection === "asc" ? 1 : -1;
+    if (bVal === null) return sortDirection === "asc" ? -1 : 1;
+    
     if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
     if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
     return 0;
@@ -55,23 +71,33 @@ export function RecipesTable({
     }
   };
 
-  const calculateMargin = (totalCost: number) => {
-    const recommendedPrice = totalCost * 3;
-    return ((recommendedPrice - totalCost) / recommendedPrice) * 100;
-  };
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search recipes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-            data-testid="input-search-recipes"
-          />
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-1 min-w-[300px]">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search recipes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+              data-testid="input-search-recipes"
+            />
+          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-[180px]" data-testid="select-category-filter">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" data-testid="option-filter-all">All categories</SelectItem>
+              {recipeCategories.map((cat) => (
+                <SelectItem key={cat} value={cat} data-testid={`option-filter-${cat}`}>
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <Button onClick={onAddNew} data-testid="button-add-recipe">
           <Plus className="h-4 w-4 mr-2" />
@@ -93,20 +119,11 @@ export function RecipesTable({
                 )}
               </TableHead>
               <TableHead
-                className="text-right cursor-pointer font-semibold"
-                onClick={() => handleSort("servings")}
+                className="cursor-pointer font-semibold"
+                onClick={() => handleSort("category")}
               >
-                Servings
-                {sortColumn === "servings" && (
-                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
-                )}
-              </TableHead>
-              <TableHead
-                className="text-right cursor-pointer font-semibold"
-                onClick={() => handleSort("totalCost")}
-              >
-                Total Cost
-                {sortColumn === "totalCost" && (
+                Category
+                {sortColumn === "category" && (
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
@@ -119,23 +136,31 @@ export function RecipesTable({
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
+              <TableHead
+                className="text-right cursor-pointer font-semibold"
+                onClick={() => handleSort("menuPrice")}
+              >
+                Menu Price
+                {sortColumn === "menuPrice" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
               <TableHead className="text-right font-semibold">Margin %</TableHead>
-              <TableHead className="font-semibold">Created</TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedRecipes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  {searchTerm
-                    ? "No recipes found matching your search."
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  {searchTerm || categoryFilter !== "all"
+                    ? "No recipes found matching your filters."
                     : "No recipes yet. Create your first recipe to get started."}
                 </TableCell>
               </TableRow>
             ) : (
               sortedRecipes.map((recipe) => {
-                const margin = calculateMargin(recipe.totalCost);
+                const margin = calculateProfitMargin(recipe.menuPrice, recipe.costPerServing);
                 return (
                   <TableRow
                     key={recipe.id}
@@ -148,31 +173,36 @@ export function RecipesTable({
                         {recipe.name}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {recipe.servings}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium text-destructive">
-                      ${recipe.totalCost.toFixed(2)}
+                    <TableCell>
+                      <Badge variant="outline" data-testid={`badge-category-${recipe.id}`}>
+                        {recipe.category.charAt(0).toUpperCase() + recipe.category.slice(1)}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-medium">
                       ${recipe.costPerServing.toFixed(2)}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Badge
-                        variant={margin >= 60 ? "default" : "secondary"}
-                        className={
-                          margin >= 60
-                            ? "bg-success hover:bg-success"
-                            : margin >= 50
-                            ? "bg-warning hover:bg-warning"
-                            : ""
-                        }
-                      >
-                        {margin.toFixed(1)}%
-                      </Badge>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {recipe.menuPrice ? (
+                        `$${recipe.menuPrice.toFixed(2)}`
+                      ) : (
+                        <Badge variant="secondary" className="text-muted-foreground" data-testid={`badge-no-price-${recipe.id}`}>
+                          Not set
+                        </Badge>
+                      )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(recipe.createdAt), "MMM d, yyyy")}
+                    <TableCell className="text-right">
+                      {margin !== null ? (
+                        <Badge
+                          variant={margin >= 60 ? "default" : "secondary"}
+                          data-testid={`badge-margin-${recipe.id}`}
+                        >
+                          {margin.toFixed(1)}%
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground" data-testid={`badge-no-margin-${recipe.id}`}>
+                          -
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">

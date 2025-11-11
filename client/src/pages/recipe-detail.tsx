@@ -1,6 +1,6 @@
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RecipeBuilder } from "@/components/recipe-builder";
 import type {
@@ -10,9 +10,11 @@ import type {
   RecipeIngredient,
   InsertRecipeIngredient,
 } from "@shared/schema";
+import { calculateProfitMargin } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function RecipeDetailPage() {
   const { id } = useParams();
@@ -114,6 +116,8 @@ export default function RecipeDetailPage() {
     );
   }
 
+  const profitMargin = calculateProfitMargin(recipe.menuPrice, recipe.costPerServing);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -126,7 +130,17 @@ export default function RecipeDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">{recipe.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-bold tracking-tight">{recipe.name}</h1>
+            <Badge variant="outline" data-testid="badge-recipe-category">
+              {recipe.category.charAt(0).toUpperCase() + recipe.category.slice(1)}
+            </Badge>
+          </div>
+          {recipe.description && (
+            <p className="text-muted-foreground mt-2" data-testid="text-recipe-description">
+              {recipe.description}
+            </p>
+          )}
           <p className="text-muted-foreground mt-1">
             {recipe.servings} serving{recipe.servings !== 1 ? "s" : ""} • $
             {recipe.costPerServing.toFixed(2)} per serving
@@ -134,7 +148,7 @@ export default function RecipeDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -164,14 +178,51 @@ export default function RecipeDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Recommended Price
+              Menu Price
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold tabular-nums text-success">
-              ${(recipe.totalCost * 3).toFixed(2)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">3x markup (66% margin)</p>
+            {recipe.menuPrice ? (
+              <>
+                <div className="text-2xl font-bold tabular-nums" data-testid="text-recipe-menu-price">
+                  ${recipe.menuPrice.toFixed(2)}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Badge variant="secondary" className="text-muted-foreground w-fit" data-testid="badge-no-menu-price">
+                  Not set
+                </Badge>
+                <p className="text-xs text-muted-foreground">
+                  <DollarSign className="h-3 w-3 inline mr-1" />
+                  Edit recipe to add
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Profit Margin
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {profitMargin !== null ? (
+              <>
+                <div className="text-2xl font-bold tabular-nums" data-testid="text-recipe-profit-margin">
+                  {profitMargin.toFixed(1)}%
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  ${(recipe.menuPrice! - recipe.costPerServing).toFixed(2)} profit/serving
+                </p>
+              </>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground" data-testid="badge-no-profit-margin">
+                Requires menu price
+              </Badge>
+            )}
           </CardContent>
         </Card>
       </div>

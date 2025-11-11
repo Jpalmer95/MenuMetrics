@@ -59,13 +59,29 @@ export const insertRecipeIngredientSchema = createInsertSchema(recipeIngredients
 export type InsertRecipeIngredient = z.infer<typeof insertRecipeIngredientSchema>;
 export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 
+export const recipeCategories = [
+  "beverages",
+  "pastries",
+  "sandwiches",
+  "salads",
+  "breakfast",
+  "lunch",
+  "desserts",
+  "snacks",
+  "other",
+] as const;
+
+export type RecipeCategory = typeof recipeCategories[number];
+
 export const recipes = pgTable("recipes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
+  category: text("category").notNull().default("other"),
   servings: real("servings").notNull().default(1),
   totalCost: real("total_cost").notNull().default(0),
   costPerServing: real("cost_per_serving").notNull().default(0),
+  menuPrice: real("menu_price"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -76,6 +92,8 @@ export const insertRecipeSchema = createInsertSchema(recipes).omit({
   createdAt: true,
 }).extend({
   servings: z.number().positive("Servings must be positive"),
+  category: z.enum(recipeCategories),
+  menuPrice: z.number().nonnegative("Menu price must be non-negative").optional(),
 });
 
 export type InsertRecipe = z.infer<typeof insertRecipeSchema>;
@@ -83,6 +101,11 @@ export type Recipe = typeof recipes.$inferSelect;
 
 export interface RecipeWithIngredients extends Recipe {
   ingredients: Array<RecipeIngredient & { ingredientDetails: Ingredient }>;
+}
+
+export function calculateProfitMargin(menuPrice: number | null, costPerServing: number): number | null {
+  if (!menuPrice || menuPrice <= 0 || costPerServing < 0) return null;
+  return ((menuPrice - costPerServing) / menuPrice) * 100;
 }
 
 import { relations } from "drizzle-orm";
