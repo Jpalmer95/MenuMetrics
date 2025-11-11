@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X, AlertCircle, AlertTriangle } from "lucide-react";
+import { Plus, X, AlertCircle, AlertTriangle, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,6 +28,99 @@ interface RecipeBuilderProps {
   onUpdateQuantity: (recipeIngredientId: string, quantity: number) => void;
 }
 
+const RecipeItemRow = ({
+  ri,
+  onUpdateQuantity,
+  onRemoveIngredient,
+}: {
+  ri: RecipeIngredient & { ingredientDetails: Ingredient };
+  onUpdateQuantity: (id: string, quantity: number) => void;
+  onRemoveIngredient: (id: string) => void;
+}) => {
+  const cost = calculateIngredientCost(
+    ri.ingredientDetails,
+    ri.quantity,
+    ri.unit as any
+  );
+  
+  const ingredientWarning = checkDensityWarning(
+    ri.ingredientDetails,
+    ri.unit as MeasurementUnit
+  );
+  const showCostWarning = cost === 0 && ingredientWarning.needsWarning;
+
+  return (
+    <div
+      key={ri.id}
+      className="flex items-center justify-between p-3 border rounded-md hover-elevate"
+      data-testid={`recipe-ingredient-${ri.id}`}
+    >
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{ri.ingredientDetails.name}</span>
+          <Badge variant="secondary" className="text-xs">
+            {ri.ingredientDetails.category}
+          </Badge>
+          {showCostWarning && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="text-xs gap-1" data-testid={`badge-density-warning-${ri.id}`}>
+                  <AlertTriangle className="h-3 w-3" />
+                  Needs density
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-sm">{ingredientWarning.message}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+        <div className="text-sm text-muted-foreground mt-1">
+          <Input
+            type="number"
+            step="0.01"
+            value={ri.quantity}
+            onChange={(e) =>
+              onUpdateQuantity(ri.id, parseFloat(e.target.value) || 0)
+            }
+            className="inline-block w-20 h-7 text-sm mr-2"
+            data-testid={`input-quantity-${ri.id}`}
+          />
+          {ri.unit}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        {showCostWarning ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-sm font-medium tabular-nums text-destructive flex items-center gap-1" data-testid={`text-cost-warning-${ri.id}`}>
+                <AlertTriangle className="h-3 w-3" />
+                ${cost.toFixed(2)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-sm">Cost may be inaccurate - density required</p>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <span className="text-sm font-medium tabular-nums">
+            ${cost.toFixed(2)}
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onRemoveIngredient(ri.id)}
+          data-testid={`button-remove-ingredient-${ri.id}`}
+        >
+          <X className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 export function RecipeBuilder({
   ingredients,
   recipeIngredients,
@@ -38,9 +131,21 @@ export function RecipeBuilder({
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState("units");
+  const [selectedPackagingId, setSelectedPackagingId] = useState("");
+  const [packagingQuantity, setPackagingQuantity] = useState(1);
+  const [packagingUnit, setPackagingUnit] = useState("units");
 
   const usedIngredientIds = recipeIngredients.map((ri) => ri.ingredientId);
-  const availableIngredients = ingredients.filter(
+  
+  // Split ingredients into regular ingredients and packaging
+  const regularIngredients = ingredients.filter((ing) => !ing.isPackaging);
+  const packagingItems = ingredients.filter((ing) => ing.isPackaging);
+  
+  const availableIngredients = regularIngredients.filter(
+    (ing) => !usedIngredientIds.includes(ing.id)
+  );
+  
+  const availablePackaging = packagingItems.filter(
     (ing) => !usedIngredientIds.includes(ing.id)
   );
 
@@ -53,8 +158,25 @@ export function RecipeBuilder({
     }
   };
 
-  const calculateTotalCost = () => {
-    return recipeIngredients.reduce((sum, ri) => {
+  const handleAddPackaging = () => {
+    if (selectedPackagingId && packagingQuantity > 0) {
+      onAddIngredient(selectedPackagingId, packagingQuantity, packagingUnit);
+      setSelectedPackagingId("");
+      setPackagingQuantity(1);
+      setPackagingUnit("units");
+    }
+  };
+
+  // Separate recipe ingredients into ingredients and packaging
+  const recipeRegularIngredients = recipeIngredients.filter(
+    (ri) => !ri.ingredientDetails.isPackaging
+  );
+  const recipePackagingItems = recipeIngredients.filter(
+    (ri) => ri.ingredientDetails.isPackaging
+  );
+
+  const calculateCost = (items: typeof recipeIngredients) => {
+    return items.reduce((sum, ri) => {
       const cost = calculateIngredientCost(
         ri.ingredientDetails,
         ri.quantity,
@@ -64,7 +186,9 @@ export function RecipeBuilder({
     }, 0);
   };
 
-  const totalCost = calculateTotalCost();
+  const ingredientsCost = calculateCost(recipeRegularIngredients);
+  const packagingCost = calculateCost(recipePackagingItems);
+  const totalCost = ingredientsCost + packagingCost;
 
   // Check if selected ingredient + unit combination needs density warning
   const selectedIngredient = selectedIngredientId
@@ -74,16 +198,28 @@ export function RecipeBuilder({
     selectedIngredient || null,
     unit as MeasurementUnit
   );
+  
+  // Check if selected packaging + unit combination needs density warning
+  const selectedPackaging = selectedPackagingId
+    ? ingredients.find((ing) => ing.id === selectedPackagingId)
+    : null;
+  const packagingDensityWarning = checkDensityWarning(
+    selectedPackaging || null,
+    packagingUnit as MeasurementUnit
+  );
+
+  const unitOptions = (["cups", "ounces", "grams", "units", "teaspoons", "tablespoons", "pounds", "kilograms", "milliliters", "liters", "pints", "quarts", "gallons"] as const);
 
   return (
     <div className="space-y-6">
+      {/* Ingredients Section */}
       <Card>
         <CardHeader>
           <CardTitle>Add Ingredients</CardTitle>
           <CardDescription>Select ingredients and specify quantities for this recipe</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {availableIngredients.length === 0 && recipeIngredients.length > 0 ? (
+          {availableIngredients.length === 0 && recipeRegularIngredients.length > 0 ? (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -127,13 +263,11 @@ export function RecipeBuilder({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(["cups", "ounces", "grams", "units", "teaspoons", "tablespoons", "pounds", "kilograms", "milliliters", "liters", "pints", "quarts", "gallons"] as const).map(
-                      (u) => (
-                        <SelectItem key={u} value={u}>
-                          {u}
-                        </SelectItem>
-                      )
-                    )}
+                    {unitOptions.map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
@@ -148,7 +282,6 @@ export function RecipeBuilder({
             </div>
           )}
 
-          {/* Density Warning Alert */}
           {densityWarning.needsWarning && selectedIngredient && (
             <Alert variant={densityWarning.warningType === "incompatible" ? "destructive" : "default"} data-testid="alert-density-warning">
               <AlertTriangle className="h-4 w-4" />
@@ -160,109 +293,117 @@ export function RecipeBuilder({
         </CardContent>
       </Card>
 
+      {/* Packaging Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Package className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Add Packaging</CardTitle>
+          </div>
+          <CardDescription>Select packaging items like cups, lids, and sleeves</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {availablePackaging.length === 0 && recipePackagingItems.length > 0 ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                All available packaging items have been added to this recipe.
+              </AlertDescription>
+            </Alert>
+          ) : availablePackaging.length === 0 ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No packaging items available. Please add packaging items (cups, lids, sleeves) to your ingredients database first and mark them as packaging.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <Select value={selectedPackagingId} onValueChange={setSelectedPackagingId}>
+                <SelectTrigger className="md:col-span-2" data-testid="select-packaging">
+                  <SelectValue placeholder="Select packaging" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePackaging.map((ing) => (
+                    <SelectItem key={ing.id} value={ing.id}>
+                      {ing.name} ({ing.category})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Input
+                type="number"
+                step="0.01"
+                value={packagingQuantity}
+                onChange={(e) => setPackagingQuantity(parseFloat(e.target.value) || 0)}
+                placeholder="Quantity"
+                data-testid="input-packaging-quantity"
+              />
+
+              <div className="flex gap-2">
+                <Select value={packagingUnit} onValueChange={setPackagingUnit}>
+                  <SelectTrigger data-testid="select-packaging-unit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unitOptions.map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  onClick={handleAddPackaging}
+                  disabled={!selectedPackagingId || packagingQuantity <= 0}
+                  data-testid="button-add-packaging-to-recipe"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {packagingDensityWarning.needsWarning && selectedPackaging && (
+            <Alert variant={packagingDensityWarning.warningType === "incompatible" ? "destructive" : "default"} data-testid="alert-packaging-density-warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Warning:</strong> {packagingDensityWarning.message}
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recipe Ingredients List */}
       <Card>
         <CardHeader>
           <CardTitle>Recipe Ingredients</CardTitle>
-          <CardDescription>Current ingredients in this recipe</CardDescription>
+          <CardDescription>Food ingredients in this recipe</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {recipeIngredients.length === 0 ? (
+          {recipeRegularIngredients.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No ingredients added yet. Add ingredients from the selection above.
             </p>
           ) : (
             <>
-              {recipeIngredients.map((ri) => {
-                const cost = calculateIngredientCost(
-                  ri.ingredientDetails,
-                  ri.quantity,
-                  ri.unit as any
-                );
-                
-                // Check if this ingredient needs density warning
-                const ingredientWarning = checkDensityWarning(
-                  ri.ingredientDetails,
-                  ri.unit as MeasurementUnit
-                );
-                const showCostWarning = cost === 0 && ingredientWarning.needsWarning;
+              {recipeRegularIngredients.map((ri) => (
+                <RecipeItemRow
+                  key={ri.id}
+                  ri={ri}
+                  onUpdateQuantity={onUpdateQuantity}
+                  onRemoveIngredient={onRemoveIngredient}
+                />
+              ))}
 
-                return (
-                  <div
-                    key={ri.id}
-                    className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/30"
-                    data-testid={`recipe-ingredient-${ri.id}`}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{ri.ingredientDetails.name}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {ri.ingredientDetails.category}
-                        </Badge>
-                        {showCostWarning && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge variant="destructive" className="text-xs gap-1" data-testid={`badge-density-warning-${ri.id}`}>
-                                <AlertTriangle className="h-3 w-3" />
-                                Needs density
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              <p className="text-sm">{ingredientWarning.message}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={ri.quantity}
-                          onChange={(e) =>
-                            onUpdateQuantity(ri.id, parseFloat(e.target.value) || 0)
-                          }
-                          className="inline-block w-20 h-7 text-sm mr-2"
-                          data-testid={`input-quantity-${ri.id}`}
-                        />
-                        {ri.unit}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {showCostWarning ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-sm font-medium tabular-nums text-destructive flex items-center gap-1" data-testid={`text-cost-warning-${ri.id}`}>
-                              <AlertTriangle className="h-3 w-3" />
-                              ${cost.toFixed(2)}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-sm">Cost may be inaccurate - density required</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        <span className="text-sm font-medium tabular-nums">
-                          ${cost.toFixed(2)}
-                        </span>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onRemoveIngredient(ri.id)}
-                        data-testid={`button-remove-ingredient-${ri.id}`}
-                      >
-                        <X className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div className="border-t pt-4 mt-4">
+              <div className="border-t pt-3 mt-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-lg font-semibold">Total Recipe Cost</span>
-                  <span className="text-2xl font-bold tabular-nums text-destructive" data-testid="text-total-cost">
-                    ${totalCost.toFixed(2)}
+                  <span className="font-semibold">Ingredients Subtotal</span>
+                  <span className="text-lg font-bold tabular-nums" data-testid="text-ingredients-subtotal">
+                    ${ingredientsCost.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -270,6 +411,70 @@ export function RecipeBuilder({
           )}
         </CardContent>
       </Card>
+
+      {/* Recipe Packaging List */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Package className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Packaging Items</CardTitle>
+          </div>
+          <CardDescription>Cups, lids, sleeves, and other packaging</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {recipePackagingItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No packaging items added yet. Add packaging from the selection above.
+            </p>
+          ) : (
+            <>
+              {recipePackagingItems.map((ri) => (
+                <RecipeItemRow
+                  key={ri.id}
+                  ri={ri}
+                  onUpdateQuantity={onUpdateQuantity}
+                  onRemoveIngredient={onRemoveIngredient}
+                />
+              ))}
+
+              <div className="border-t pt-3 mt-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Packaging Subtotal</span>
+                  <span className="text-lg font-bold tabular-nums" data-testid="text-packaging-subtotal">
+                    ${packagingCost.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Grand Total */}
+      {(recipeRegularIngredients.length > 0 || recipePackagingItems.length > 0) && (
+        <Card className="border-primary">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xl font-semibold">Total Recipe Cost</span>
+              <span className="text-3xl font-bold tabular-nums text-primary" data-testid="text-total-cost">
+                ${totalCost.toFixed(2)}
+              </span>
+            </div>
+            {recipeRegularIngredients.length > 0 && recipePackagingItems.length > 0 && (
+              <div className="mt-3 pt-3 border-t text-sm text-muted-foreground space-y-1">
+                <div className="flex justify-between">
+                  <span>Ingredients:</span>
+                  <span className="tabular-nums">${ingredientsCost.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Packaging:</span>
+                  <span className="tabular-nums">${packagingCost.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
