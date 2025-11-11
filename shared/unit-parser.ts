@@ -17,7 +17,7 @@ const unitAliases: Record<string, MeasurementUnit> = {
   "kilo": "kilograms",
   "kilogram": "kilograms",
   
-  // Volume
+  // Volume (including multi-word variants)
   "cup": "cups",
   "tsp": "teaspoons",
   "teaspoon": "teaspoons",
@@ -33,6 +33,12 @@ const unitAliases: Record<string, MeasurementUnit> = {
   "quart": "quarts",
   "gal": "gallons",
   "gallon": "gallons",
+  
+  // Fluid ounces - multi-word variants
+  "fl oz": "ounces",
+  "floz": "ounces",
+  "fluid oz": "ounces",
+  "fluid ounce": "ounces",
   
   // Each
   "unit": "units",
@@ -60,23 +66,40 @@ export function parseQuantityUnit(input: string): ParsedQuantity | null {
 
   const trimmed = input.trim().toLowerCase();
   
-  // Try to match: number + optional space + unit
-  // Examples: "1lb", "64 oz", "12quarts", "5 cups"
-  const match = trimmed.match(/^(\d+\.?\d*)\s*([a-z]+)$/);
+  // Separate the quantity part from the unit part first
+  // This lets us preserve decimals in quantity while removing periods from units
+  const firstMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
   
-  if (!match) {
+  if (!firstMatch) {
     return null;
   }
-
-  const [, quantityStr, unitStr] = match;
+  
+  const [, quantityStr, rawUnit] = firstMatch;
+  
+  // Normalize the unit part (remove hyphens, underscores, periods, extra spaces)
+  // But this won't affect the decimal in the quantity
+  const normalized = rawUnit
+    .replace(/[\-_\.]/g, ' ')  // Replace hyphens, underscores, and periods with space
+    .replace(/\s+/g, ' ')  // Normalize multiple spaces to single space
+    .trim();
+  
+  // Parse quantity
   const quantity = parseFloat(quantityStr);
   
   if (isNaN(quantity) || quantity <= 0) {
     return null;
   }
 
-  // Look up canonical unit name
-  const canonicalUnit = unitAliases[unitStr];
+  // If no unit part, return null
+  if (!normalized) {
+    return null;
+  }
+
+  // Remove trailing 's' for plural handling
+  const normalizedUnit = normalized.replace(/s\s*$/, '');
+  
+  // Look up canonical unit name (try with and without trailing 's')
+  const canonicalUnit = unitAliases[normalized] || unitAliases[normalizedUnit];
   
   if (!canonicalUnit) {
     return null;
@@ -91,8 +114,20 @@ export function parseQuantityUnit(input: string): ParsedQuantity | null {
 
 /**
  * Normalize a unit string to canonical form
+ * Handles punctuation variations like "fl. oz", "lb.", "oz.", etc.
  */
 export function normalizeUnit(unit: string): MeasurementUnit | null {
-  const normalized = unit.trim().toLowerCase();
-  return unitAliases[normalized] || (measurementUnits.includes(normalized as any) ? normalized as MeasurementUnit : null);
+  // Normalize punctuation: remove hyphens, underscores, periods
+  // Then normalize whitespace
+  const normalized = unit
+    .trim()
+    .toLowerCase()
+    .replace(/[\-_\.]/g, ' ')  // Replace punctuation with space
+    .replace(/\s+/g, ' ')       // Collapse multiple spaces
+    .trim();
+  
+  // Try to look up with and without trailing 's'
+  const withoutS = normalized.replace(/s\s*$/, '');
+  
+  return unitAliases[normalized] || unitAliases[withoutS] || (measurementUnits.includes(normalized as any) ? normalized as MeasurementUnit : null);
 }

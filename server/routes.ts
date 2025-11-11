@@ -4,7 +4,7 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
 import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, measurementUnits } from "@shared/schema";
-import { parseQuantityUnit } from "@shared/unit-parser";
+import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -150,25 +150,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const worksheet = workbook.Sheets[sheetName];
       const data = XLSX.utils.sheet_to_json(worksheet);
 
-      let imported = 0;
-      for (const row of data) {
+      const results: { success: any[]; errors: any[] } = { success: [], errors: [] };
+      
+      for (let i = 0; i < data.length; i++) {
         try {
-          const rowData = row as any;
+          const rowData = data[i] as any;
+          const rowNum = i + 2; // Account for header row
+          
+          // Extract values from mapped columns
+          const name = rowData[mapping.name];
+          const category = rowData[mapping.category];
+          const store = mapping.store ? rowData[mapping.store] : undefined;
+          
+          // Validate required fields are present
+          if (!name || !category) {
+            throw new Error(`Missing required field: ${!name ? 'name' : 'category'}`);
+          }
+          
+          // Parse quantity/unit - support mixed formats like "1lb", "64oz", "2 lbs."
+          let purchaseQuantity: number;
+          let purchaseUnit: string;
+          
+          const quantityValue = mapping.purchaseQuantity ? rowData[mapping.purchaseQuantity] : undefined;
+          const unitValue = mapping.purchaseUnit ? rowData[mapping.purchaseUnit] : undefined;
+          
+          // First, try to parse quantity as combined format ("64oz", "1lb", "2 lbs.", "16 fl oz")
+          if (quantityValue && typeof quantityValue === "string") {
+            const parsed = parseQuantityUnit(quantityValue);
+            if (parsed) {
+              purchaseQuantity = parsed.quantity;
+              purchaseUnit = parsed.unit;
+            } else {
+              // Not a combined format - parse as separate quantity and unit
+              const numParsed = parseFloat(quantityValue);
+              if (isNaN(numParsed) || numParsed <= 0) {
+                throw new Error(`Invalid purchase quantity: "${quantityValue}"`);
+              }
+              purchaseQuantity = numParsed;
+              
+              // Normalize the unit value
+              if (unitValue) {
+                const normalized = normalizeUnit(String(unitValue));
+                if (!normalized) {
+                  throw new Error(`Invalid unit: "${unitValue}". Must be one of: ${measurementUnits.join(", ")}`);
+                }
+                purchaseUnit = normalized;
+              } else {
+                // No unit mapped and combined parsing failed - reject the row
+                throw new Error(`Could not parse unit from "${quantityValue}". Either map a Purchase Unit column or use combined format like "64oz" or "16 fl oz"`);
+              }
+            }
+          } else {
+            const numParsed = parseFloat(quantityValue);
+            if (isNaN(numParsed) || numParsed <= 0) {
+              throw new Error(`Invalid purchase quantity: "${quantityValue}"`);
+            }
+            purchaseQuantity = numParsed;
+            
+            // Normalize the unit value
+            if (unitValue) {
+              const normalized = normalizeUnit(String(unitValue));
+              if (!normalized) {
+                throw new Error(`Invalid unit: "${unitValue}". Must be one of: ${measurementUnits.join(", ")}`);
+              }
+              purchaseUnit = normalized;
+            } else {
+              // No unit mapped and no string quantity - reject the row
+              throw new Error("No unit specified. Map a Purchase Unit column or use combined format in Purchase Quantity");
+            }
+          }
+          
+          // Parse purchase cost
+          const costValue = mapping.purchaseCost ? rowData[mapping.purchaseCost] : undefined;
+          if (!costValue) {
+            throw new Error("Missing required field: purchaseCost");
+          }
+          const purchaseCost = parseFloat(String(costValue).replace(/[$,]/g, ''));
+          if (isNaN(purchaseCost) || purchaseCost < 0) {
+            throw new Error(`Invalid purchase cost: "${costValue}"`);
+          }
+          
+          // Parse density if provided
+          const densityValue = mapping.gramsPerMilliliter ? rowData[mapping.gramsPerMilliliter] : undefined;
+          const gramsPerMilliliter = densityValue ? parseFloat(densityValue) : undefined;
+          
+          const densitySource = mapping.densitySource ? rowData[mapping.densitySource] : undefined;
+          
+          // Parse packaging flag
+          const packagingValue = mapping.isPackaging ? rowData[mapping.isPackaging] : undefined;
+          const isPackaging = packagingValue ? 
+            (String(packagingValue).toLowerCase() === "yes" || String(packagingValue).toLowerCase() === "true") : 
+            false;
+          
+          // Validate and create ingredient
           const ingredient = insertIngredientSchema.parse({
-            name: rowData[mapping.name] || rowData.name || rowData.Name || rowData.Ingredient,
-            category: rowData[mapping.category] || rowData.category || rowData.Category || "General",
-            quantity: parseFloat(rowData[mapping.quantity] || rowData.quantity || rowData.Quantity || "1"),
-            unit: rowData[mapping.unit] || rowData.unit || rowData.Unit || "units",
-            costPerUnit: parseFloat(rowData[mapping.costPerUnit] || rowData.costPerUnit || rowData["Cost Per Unit"] || rowData.cost || "0"),
+            name,
+            category,
+            purchaseQuantity,
+            purchaseUnit,
+            purchaseCost,
+            store,
+            gramsPerMilliliter,
+            densitySource,
+            isPackaging,
           });
-          await storage.createIngredient(ingredient);
-          imported++;
+          
+          const created = await storage.createIngredient(ingredient);
+          results.success.push({ row: rowNum, name: created.name });
         } catch (error) {
-          console.error("Failed to import row:", row, error);
+          const rowData = data[i] as any;
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          results.errors.push({ 
+            row: i + 2, 
+            data: rowData,
+            error: errorMsg 
+          });
+          console.error(`Failed to import row ${i + 2}:`, rowData, error);
         }
       }
 
-      res.json({ count: imported, message: `Imported ${imported} ingredients` });
+      res.json({ 
+        count: results.success.length,
+        imported: results.success.length,
+        skipped: results.errors.length,
+        errors: results.errors.slice(0, 10), // Limit error details
+        message: `Imported ${results.success.length} ingredients successfully${results.errors.length > 0 ? `, skipped ${results.errors.length} rows with errors` : ''}`
+      });
     } catch (error) {
       console.error("Import error:", error);
       res.status(500).json({ error: "Failed to import file" });

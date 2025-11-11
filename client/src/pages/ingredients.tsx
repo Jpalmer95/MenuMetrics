@@ -93,10 +93,17 @@ export default function IngredientsPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/ingredients"] });
       setIsImportOpen(false);
+      const hasErrors = data.skipped && data.skipped > 0;
       toast({
-        title: "Success",
-        description: `Imported ${data.count} ingredients successfully`,
+        title: hasErrors ? "Import Completed with Warnings" : "Import Successful",
+        description: hasErrors 
+          ? `Imported ${data.imported} ingredients successfully. Skipped ${data.skipped} rows with errors. Check console for details.`
+          : `Successfully imported ${data.imported} ingredients.`,
+        variant: hasErrors ? "default" : "default",
       });
+      if (hasErrors && data.errors) {
+        console.error("Import errors:", data.errors);
+      }
     },
     onError: () => {
       toast({

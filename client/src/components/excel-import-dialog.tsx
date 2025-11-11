@@ -35,9 +35,16 @@ interface ColumnMapping {
 const requiredFields = [
   { key: "name", label: "Ingredient Name" },
   { key: "category", label: "Category" },
-  { key: "quantity", label: "Quantity" },
-  { key: "unit", label: "Unit" },
-  { key: "costPerUnit", label: "Cost Per Unit" },
+  { key: "purchaseQuantity", label: "Purchase Quantity (or combined with unit like '64oz')" },
+  { key: "purchaseCost", label: "Purchase Cost" },
+];
+
+const optionalFields = [
+  { key: "purchaseUnit", label: "Purchase Unit (optional - leave blank if combined with quantity)" },
+  { key: "store", label: "Store (optional)" },
+  { key: "gramsPerMilliliter", label: "Density g/mL (optional)" },
+  { key: "densitySource", label: "Density Source (optional)" },
+  { key: "isPackaging", label: "Packaging? (optional)" },
 ];
 
 export function ExcelImportDialog({
@@ -96,10 +103,11 @@ export function ExcelImportDialog({
         setPreviewData(jsonData.slice(0, 5));
         
         const autoMapping: Record<string, string> = {};
-        requiredFields.forEach((field) => {
+        [...requiredFields, ...optionalFields].forEach((field) => {
           const found = columns.find((col) =>
             col.toLowerCase().includes(field.key.toLowerCase()) ||
-            field.label.toLowerCase().includes(col.toLowerCase())
+            field.label.toLowerCase().includes(col.toLowerCase()) ||
+            col.toLowerCase().replace(/[^a-z]/g, '').includes(field.key.toLowerCase().replace(/[^a-z]/g, ''))
           );
           if (found) {
             autoMapping[field.key] = found;
@@ -188,8 +196,8 @@ export function ExcelImportDialog({
 
             <Alert>
               <AlertDescription className="text-sm">
-                Your Excel file should contain columns for ingredient name, category, quantity, unit,
-                and cost per unit. In the next step, you'll map your columns to these fields.
+                Your Excel file should contain columns for ingredient name, category, purchase quantity, 
+                purchase unit, and purchase cost. In the next step, you'll map your columns to these fields.
               </AlertDescription>
             </Alert>
           </div>
@@ -203,33 +211,68 @@ export function ExcelImportDialog({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {requiredFields.map((field) => (
-                  <div key={field.key} className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <label className="text-sm font-medium">{field.label}</label>
+                <div className="space-y-2 mb-4">
+                  <p className="text-sm font-semibold text-foreground">Required Fields</p>
+                  {requiredFields.map((field) => (
+                    <div key={field.key} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-sm font-medium">{field.label}</label>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex-1">
+                        <Select
+                          value={columnMapping[field.key] || ""}
+                          onValueChange={(value) =>
+                            setColumnMapping({ ...columnMapping, [field.key]: value })
+                          }
+                        >
+                          <SelectTrigger data-testid={`select-map-${field.key}`}>
+                            <SelectValue placeholder="Select column" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {excelColumns.map((col) => (
+                              <SelectItem key={col} value={col}>
+                                {col}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex-1">
-                      <Select
-                        value={columnMapping[field.key] || ""}
-                        onValueChange={(value) =>
-                          setColumnMapping({ ...columnMapping, [field.key]: value })
-                        }
-                      >
-                        <SelectTrigger data-testid={`select-map-${field.key}`}>
-                          <SelectValue placeholder="Select column" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {excelColumns.map((col) => (
-                            <SelectItem key={col} value={col}>
-                              {col}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">Optional Fields</p>
+                  {optionalFields.map((field) => (
+                    <div key={field.key} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-sm font-medium text-muted-foreground">{field.label}</label>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex-1">
+                        <Select
+                          value={columnMapping[field.key] || ""}
+                          onValueChange={(value) =>
+                            setColumnMapping({ ...columnMapping, [field.key]: value })
+                          }
+                        >
+                          <SelectTrigger data-testid={`select-map-${field.key}`}>
+                            <SelectValue placeholder="(skip)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Skip this field</SelectItem>
+                            {excelColumns.map((col) => (
+                              <SelectItem key={col} value={col}>
+                                {col}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
