@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Upload } from "lucide-react";
+import { Upload, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IngredientsTable } from "@/components/ingredients-table";
 import { IngredientFormDialog } from "@/components/ingredient-form-dialog";
@@ -125,6 +125,11 @@ export default function IngredientsPage() {
     setIsFormOpen(true);
   };
 
+  const handleDownloadTemplate = () => {
+    // Download the Excel template
+    window.location.href = "/api/ingredients/template";
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -142,14 +147,24 @@ export default function IngredientsPage() {
             Manage your ingredient inventory and costs
           </p>
         </div>
-        <Button
-          variant="secondary"
-          onClick={() => setIsImportOpen(true)}
-          data-testid="button-import-excel"
-        >
-          <Upload className="h-4 w-4 mr-2" />
-          Import Excel
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDownloadTemplate}
+            data-testid="button-download-template"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download Template
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => setIsImportOpen(true)}
+            data-testid="button-import-excel"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Import Excel
+          </Button>
+        </div>
       </div>
 
       <IngredientsTable

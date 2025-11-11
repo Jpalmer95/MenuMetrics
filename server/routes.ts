@@ -4,10 +4,83 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
 import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, measurementUnits } from "@shared/schema";
+import { parseQuantityUnit } from "@shared/unit-parser";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Excel template download
+  app.get("/api/ingredients/template", async (req, res) => {
+    try {
+      // Create template with headers and sample data
+      const headers = [
+        "Ingredient Name",
+        "Category",
+        "Purchase Quantity",
+        "Purchase Unit",
+        "Purchase Cost",
+        "Store (optional)",
+        "Density g/mL (optional)",
+        "Density Source (optional)",
+        "Packaging? (Yes/No)"
+      ];
+      
+      const sampleRow = [
+        "Espresso Beans",
+        "Coffee",
+        1,
+        "pounds",
+        9.90,
+        "Numinous",
+        "",
+        "",
+        "No"
+      ];
+      
+      const instructions = [
+        "INSTRUCTIONS:",
+        "1. Fill in your ingredient data starting from row 4",
+        "2. Required columns: Ingredient Name, Category, Purchase Quantity, Purchase Unit, Purchase Cost",
+        "3. Units must be one of: " + measurementUnits.join(", "),
+        "4. Density is optional but helps with volume↔weight conversions (e.g., 1.03 for milk, 0.5 for flour)",
+        "5. Mark 'Yes' for Packaging column if item is packaging (cups, lids, etc.)",
+        "6. Delete this instructions row before uploading"
+      ];
+      
+      const worksheet = XLSX.utils.aoa_to_sheet([
+        instructions,
+        [], // Empty row
+        headers,
+        sampleRow
+      ]);
+      
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 20 }, // Ingredient Name
+        { wch: 15 }, // Category
+        { wch: 18 }, // Purchase Quantity
+        { wch: 15 }, // Purchase Unit
+        { wch: 15 }, // Purchase Cost
+        { wch: 15 }, // Store
+        { wch: 18 }, // Density
+        { wch: 18 }, // Density Source
+        { wch: 18 }  // Packaging
+      ];
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Ingredients");
+      
+      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      
+      res.setHeader("Content-Disposition", "attachment; filename=ingredient-template.xlsx");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buffer);
+    } catch (error) {
+      console.error("Template generation error:", error);
+      res.status(500).json({ error: "Failed to generate template" });
+    }
+  });
+
   app.get("/api/ingredients", async (req, res) => {
     try {
       const ingredients = await storage.getAllIngredients();

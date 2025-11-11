@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, real, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -37,6 +37,9 @@ export const ingredients = pgTable("ingredients", {
   // Example: Water = 1.0, Milk = 1.03, Flour = 0.5, Sugar = 0.85
   gramsPerMilliliter: real("grams_per_milliliter"),
   densitySource: text("density_source"), // "preset", "manual", "imported", "USDA", etc.
+  
+  // Packaging flag (to separate packaging costs from ingredient costs)
+  isPackaging: boolean("is_packaging").notNull().default(false),
   
   // Calculated per-unit costs (auto-calculated from purchase data)
   costPerOunce: real("cost_per_ounce"),
@@ -79,6 +82,7 @@ export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   store: z.string().optional(),
   gramsPerMilliliter: z.number().positive("Density must be positive").optional(),
   densitySource: z.string().optional(),
+  isPackaging: z.boolean().optional().default(false),
 });
 
 export type InsertIngredient = z.infer<typeof insertIngredientSchema>;
