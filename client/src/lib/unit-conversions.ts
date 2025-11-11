@@ -1,5 +1,5 @@
 import type { MeasurementUnit, Ingredient } from "@shared/schema";
-import { calculateCostPerUnit } from "@shared/cost-calculator";
+import { calculateCostPerUnit, unitFamilyMap } from "@shared/cost-calculator";
 
 const conversionToGrams: Record<MeasurementUnit, number> = {
   grams: 1,
@@ -98,4 +98,51 @@ export function calculateIngredientCost(
   }
   
   return recipeQuantity * costPerUnit;
+}
+
+/**
+ * Check if an ingredient needs density for accurate cost calculation in a given unit
+ * Returns warning info if density is required but missing
+ */
+export function checkDensityWarning(
+  ingredient: Ingredient | null,
+  recipeUnit: MeasurementUnit
+): {
+  needsWarning: boolean;
+  warningType: "cross-family" | "incompatible" | null;
+  message: string;
+} {
+  if (!ingredient) {
+    return { needsWarning: false, warningType: null, message: "" };
+  }
+
+  const purchaseFamily = unitFamilyMap[ingredient.purchaseUnit as MeasurementUnit];
+  const recipeFamily = unitFamilyMap[recipeUnit];
+
+  // Same family - no warning needed
+  if (purchaseFamily === recipeFamily) {
+    return { needsWarning: false, warningType: null, message: "" };
+  }
+
+  // "each" to/from other families - incompatible conversion
+  if (purchaseFamily === "each" || recipeFamily === "each") {
+    return {
+      needsWarning: true,
+      warningType: "incompatible",
+      message: `Cannot convert between "${ingredient.purchaseUnit}" and "${recipeUnit}". Change the recipe unit to match the purchase unit, or use a different ingredient.`,
+    };
+  }
+
+  // Cross-family conversion (volume ↔ weight)
+  // Check if ingredient has density
+  if (!ingredient.gramsPerMilliliter) {
+    return {
+      needsWarning: true,
+      warningType: "cross-family",
+      message: `${ingredient.name} requires density for accurate conversion from "${ingredient.purchaseUnit}" to "${recipeUnit}". Edit the ingredient to add density.`,
+    };
+  }
+
+  // Has density - no warning
+  return { needsWarning: false, warningType: null, message: "" };
 }

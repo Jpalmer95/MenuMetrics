@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X, AlertCircle } from "lucide-react";
+import { Plus, X, AlertCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,8 +12,13 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import type { Ingredient, RecipeIngredient, measurementUnits } from "@shared/schema";
-import { calculateIngredientCost } from "@/lib/unit-conversions";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type { Ingredient, RecipeIngredient, MeasurementUnit } from "@shared/schema";
+import { calculateIngredientCost, checkDensityWarning } from "@/lib/unit-conversions";
 
 interface RecipeBuilderProps {
   ingredients: Ingredient[];
@@ -60,6 +65,15 @@ export function RecipeBuilder({
   };
 
   const totalCost = calculateTotalCost();
+
+  // Check if selected ingredient + unit combination needs density warning
+  const selectedIngredient = selectedIngredientId
+    ? ingredients.find((ing) => ing.id === selectedIngredientId)
+    : null;
+  const densityWarning = checkDensityWarning(
+    selectedIngredient || null,
+    unit as MeasurementUnit
+  );
 
   return (
     <div className="space-y-6">
@@ -133,6 +147,16 @@ export function RecipeBuilder({
               </div>
             </div>
           )}
+
+          {/* Density Warning Alert */}
+          {densityWarning.needsWarning && selectedIngredient && (
+            <Alert variant={densityWarning.warningType === "incompatible" ? "destructive" : "default"} data-testid="alert-density-warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Warning:</strong> {densityWarning.message}
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
@@ -154,6 +178,13 @@ export function RecipeBuilder({
                   ri.quantity,
                   ri.unit as any
                 );
+                
+                // Check if this ingredient needs density warning
+                const ingredientWarning = checkDensityWarning(
+                  ri.ingredientDetails,
+                  ri.unit as MeasurementUnit
+                );
+                const showCostWarning = cost === 0 && ingredientWarning.needsWarning;
 
                 return (
                   <div
@@ -167,6 +198,19 @@ export function RecipeBuilder({
                         <Badge variant="secondary" className="text-xs">
                           {ri.ingredientDetails.category}
                         </Badge>
+                        {showCostWarning && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="destructive" className="text-xs gap-1" data-testid={`badge-density-warning-${ri.id}`}>
+                                <AlertTriangle className="h-3 w-3" />
+                                Needs density
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="text-sm">{ingredientWarning.message}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
                         <Input
@@ -184,9 +228,23 @@ export function RecipeBuilder({
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium tabular-nums">
-                        ${cost.toFixed(2)}
-                      </span>
+                      {showCostWarning ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm font-medium tabular-nums text-destructive flex items-center gap-1" data-testid={`text-cost-warning-${ri.id}`}>
+                              <AlertTriangle className="h-3 w-3" />
+                              ${cost.toFixed(2)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-sm">Cost may be inaccurate - density required</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="text-sm font-medium tabular-nums">
+                          ${cost.toFixed(2)}
+                        </span>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
