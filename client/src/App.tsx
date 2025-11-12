@@ -5,13 +5,17 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/dashboard";
 import IngredientsPage from "@/pages/ingredients";
 import RecipesPage from "@/pages/recipes";
 import RecipeDetailPage from "@/pages/recipe-detail";
 import AIAgentPage from "@/pages/ai-agent";
+import SettingsPage from "@/pages/settings";
 
 function Router() {
   return (
@@ -21,6 +25,7 @@ function Router() {
       <Route path="/recipes" component={RecipesPage} />
       <Route path="/recipes/:id" component={RecipeDetailPage} />
       <Route path="/ai-agent" component={AIAgentPage} />
+      <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -28,12 +33,14 @@ function Router() {
 
 function App() {
   const [location] = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: BarChart3, testId: "link-dashboard" },
     { path: "/ingredients", label: "Ingredients", icon: Package, testId: "link-ingredients" },
     { path: "/recipes", label: "Recipes", icon: ChefHat, testId: "link-recipes" },
     { path: "/ai-agent", label: "AI Agent", icon: Sparkles, testId: "link-ai-agent" },
+    { path: "/settings", label: "Settings", icon: Settings, testId: "link-settings" },
   ];
 
   return (
@@ -70,7 +77,51 @@ function App() {
                       })}
                     </nav>
                   </div>
-                  <ThemeToggle />
+                  <div className="flex items-center gap-2">
+                    <ThemeToggle />
+                    <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                      <SheetTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="md:hidden"
+                          data-testid="button-mobile-menu"
+                        >
+                          <Menu className="h-5 w-5" />
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent side="right">
+                        <SheetHeader>
+                          <SheetTitle>Menu</SheetTitle>
+                        </SheetHeader>
+                        <nav className="flex flex-col gap-2 mt-6">
+                          {navItems.map((item) => {
+                            const Icon = item.icon;
+                            const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
+                            return (
+                              <Link
+                                key={item.path}
+                                href={item.path}
+                                data-testid={`mobile-${item.testId}`}
+                                onClick={() => setMobileMenuOpen(false)}
+                              >
+                                <div
+                                  className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors hover-elevate ${
+                                    isActive
+                                      ? "bg-primary/10 text-primary"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  <Icon className="h-5 w-5" />
+                                  {item.label}
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </nav>
+                      </SheetContent>
+                    </Sheet>
+                  </div>
                 </div>
               </div>
             </header>
