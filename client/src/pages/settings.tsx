@@ -22,11 +22,7 @@ export default function SettingsPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: AISettings) => {
-      return await apiRequest("/api/settings/ai", {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: { "Content-Type": "application/json" },
-      });
+      return await apiRequest("POST", "/api/settings/ai", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings/ai"] });

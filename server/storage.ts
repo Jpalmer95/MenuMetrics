@@ -7,9 +7,12 @@ import {
   type InsertRecipeIngredient,
   type RecipeWithIngredients,
   type MeasurementUnit,
+  type AISettingsData,
+  type InsertAISettings,
   ingredients,
   recipes,
   recipeIngredients,
+  aiSettings,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -34,6 +37,9 @@ export interface IStorage {
   createRecipeIngredient(recipeIngredient: InsertRecipeIngredient): Promise<RecipeIngredient>;
   updateRecipeIngredientQuantity(id: string, quantity: number): Promise<RecipeIngredient | undefined>;
   deleteRecipeIngredient(id: string): Promise<boolean>;
+  
+  getAISettings(): Promise<AISettingsData>;
+  saveAISettings(settings: InsertAISettings): Promise<AISettingsData>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -302,6 +308,31 @@ export class DatabaseStorage implements IStorage {
       return true;
     }
     return false;
+  }
+
+  async getAISettings(): Promise<AISettingsData> {
+    const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.id, "singleton"));
+    if (!settings) {
+      const [newSettings] = await db
+        .insert(aiSettings)
+        .values({ id: "singleton", huggingfaceToken: null })
+        .returning();
+      return newSettings;
+    }
+    return settings;
+  }
+
+  async saveAISettings(insertSettings: InsertAISettings): Promise<AISettingsData> {
+    const existing = await this.getAISettings();
+    const [updated] = await db
+      .update(aiSettings)
+      .set({ 
+        ...insertSettings,
+        updatedAt: new Date()
+      })
+      .where(eq(aiSettings.id, "singleton"))
+      .returning();
+    return updated;
   }
 }
 

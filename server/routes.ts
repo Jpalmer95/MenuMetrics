@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, measurementUnits } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, measurementUnits } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 
@@ -469,6 +469,28 @@ Format your response clearly with numbered sections.`;
     } catch (error: any) {
       console.error("AI menu strategy error:", error);
       res.status(500).json({ error: error.message || "Failed to generate menu strategy" });
+    }
+  });
+
+  // AI Settings endpoints
+  app.get("/api/settings/ai", async (req, res) => {
+    try {
+      const settings = await storage.getAISettings();
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Get AI settings error:", error);
+      res.status(500).json({ error: "Failed to retrieve AI settings" });
+    }
+  });
+
+  app.post("/api/settings/ai", async (req, res) => {
+    try {
+      const validatedData = insertAISettingsSchema.parse(req.body);
+      const updated = await storage.saveAISettings(validatedData);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Save AI settings error:", error);
+      res.status(400).json({ error: error.message || "Failed to save AI settings" });
     }
   });
 

@@ -154,6 +154,21 @@ export function calculateProfitMargin(menuPrice: number | null, costPerServing: 
   return ((menuPrice - costPerServing) / menuPrice) * 100;
 }
 
+// AI Settings table - singleton pattern (only one row)
+export const aiSettings = pgTable("ai_settings", {
+  id: varchar("id").primaryKey().default("singleton"),
+  huggingfaceToken: text("huggingface_token"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAISettingsSchema = createInsertSchema(aiSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertAISettings = z.infer<typeof insertAISettingsSchema>;
+export type AISettingsData = typeof aiSettings.$inferSelect;
+
 import { relations } from "drizzle-orm";
 
 export const ingredientsRelations = relations(ingredients, ({ many }) => ({
