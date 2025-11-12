@@ -252,16 +252,22 @@ export function ExcelImportDialog({
                       <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       <div className="flex-1">
                         <Select
-                          value={columnMapping[field.key] || ""}
-                          onValueChange={(value) =>
-                            setColumnMapping({ ...columnMapping, [field.key]: value })
-                          }
+                          value={columnMapping[field.key] || "__skip__"}
+                          onValueChange={(value) => {
+                            if (value === "__skip__") {
+                              const newMapping = { ...columnMapping };
+                              delete newMapping[field.key];
+                              setColumnMapping(newMapping);
+                            } else {
+                              setColumnMapping({ ...columnMapping, [field.key]: value });
+                            }
+                          }}
                         >
                           <SelectTrigger data-testid={`select-map-${field.key}`}>
                             <SelectValue placeholder="(skip)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Skip this field</SelectItem>
+                            <SelectItem value="__skip__">Skip this field</SelectItem>
                             {excelColumns.map((col) => (
                               <SelectItem key={col} value={col}>
                                 {col}
