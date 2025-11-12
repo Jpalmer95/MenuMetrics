@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Loader2, Settings as SettingsIcon, Key, Sparkles } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface AISettings {
-  huggingfaceToken?: string;
+  huggingfaceToken?: string | null;
 }
 
 export default function SettingsPage() {
@@ -19,6 +19,12 @@ export default function SettingsPage() {
   const { data: settings, isLoading } = useQuery<AISettings>({
     queryKey: ["/api/settings/ai"],
   });
+
+  useEffect(() => {
+    if (settings) {
+      setHuggingfaceToken(settings.huggingfaceToken || "");
+    }
+  }, [settings]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: AISettings) => {
@@ -103,7 +109,7 @@ export default function SettingsPage() {
                     id="huggingface-token"
                     type="password"
                     placeholder="hf_..."
-                    value={huggingfaceToken || settings?.huggingfaceToken || ""}
+                    value={huggingfaceToken}
                     onChange={(e) => setHuggingfaceToken(e.target.value)}
                     data-testid="input-huggingface-token"
                   />
