@@ -48,7 +48,7 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     saveMutation.mutate({
-      huggingfaceToken: huggingfaceToken || undefined,
+      huggingfaceToken: huggingfaceToken.trim() || null,
     });
   };
 
