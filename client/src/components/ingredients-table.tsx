@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { Ingredient, InsertIngredient, MeasurementUnit } from "@shared/schema";
 import { measurementUnits } from "@shared/schema";
 import { format } from "date-fns";
+import { calculateCostPerUnit } from "@shared/cost-calculator";
 
 interface IngredientsTableProps {
   ingredients: Ingredient[];
@@ -129,7 +130,8 @@ export function IngredientsTable({
     }
   };
 
-  // Calculate preview costs for the new ingredient
+  // Calculate preview costs for the new ingredient using shared cost calculator
+  // This ensures preview calculations exactly match what the backend will calculate
   const calculatePreviewCosts = () => {
     if (
       !newIngredient.purchaseQuantity ||
@@ -140,31 +142,26 @@ export function IngredientsTable({
     }
 
     try {
-      // Conversion table to grams (base unit)
-      const conversionToGrams: Record<MeasurementUnit, number> = {
-        grams: 1,
-        kilograms: 1000,
-        ounces: 28.3495,
-        pounds: 453.592,
-        cups: 240,
-        teaspoons: 4.92892,
-        tablespoons: 14.7868,
-        milliliters: 1,
-        liters: 1000,
-        pints: 473.176,
-        quarts: 946.353,
-        gallons: 3785.41,
-        units: 1,
-      };
+      const options = newIngredient.gramsPerMilliliter
+        ? { densityGramsPerMl: newIngredient.gramsPerMilliliter }
+        : undefined;
 
-      // Convert purchase quantity to grams
-      const totalGrams = newIngredient.purchaseQuantity * conversionToGrams[newIngredient.purchaseUnit as MeasurementUnit];
-      
-      // Calculate cost per gram
-      const costPerGram = newIngredient.purchaseCost / totalGrams;
-      
-      // Calculate cost per ounce (1 oz = 28.3495 grams)
-      const costPerOz = costPerGram * 28.3495;
+      // Use shared cost calculator to match backend logic exactly
+      const costPerOz = calculateCostPerUnit(
+        newIngredient.purchaseQuantity,
+        newIngredient.purchaseUnit as MeasurementUnit,
+        newIngredient.purchaseCost,
+        "ounces",
+        options
+      );
+
+      const costPerGram = calculateCostPerUnit(
+        newIngredient.purchaseQuantity,
+        newIngredient.purchaseUnit as MeasurementUnit,
+        newIngredient.purchaseCost,
+        "grams",
+        options
+      );
 
       return { costPerOz, costPerGram };
     } catch {
