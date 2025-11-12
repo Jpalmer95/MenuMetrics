@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { storage } from "./storage";
 import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, measurementUnits } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
+import { callAI, type AIProvider } from "./ai-providers";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -373,6 +374,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete recipe ingredient" });
+    }
+  });
+
+  // AI Agent endpoints
+  app.post("/api/ai/recipe-ideas", async (req, res) => {
+    try {
+      const { provider, customApiKey } = req.body;
+      
+      if (!provider) {
+        return res.status(400).json({ error: "Provider is required" });
+      }
+
+      // Get all ingredients for context
+      const ingredients = await storage.getAllIngredients();
+      
+      const ingredientList = ingredients
+        .map(i => `${i.name} (${i.category}) - $${i.purchaseCost.toFixed(2)} for ${i.purchaseQuantity} ${i.purchaseUnit}`)
+        .join("\n");
+
+      const systemPrompt = `You are a professional coffee shop recipe consultant specializing in cost-effective menu development.`;
+      
+      const prompt = `Based on these available ingredients, suggest 5 creative and cost-efficient coffee shop recipes. For each recipe, include:
+- Recipe name
+- Description
+- Estimated servings
+- List of ingredients with quantities
+- Brief preparation notes
+
+Available ingredients:
+${ingredientList}
+
+Format your response as clear, parseable text with each recipe separated by "---".`;
+
+      const response = await callAI({
+        provider: provider as AIProvider,
+        prompt,
+        systemPrompt,
+        customApiKey,
+      });
+
+      res.json({ response });
+    } catch (error: any) {
+      console.error("AI recipe ideas error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate recipe ideas" });
+    }
+  });
+
+  app.post("/api/ai/menu-strategy", async (req, res) => {
+    try {
+      const { provider, customApiKey } = req.body;
+      
+      if (!provider) {
+        return res.status(400).json({ error: "Provider is required" });
+      }
+
+      // Get all recipes for context
+      const recipes = await storage.getAllRecipes();
+      
+      const recipeList = recipes
+        .map(r => {
+          const cost = r.totalCost || 0;
+          const price = r.menuPrice || 0;
+          const margin = price > 0 ? ((price - cost) / price * 100).toFixed(1) : "N/A";
+          return `${r.name} (${r.category}) - Cost: $${cost.toFixed(2)}, Menu Price: $${price.toFixed(2)}, Margin: ${margin}%`;
+        })
+        .join("\n");
+
+      const systemPrompt = `You are a professional coffee shop pricing strategist with expertise in menu optimization and profitability analysis.`;
+      
+      const prompt = `Analyze this coffee shop menu and provide strategic pricing recommendations:
+
+Current Menu:
+${recipeList}
+
+Please provide:
+1. Overall profitability assessment
+2. Pricing recommendations for each item
+3. Suggested menu price adjustments to improve margins while staying competitive
+4. High-margin items to promote
+5. Low-margin items that need repricing or removal
+6. General menu strategy advice
+
+Format your response clearly with numbered sections.`;
+
+      const response = await callAI({
+        provider: provider as AIProvider,
+        prompt,
+        systemPrompt,
+        customApiKey,
+      });
+
+      res.json({ response });
+    } catch (error: any) {
+      console.error("AI menu strategy error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate menu strategy" });
     }
   });
 

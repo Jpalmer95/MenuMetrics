@@ -1,0 +1,163 @@
+import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
+import pRetry from "p-retry";
+
+// AI Provider Integration using Replit AI Integrations
+// OpenAI, Gemini, and OpenRouter (for Grok) are available via Replit AI Integrations
+// No API keys required - charges billed to Replit credits
+
+export type AIProvider = "openai" | "gemini" | "grok" | "huggingface";
+
+interface AIRequest {
+  provider: AIProvider;
+  prompt: string;
+  systemPrompt?: string;
+  customApiKey?: string;
+}
+
+function isRateLimitError(error: any): boolean {
+  const errorMsg = error?.message || String(error);
+  return (
+    errorMsg.includes("429") ||
+    errorMsg.includes("RATELIMIT_EXCEEDED") ||
+    errorMsg.toLowerCase().includes("quota") ||
+    errorMsg.toLowerCase().includes("rate limit")
+  );
+}
+
+export async function callAI(request: AIRequest): Promise<string> {
+  return pRetry(
+    async () => {
+      try {
+        switch (request.provider) {
+          case "openai":
+            return await callOpenAI(request);
+          case "gemini":
+            return await callGemini(request);
+          case "grok":
+            return await callGrok(request);
+          case "huggingface":
+            return await callHuggingFace(request);
+          default:
+            throw new Error(`Unsupported provider: ${request.provider}`);
+        }
+      } catch (error: any) {
+        console.error(`AI provider ${request.provider} error:`, error);
+        if (isRateLimitError(error)) {
+          throw error;
+        }
+        const abortError: any = new Error(error.message || "Non-retryable error");
+        abortError.name = "AbortError";
+        abortError.originalError = error;
+        throw abortError;
+      }
+    },
+    {
+      retries: 7,
+      minTimeout: 2000,
+      maxTimeout: 128000,
+      factor: 2,
+    }
+  );
+}
+
+async function callOpenAI(request: AIRequest): Promise<string> {
+  // Using Replit AI Integrations for OpenAI - no API key required
+  const client = new OpenAI({
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  });
+
+  const messages: any[] = [];
+  if (request.systemPrompt) {
+    messages.push({ role: "system", content: request.systemPrompt });
+  }
+  messages.push({ role: "user", content: request.prompt });
+
+  const response = await client.chat.completions.create({
+    model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+    messages,
+    max_completion_tokens: 8192,
+  });
+
+  return response.choices[0]?.message?.content || "";
+}
+
+async function callGemini(request: AIRequest): Promise<string> {
+  // Using Replit AI Integrations for Gemini - no API key required
+  const ai = new GoogleGenAI({
+    apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
+    httpOptions: {
+      apiVersion: "",
+      baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+    },
+  });
+
+  let prompt = request.prompt;
+  if (request.systemPrompt) {
+    prompt = `${request.systemPrompt}\n\n${request.prompt}`;
+  }
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  return response.text || "";
+}
+
+async function callGrok(request: AIRequest): Promise<string> {
+  // Using Replit AI Integrations for OpenRouter (Grok) - no API key required
+  const client = new OpenAI({
+    baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL,
+    apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
+  });
+
+  const messages: any[] = [];
+  if (request.systemPrompt) {
+    messages.push({ role: "system", content: request.systemPrompt });
+  }
+  messages.push({ role: "user", content: request.prompt });
+
+  const response = await client.chat.completions.create({
+    model: "x-ai/grok-2-1212",
+    messages,
+    max_tokens: 8192,
+  });
+
+  return response.choices[0]?.message?.content || "";
+}
+
+async function callHuggingFace(request: AIRequest): Promise<string> {
+  if (!request.customApiKey) {
+    throw new Error("HuggingFace requires an API key. Please provide your HuggingFace Access Token.");
+  }
+
+  const response = await fetch(
+    "https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${request.customApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: request.systemPrompt
+          ? `${request.systemPrompt}\n\n${request.prompt}`
+          : request.prompt,
+        parameters: {
+          max_new_tokens: 8192,
+          temperature: 0.7,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HuggingFace API error: ${error}`);
+  }
+
+  const data = await response.json();
+  return data[0]?.generated_text || "";
+}

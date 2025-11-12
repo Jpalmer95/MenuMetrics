@@ -5,12 +5,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3 } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/dashboard";
 import IngredientsPage from "@/pages/ingredients";
 import RecipesPage from "@/pages/recipes";
 import RecipeDetailPage from "@/pages/recipe-detail";
+import AIAgentPage from "@/pages/ai-agent";
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/ingredients" component={IngredientsPage} />
       <Route path="/recipes" component={RecipesPage} />
       <Route path="/recipes/:id" component={RecipeDetailPage} />
+      <Route path="/ai-agent" component={AIAgentPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -31,6 +33,7 @@ function App() {
     { path: "/", label: "Dashboard", icon: BarChart3, testId: "link-dashboard" },
     { path: "/ingredients", label: "Ingredients", icon: Package, testId: "link-ingredients" },
     { path: "/recipes", label: "Recipes", icon: ChefHat, testId: "link-recipes" },
+    { path: "/ai-agent", label: "AI Agent", icon: Sparkles, testId: "link-ai-agent" },
   ];
 
   return (
