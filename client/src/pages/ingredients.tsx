@@ -178,6 +178,7 @@ export default function IngredientsPage() {
         ingredients={ingredients}
         onUpdate={(id, data) => updateMutation.mutate({ id, data })}
         onDelete={(id) => deleteMutation.mutate(id)}
+        onCreate={(data) => createMutation.mutate(data)}
         onAddNew={handleAddNew}
       />
 

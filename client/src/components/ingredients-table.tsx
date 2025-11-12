@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Plus, Search, Check, X } from "lucide-react";
+import { Trash2, Plus, Search, Check, X, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,7 +18,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Ingredient, InsertIngredient } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
+import type { Ingredient, InsertIngredient, MeasurementUnit } from "@shared/schema";
 import { measurementUnits } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -26,6 +27,7 @@ interface IngredientsTableProps {
   ingredients: Ingredient[];
   onUpdate: (id: string, data: InsertIngredient) => void;
   onDelete: (id: string) => void;
+  onCreate: (data: InsertIngredient) => void;
   onAddNew: () => void;
 }
 
@@ -33,6 +35,7 @@ export function IngredientsTable({
   ingredients,
   onUpdate,
   onDelete,
+  onCreate,
   onAddNew,
 }: IngredientsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,6 +43,10 @@ export function IngredientsTable({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<InsertIngredient>>({});
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newIngredient, setNewIngredient] = useState<Partial<InsertIngredient>>({
+    isPackaging: false,
+  });
 
   const filteredIngredients = ingredients.filter(
     (ing) =>
@@ -96,6 +103,77 @@ export function IngredientsTable({
     }
   };
 
+  const startAddNew = () => {
+    setIsAddingNew(true);
+    setNewIngredient({ isPackaging: false });
+  };
+
+  const cancelAddNew = () => {
+    setIsAddingNew(false);
+    setNewIngredient({ isPackaging: false });
+  };
+
+  const saveNewIngredient = () => {
+    if (
+      newIngredient.name &&
+      newIngredient.category &&
+      newIngredient.purchaseQuantity &&
+      newIngredient.purchaseQuantity > 0 &&
+      newIngredient.purchaseUnit &&
+      newIngredient.purchaseCost !== undefined &&
+      newIngredient.purchaseCost >= 0
+    ) {
+      onCreate(newIngredient as InsertIngredient);
+      setIsAddingNew(false);
+      setNewIngredient({ isPackaging: false });
+    }
+  };
+
+  // Calculate preview costs for the new ingredient
+  const calculatePreviewCosts = () => {
+    if (
+      !newIngredient.purchaseQuantity ||
+      newIngredient.purchaseCost === undefined ||
+      !newIngredient.purchaseUnit
+    ) {
+      return { costPerOz: null, costPerGram: null };
+    }
+
+    try {
+      // Conversion table to grams (base unit)
+      const conversionToGrams: Record<MeasurementUnit, number> = {
+        grams: 1,
+        kilograms: 1000,
+        ounces: 28.3495,
+        pounds: 453.592,
+        cups: 240,
+        teaspoons: 4.92892,
+        tablespoons: 14.7868,
+        milliliters: 1,
+        liters: 1000,
+        pints: 473.176,
+        quarts: 946.353,
+        gallons: 3785.41,
+        units: 1,
+      };
+
+      // Convert purchase quantity to grams
+      const totalGrams = newIngredient.purchaseQuantity * conversionToGrams[newIngredient.purchaseUnit as MeasurementUnit];
+      
+      // Calculate cost per gram
+      const costPerGram = newIngredient.purchaseCost / totalGrams;
+      
+      // Calculate cost per ounce (1 oz = 28.3495 grams)
+      const costPerOz = costPerGram * 28.3495;
+
+      return { costPerOz, costPerGram };
+    } catch {
+      return { costPerOz: null, costPerGram: null };
+    }
+  };
+
+  const previewCosts = isAddingNew ? calculatePreviewCosts() : { costPerOz: null, costPerGram: null };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
@@ -109,10 +187,16 @@ export function IngredientsTable({
             data-testid="input-search-ingredients"
           />
         </div>
-        <Button onClick={onAddNew} data-testid="button-add-ingredient">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Ingredient
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={startAddNew} data-testid="button-add-row" disabled={isAddingNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Row
+          </Button>
+          <Button onClick={onAddNew} variant="outline" data-testid="button-add-ingredient">
+            <PackagePlus className="h-4 w-4 mr-2" />
+            Advanced Form
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-md bg-card overflow-x-auto">
@@ -155,9 +239,134 @@ export function IngredientsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedIngredients.length === 0 ? (
+            {isAddingNew && (
+              <TableRow className="bg-accent/20">
+                <TableCell>
+                  <Input
+                    placeholder="Ingredient name"
+                    value={newIngredient.name || ""}
+                    onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })}
+                    className="h-8"
+                    data-testid="input-new-name"
+                    autoFocus
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    placeholder="Category"
+                    value={newIngredient.category || ""}
+                    onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })}
+                    className="h-8"
+                    data-testid="input-new-category"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    placeholder="e.g., HEB"
+                    value={newIngredient.store || ""}
+                    onChange={(e) => setNewIngredient({ ...newIngredient, store: e.target.value })}
+                    className="h-8"
+                    data-testid="input-new-store"
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Qty"
+                      value={newIngredient.purchaseQuantity || ""}
+                      onChange={(e) =>
+                        setNewIngredient({
+                          ...newIngredient,
+                          purchaseQuantity: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="h-8 w-20"
+                      data-testid="input-new-quantity"
+                    />
+                    <Select
+                      value={newIngredient.purchaseUnit}
+                      onValueChange={(val) =>
+                        setNewIngredient({ ...newIngredient, purchaseUnit: val })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-28" data-testid="select-new-unit">
+                        <SelectValue placeholder="Unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {measurementUnits.map((unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Total cost"
+                    value={newIngredient.purchaseCost !== undefined ? newIngredient.purchaseCost : ""}
+                    onChange={(e) =>
+                      setNewIngredient({
+                        ...newIngredient,
+                        purchaseCost: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="h-8 text-right"
+                    data-testid="input-new-cost"
+                  />
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                  {previewCosts.costPerOz !== null
+                    ? `$${previewCosts.costPerOz.toFixed(3)}`
+                    : "-"}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                  {previewCosts.costPerGram !== null
+                    ? `$${previewCosts.costPerGram.toFixed(3)}`
+                    : "-"}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={newIngredient.isPackaging || false}
+                      onCheckedChange={(checked) =>
+                        setNewIngredient({ ...newIngredient, isPackaging: checked as boolean })
+                      }
+                      data-testid="checkbox-new-packaging"
+                    />
+                    <span className="text-xs">Packaging</span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={saveNewIngredient}
+                      data-testid="button-save-new"
+                    >
+                      <Check className="h-4 w-4 text-success" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={cancelAddNew}
+                      data-testid="button-cancel-new"
+                    >
+                      <X className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+            {sortedIngredients.length === 0 && !isAddingNew ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   {searchTerm
                     ? "No ingredients found matching your search."
                     : "No ingredients yet. Add your first ingredient to get started."}
@@ -311,7 +520,7 @@ export function IngredientsTable({
       </div>
 
       <div className="text-sm text-muted-foreground">
-        Showing {sortedIngredients.length} of {ingredients.length} ingredients • Double-click any row to edit inline
+        Showing {sortedIngredients.length} of {ingredients.length} ingredients • Double-click any row to edit inline • Cost per unit is auto-calculated
       </div>
     </div>
   );
