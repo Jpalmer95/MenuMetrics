@@ -273,7 +273,11 @@ export function RecipeBuilder({
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Select value={selectedIngredientId} onValueChange={setSelectedIngredientId}>
+                <Select 
+                  key={`ingredient-${availableIngredients.length}-${ingredientSearch}`}
+                  value={selectedIngredientId} 
+                  onValueChange={setSelectedIngredientId}
+                >
                   <SelectTrigger className="md:col-span-2" data-testid="select-ingredient">
                     <SelectValue placeholder="Select ingredient" />
                   </SelectTrigger>
@@ -375,7 +379,11 @@ export function RecipeBuilder({
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Select value={selectedPackagingId} onValueChange={setSelectedPackagingId}>
+                <Select 
+                  key={`packaging-${availablePackaging.length}-${packagingSearch}`}
+                  value={selectedPackagingId} 
+                  onValueChange={setSelectedPackagingId}
+                >
                   <SelectTrigger className="md:col-span-2" data-testid="select-packaging">
                     <SelectValue placeholder="Select packaging" />
                   </SelectTrigger>
