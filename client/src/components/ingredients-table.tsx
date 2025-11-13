@@ -48,11 +48,23 @@ export function IngredientsTable({
   const [newIngredient, setNewIngredient] = useState<Partial<InsertIngredient>>({
     isPackaging: false,
   });
+  const [packagingFilter, setPackagingFilter] = useState<"all" | "ingredients" | "packaging">("all");
 
   const filteredIngredients = ingredients.filter(
-    (ing) =>
-      ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ing.category.toLowerCase().includes(searchTerm.toLowerCase())
+    (ing) => {
+      // Apply search filter
+      const matchesSearch =
+        ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ing.category.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Apply packaging filter
+      const matchesPackaging =
+        packagingFilter === "all" ||
+        (packagingFilter === "packaging" && ing.isPackaging) ||
+        (packagingFilter === "ingredients" && !ing.isPackaging);
+      
+      return matchesSearch && matchesPackaging;
+    }
   );
 
   const sortedIngredients = [...filteredIngredients].sort((a, b) => {
@@ -88,6 +100,7 @@ export function IngredientsTable({
       purchaseQuantity: ingredient.purchaseQuantity,
       purchaseUnit: ingredient.purchaseUnit,
       purchaseCost: ingredient.purchaseCost,
+      isPackaging: ingredient.isPackaging,
     });
   };
 
@@ -174,15 +187,27 @@ export function IngredientsTable({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search ingredients..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-            data-testid="input-search-ingredients"
-          />
+        <div className="flex items-center gap-2 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search ingredients..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+              data-testid="input-search-ingredients"
+            />
+          </div>
+          <Select value={packagingFilter} onValueChange={(val) => setPackagingFilter(val as typeof packagingFilter)}>
+            <SelectTrigger className="w-40" data-testid="select-packaging-filter">
+              <SelectValue placeholder="Filter by..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Items</SelectItem>
+              <SelectItem value="ingredients">Ingredients Only</SelectItem>
+              <SelectItem value="packaging">Packaging Only</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex gap-2">
           <Button onClick={startAddNew} data-testid="button-add-row" disabled={isAddingNew}>
@@ -218,6 +243,7 @@ export function IngredientsTable({
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
+              <TableHead className="font-semibold text-center">Packaging</TableHead>
               <TableHead className="font-semibold">Store</TableHead>
               <TableHead className="font-semibold">Purchase Info</TableHead>
               <TableHead
@@ -255,6 +281,13 @@ export function IngredientsTable({
                     onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })}
                     className="h-8"
                     data-testid="input-new-category"
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <Checkbox
+                    checked={newIngredient.isPackaging || false}
+                    onCheckedChange={(checked) => setNewIngredient({ ...newIngredient, isPackaging: !!checked })}
+                    data-testid="checkbox-new-packaging"
                   />
                 </TableCell>
                 <TableCell>
@@ -328,16 +361,7 @@ export function IngredientsTable({
                     : "-"}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      checked={newIngredient.isPackaging || false}
-                      onCheckedChange={(checked) =>
-                        setNewIngredient({ ...newIngredient, isPackaging: checked as boolean })
-                      }
-                      data-testid="checkbox-new-packaging"
-                    />
-                    <span className="text-xs">Packaging</span>
-                  </div>
+                  New
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -363,7 +387,7 @@ export function IngredientsTable({
             )}
             {sortedIngredients.length === 0 && !isAddingNew ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   {searchTerm
                     ? "No ingredients found matching your search."
                     : "No ingredients yet. Add your first ingredient to get started."}
@@ -399,6 +423,30 @@ export function IngredientsTable({
                           {ingredient.category}
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox
+                        checked={isEditing ? (editValues.isPackaging || false) : ingredient.isPackaging}
+                        onCheckedChange={(checked) => {
+                          if (isEditing) {
+                            setEditValues({ ...editValues, isPackaging: !!checked });
+                          } else {
+                            // Quick toggle for non-editing mode - preserve all existing fields
+                            onUpdate(ingredient.id, { 
+                              name: ingredient.name,
+                              category: ingredient.category,
+                              purchaseQuantity: ingredient.purchaseQuantity,
+                              purchaseUnit: ingredient.purchaseUnit,
+                              purchaseCost: ingredient.purchaseCost,
+                              isPackaging: !!checked,
+                              store: ingredient.store ?? undefined,
+                              gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
+                              densitySource: ingredient.densitySource ?? undefined,
+                            });
+                          }
+                        }}
+                        data-testid={`checkbox-packaging-${ingredient.id}`}
+                      />
                     </TableCell>
                     <TableCell>
                       {isEditing ? (
