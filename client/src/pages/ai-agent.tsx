@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Sparkles, Loader2, DollarSign, Lightbulb } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Sparkles, Loader2, DollarSign, Lightbulb, Settings as SettingsIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,8 +15,15 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 type AIProvider = "openai" | "gemini" | "grok" | "huggingface";
+
+interface AISettings {
+  id: string;
+  huggingfaceToken: string | null;
+  updatedAt: string;
+}
 
 export default function AIAgentPage() {
   const [provider, setProvider] = useState<AIProvider>("openai");
@@ -24,6 +31,18 @@ export default function AIAgentPage() {
   const [recipeIdeas, setRecipeIdeas] = useState<string>("");
   const [menuStrategy, setMenuStrategy] = useState<string>("");
   const { toast } = useToast();
+
+  // Load saved HuggingFace token from settings
+  const { data: settings } = useQuery<AISettings>({
+    queryKey: ["/api/settings/ai"],
+  });
+
+  // Auto-populate HuggingFace token only when switching to HuggingFace with empty field
+  useEffect(() => {
+    if (settings?.huggingfaceToken && provider === "huggingface" && !customApiKey) {
+      setCustomApiKey(settings.huggingfaceToken);
+    }
+  }, [settings?.huggingfaceToken, provider]);
 
   const recipeIdeasMutation = useMutation({
     mutationFn: async () => {
@@ -121,6 +140,18 @@ export default function AIAgentPage() {
                 onChange={(e) => setCustomApiKey(e.target.value)}
                 data-testid="input-huggingface-token"
               />
+              {!customApiKey && (
+                <Alert>
+                  <SettingsIcon className="h-4 w-4" />
+                  <AlertDescription>
+                    No HuggingFace token found. You can{" "}
+                    <Link href="/settings" className="text-primary hover:underline font-medium">
+                      configure it in Settings
+                    </Link>
+                    {" "}or enter it here temporarily.
+                  </AlertDescription>
+                </Alert>
+              )}
               <p className="text-sm text-muted-foreground">
                 Get your free API token from{" "}
                 <a
