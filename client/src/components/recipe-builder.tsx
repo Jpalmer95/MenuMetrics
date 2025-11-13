@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X, AlertCircle, AlertTriangle, Package } from "lucide-react";
+import { Plus, X, AlertCircle, AlertTriangle, Package, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -131,9 +131,12 @@ export function RecipeBuilder({
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState("units");
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  
   const [selectedPackagingId, setSelectedPackagingId] = useState("");
   const [packagingQuantity, setPackagingQuantity] = useState(1);
   const [packagingUnit, setPackagingUnit] = useState("units");
+  const [packagingSearch, setPackagingSearch] = useState("");
 
   const usedIngredientIds = recipeIngredients.map((ri) => ri.ingredientId);
   
@@ -141,13 +144,37 @@ export function RecipeBuilder({
   const regularIngredients = ingredients.filter((ing) => !ing.isPackaging);
   const packagingItems = ingredients.filter((ing) => ing.isPackaging);
   
-  const availableIngredients = regularIngredients.filter(
+  // First filter out already-used ingredients (before search)
+  const unusedIngredients = regularIngredients.filter(
     (ing) => !usedIngredientIds.includes(ing.id)
   );
+  const unusedPackaging = packagingItems.filter(
+    (ing) => !usedIngredientIds.includes(ing.id)
+  );
+
+  // Then apply search filter with partial word matching on both name and category
+  const availableIngredients = unusedIngredients.filter((ing) => {
+    if (!ingredientSearch.trim()) return true;
+    const searchLower = ingredientSearch.toLowerCase();
+    // Match any part of any word in name or category
+    const nameWords = ing.name.toLowerCase().split(/\s+/);
+    const categoryWords = ing.category.toLowerCase().split(/\s+/);
+    return nameWords.some(word => word.includes(searchLower)) ||
+           categoryWords.some(word => word.includes(searchLower)) ||
+           ing.name.toLowerCase().includes(searchLower) ||
+           ing.category.toLowerCase().includes(searchLower);
+  });
   
-  const availablePackaging = packagingItems.filter(
-    (ing) => !usedIngredientIds.includes(ing.id)
-  );
+  const availablePackaging = unusedPackaging.filter((ing) => {
+    if (!packagingSearch.trim()) return true;
+    const searchLower = packagingSearch.toLowerCase();
+    const nameWords = ing.name.toLowerCase().split(/\s+/);
+    const categoryWords = ing.category.toLowerCase().split(/\s+/);
+    return nameWords.some(word => word.includes(searchLower)) ||
+           categoryWords.some(word => word.includes(searchLower)) ||
+           ing.name.toLowerCase().includes(searchLower) ||
+           ing.category.toLowerCase().includes(searchLower);
+  });
 
   const handleAdd = () => {
     if (selectedIngredientId && quantity > 0) {
@@ -219,14 +246,14 @@ export function RecipeBuilder({
           <CardDescription>Select ingredients and specify quantities for this recipe</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {availableIngredients.length === 0 && recipeRegularIngredients.length > 0 ? (
+          {unusedIngredients.length === 0 && recipeRegularIngredients.length > 0 ? (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 All available ingredients have been added to this recipe.
               </AlertDescription>
             </Alert>
-          ) : availableIngredients.length === 0 ? (
+          ) : unusedIngredients.length === 0 ? (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -234,19 +261,36 @@ export function RecipeBuilder({
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <Select value={selectedIngredientId} onValueChange={setSelectedIngredientId}>
-                <SelectTrigger className="md:col-span-2" data-testid="select-ingredient">
-                  <SelectValue placeholder="Select ingredient" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableIngredients.map((ing) => (
-                    <SelectItem key={ing.id} value={ing.id}>
-                      {ing.name} ({ing.category})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search ingredients..."
+                  value={ingredientSearch}
+                  onChange={(e) => setIngredientSearch(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-search-recipe-ingredients"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Select value={selectedIngredientId} onValueChange={setSelectedIngredientId}>
+                  <SelectTrigger className="md:col-span-2" data-testid="select-ingredient">
+                    <SelectValue placeholder="Select ingredient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableIngredients.length > 0 ? (
+                      availableIngredients.map((ing) => (
+                        <SelectItem key={ing.id} value={ing.id}>
+                          {ing.name} ({ing.category})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                        No ingredients match "{ingredientSearch}"
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
 
               <Input
                 type="number"
@@ -280,6 +324,7 @@ export function RecipeBuilder({
                 </Button>
               </div>
             </div>
+          </div>
           )}
 
           {densityWarning.needsWarning && selectedIngredient && (
@@ -303,14 +348,14 @@ export function RecipeBuilder({
           <CardDescription>Select packaging items like cups, lids, and sleeves</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {availablePackaging.length === 0 && recipePackagingItems.length > 0 ? (
+          {unusedPackaging.length === 0 && recipePackagingItems.length > 0 ? (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 All available packaging items have been added to this recipe.
               </AlertDescription>
             </Alert>
-          ) : availablePackaging.length === 0 ? (
+          ) : unusedPackaging.length === 0 ? (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -318,17 +363,34 @@ export function RecipeBuilder({
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <Select value={selectedPackagingId} onValueChange={setSelectedPackagingId}>
-                <SelectTrigger className="md:col-span-2" data-testid="select-packaging">
-                  <SelectValue placeholder="Select packaging" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePackaging.map((ing) => (
-                    <SelectItem key={ing.id} value={ing.id}>
-                      {ing.name} ({ing.category})
-                    </SelectItem>
-                  ))}
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search packaging..."
+                  value={packagingSearch}
+                  onChange={(e) => setPackagingSearch(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-search-recipe-packaging"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Select value={selectedPackagingId} onValueChange={setSelectedPackagingId}>
+                  <SelectTrigger className="md:col-span-2" data-testid="select-packaging">
+                    <SelectValue placeholder="Select packaging" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePackaging.length > 0 ? (
+                      availablePackaging.map((ing) => (
+                        <SelectItem key={ing.id} value={ing.id}>
+                          {ing.name} ({ing.category})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                        No packaging matches "{packagingSearch}"
+                      </div>
+                    )}
                 </SelectContent>
               </Select>
 
@@ -364,6 +426,7 @@ export function RecipeBuilder({
                 </Button>
               </div>
             </div>
+          </div>
           )}
 
           {packagingDensityWarning.needsWarning && selectedPackaging && (
