@@ -54,7 +54,7 @@ function App() {
                   <div className="flex items-center gap-6">
                     <Link href="/" className="flex items-center gap-2 hover-elevate rounded-md px-3 py-2" data-testid="link-home">
                       <Coffee className="h-6 w-6 text-primary" />
-                      <span className="font-bold text-xl">Recipe Costing</span>
+                      <span className="font-bold text-xl">MenuMetrics</span>
                     </Link>
                     <nav className="hidden md:flex items-center gap-1">
                       {navItems.map((item) => {

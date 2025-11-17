@@ -1,8 +1,8 @@
-# Recipe Cost Analysis - Restaurant Menu Management
+# MenuMetrics - Restaurant Recipe Cost Analysis
 
 ## Overview
 
-A professional recipe cost analysis tool designed for coffee shops and cafes to track ingredient costs, calculate COGS (Cost of Goods Sold), and optimize menu pricing. The application enables users to manage ingredient inventory, build recipes with precise costing, and leverage AI for menu strategy recommendations.
+MenuMetrics is a professional recipe cost analysis tool designed for coffee shops and cafes to track ingredient costs, calculate COGS (Cost of Goods Sold), and optimize menu pricing. The application enables users to manage ingredient inventory, build recipes with precise costing, and leverage AI for menu strategy recommendations.
 
 **Core Purpose**: Help restaurant operators understand their true food costs, make data-driven pricing decisions, and maintain profitability through detailed ingredient-to-recipe cost tracking.
 
