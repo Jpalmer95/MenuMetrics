@@ -1,7 +1,34 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, real, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, real, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// REPLIT AUTH INTEGRATION: Session storage table
+// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// REPLIT AUTH INTEGRATION: User storage table
+// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UpsertUser = typeof users.$inferInsert;
+export type User = typeof users.$inferSelect;
 
 export const measurementUnits = [
   "cups",
@@ -23,6 +50,7 @@ export type MeasurementUnit = typeof measurementUnits[number];
 
 export const ingredients = pgTable("ingredients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   category: text("category").notNull(),
   
@@ -61,6 +89,7 @@ export const ingredients = pgTable("ingredients", {
 
 export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   id: true,
+  userId: true,
   lastUpdated: true,
   // Omit all calculated cost fields - these are auto-calculated from purchase data
   costPerOunce: true,
@@ -90,14 +119,16 @@ export type Ingredient = typeof ingredients.$inferSelect;
 
 export const recipeIngredients = pgTable("recipe_ingredients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  recipeId: varchar("recipe_id").notNull(),
-  ingredientId: varchar("ingredient_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  recipeId: varchar("recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
+  ingredientId: varchar("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
   quantity: real("quantity").notNull(),
   unit: text("unit").notNull(),
 });
 
 export const insertRecipeIngredientSchema = createInsertSchema(recipeIngredients).omit({
   id: true,
+  userId: true,
 }).extend({
   quantity: z.number().positive("Quantity must be positive"),
 });
@@ -121,6 +152,7 @@ export type RecipeCategory = typeof recipeCategories[number];
 
 export const recipes = pgTable("recipes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   category: text("category").notNull().default("other"),
@@ -133,6 +165,7 @@ export const recipes = pgTable("recipes", {
 
 export const insertRecipeSchema = createInsertSchema(recipes).omit({
   id: true,
+  userId: true,
   totalCost: true,
   costPerServing: true,
   createdAt: true,
@@ -154,9 +187,10 @@ export function calculateProfitMargin(menuPrice: number | null, costPerServing: 
   return ((menuPrice - costPerServing) / menuPrice) * 100;
 }
 
-// AI Settings table - singleton pattern (only one row)
+// AI Settings table - now per-user (instead of singleton)
 export const aiSettings = pgTable("ai_settings", {
-  id: varchar("id").primaryKey().default("singleton"),
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   aiProvider: varchar("ai_provider").default("openai"), // openai, gemini, grok, huggingface
   huggingfaceToken: text("huggingface_token"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -164,6 +198,7 @@ export const aiSettings = pgTable("ai_settings", {
 
 export const insertAISettingsSchema = createInsertSchema(aiSettings).omit({
   id: true,
+  userId: true,
   updatedAt: true,
 });
 

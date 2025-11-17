@@ -6,12 +6,26 @@ import { storage } from "./storage";
 import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, measurementUnits } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  await setupAuth(app);
+
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
   // Excel template download
-  app.get("/api/ingredients/template", async (req, res) => {
+  app.get("/api/ingredients/template", isAuthenticated, async (req, res) => {
     try {
       // Create template with headers and sample data
       const headers = [
@@ -82,9 +96,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/ingredients/export", async (req, res) => {
+  app.get("/api/ingredients/export", isAuthenticated, async (req: any, res) => {
     try {
-      const ingredients = await storage.getAllIngredients();
+      const userId = req.user.claims.sub;
+      const ingredients = await storage.getAllIngredients(userId);
       
       // Map ingredients to export format
       const headers = [
@@ -141,18 +156,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/ingredients", async (req, res) => {
+  app.get("/api/ingredients", isAuthenticated, async (req: any, res) => {
     try {
-      const ingredients = await storage.getAllIngredients();
+      const userId = req.user.claims.sub;
+      const ingredients = await storage.getAllIngredients(userId);
       res.json(ingredients);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch ingredients" });
     }
   });
 
-  app.get("/api/ingredients/:id", async (req, res) => {
+  app.get("/api/ingredients/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const ingredient = await storage.getIngredient(req.params.id);
+      const userId = req.user.claims.sub;
+      const ingredient = await storage.getIngredient(req.params.id, userId);
       if (!ingredient) {
         return res.status(404).json({ error: "Ingredient not found" });
       }
@@ -162,20 +179,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/ingredients", async (req, res) => {
+  app.post("/api/ingredients", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertIngredientSchema.parse(req.body);
-      const ingredient = await storage.createIngredient(validatedData);
+      const ingredient = await storage.createIngredient(validatedData, userId);
       res.status(201).json(ingredient);
     } catch (error) {
       res.status(400).json({ error: "Invalid ingredient data" });
     }
   });
 
-  app.patch("/api/ingredients/:id", async (req, res) => {
+  app.patch("/api/ingredients/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertIngredientSchema.parse(req.body);
-      const ingredient = await storage.updateIngredient(req.params.id, validatedData);
+      const ingredient = await storage.updateIngredient(req.params.id, validatedData, userId);
       if (!ingredient) {
         return res.status(404).json({ error: "Ingredient not found" });
       }
@@ -185,9 +204,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/ingredients/:id", async (req, res) => {
+  app.delete("/api/ingredients/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const deleted = await storage.deleteIngredient(req.params.id);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteIngredient(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Ingredient not found" });
       }
@@ -197,8 +217,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/ingredients/import", upload.single("file"), async (req: Request, res) => {
+  app.post("/api/ingredients/import", upload.single("file"), isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
@@ -315,7 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isPackaging,
           });
           
-          const created = await storage.createIngredient(ingredient);
+          const created = await storage.createIngredient(ingredient, userId);
           results.success.push({ row: rowNum, name: created.name });
         } catch (error) {
           const rowData = data[i] as any;
@@ -342,18 +363,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/recipes", async (req, res) => {
+  app.get("/api/recipes", isAuthenticated, async (req: any, res) => {
     try {
-      const recipes = await storage.getAllRecipes();
+      const userId = req.user.claims.sub;
+      const recipes = await storage.getAllRecipes(userId);
       res.json(recipes);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch recipes" });
     }
   });
 
-  app.get("/api/recipes/:id", async (req, res) => {
+  app.get("/api/recipes/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const recipe = await storage.getRecipeWithIngredients(req.params.id);
+      const userId = req.user.claims.sub;
+      const recipe = await storage.getRecipeWithIngredients(req.params.id, userId);
       if (!recipe) {
         return res.status(404).json({ error: "Recipe not found" });
       }
@@ -363,20 +386,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/recipes", async (req, res) => {
+  app.post("/api/recipes", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertRecipeSchema.parse(req.body);
-      const recipe = await storage.createRecipe(validatedData);
+      const recipe = await storage.createRecipe(validatedData, userId);
       res.status(201).json(recipe);
     } catch (error) {
       res.status(400).json({ error: "Invalid recipe data" });
     }
   });
 
-  app.patch("/api/recipes/:id", async (req, res) => {
+  app.patch("/api/recipes/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertRecipeSchema.parse(req.body);
-      const recipe = await storage.updateRecipe(req.params.id, validatedData);
+      const recipe = await storage.updateRecipe(req.params.id, validatedData, userId);
       if (!recipe) {
         return res.status(404).json({ error: "Recipe not found" });
       }
@@ -386,9 +411,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/recipes/:id", async (req, res) => {
+  app.delete("/api/recipes/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const deleted = await storage.deleteRecipe(req.params.id);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteRecipe(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Recipe not found" });
       }
@@ -398,23 +424,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/recipes/:id/ingredients", async (req, res) => {
+  app.post("/api/recipes/:id/ingredients", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertRecipeIngredientSchema.parse(req.body);
-      const recipeIngredient = await storage.createRecipeIngredient(validatedData);
+      const recipeIngredient = await storage.createRecipeIngredient(validatedData, userId);
       res.status(201).json(recipeIngredient);
     } catch (error) {
       res.status(400).json({ error: "Invalid recipe ingredient data" });
     }
   });
 
-  app.patch("/api/recipes/:recipeId/ingredients/:id", async (req, res) => {
+  app.patch("/api/recipes/:recipeId/ingredients/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { quantity } = req.body;
       if (typeof quantity !== "number" || quantity <= 0) {
         return res.status(400).json({ error: "Invalid quantity" });
       }
-      const recipeIngredient = await storage.updateRecipeIngredientQuantity(req.params.id, quantity);
+      const recipeIngredient = await storage.updateRecipeIngredientQuantity(req.params.id, quantity, userId);
       if (!recipeIngredient) {
         return res.status(404).json({ error: "Recipe ingredient not found" });
       }
@@ -424,9 +452,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/recipes/:recipeId/ingredients/:id", async (req, res) => {
+  app.delete("/api/recipes/:recipeId/ingredients/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const deleted = await storage.deleteRecipeIngredient(req.params.id);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteRecipeIngredient(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: "Recipe ingredient not found" });
       }
@@ -437,17 +466,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Agent endpoints
-  app.post("/api/ai/recipe-ideas", async (req, res) => {
+  app.post("/api/ai/recipe-ideas", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { customPrompt } = req.body;
       
       // Get AI provider settings from database
-      const settings = await storage.getAISettings();
+      const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
 
       // Get all ingredients for context
-      const ingredients = await storage.getAllIngredients();
+      const ingredients = await storage.getAllIngredients(userId);
       
       const ingredientList = ingredients
         .map(i => `${i.name} (${i.category}) - $${i.purchaseCost.toFixed(2)} for ${i.purchaseQuantity} ${i.purchaseUnit}`)
@@ -513,8 +543,9 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
   });
 
   // Create recipe from AI suggestion
-  app.post("/api/ai/create-recipe", async (req, res) => {
+  app.post("/api/ai/create-recipe", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { name, description, category, servings, ingredients: suggestedIngredients } = req.body;
 
       if (!name || !category || !servings || !Array.isArray(suggestedIngredients)) {
@@ -522,7 +553,7 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
       }
 
       // Get all ingredients to match names
-      const allIngredients = await storage.getAllIngredients();
+      const allIngredients = await storage.getAllIngredients(userId);
       const ingredientMap = new Map(allIngredients.map(ing => [ing.name.toLowerCase().trim(), ing]));
 
       // Create the recipe first
@@ -531,7 +562,7 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
         description: description || "",
         category,
         servings,
-      });
+      }, userId);
 
       // Add ingredients to the recipe
       for (const suggestedIng of suggestedIngredients) {
@@ -543,14 +574,14 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
             ingredientId: matchedIngredient.id,
             quantity: suggestedIng.quantity,
             unit: suggestedIng.unit,
-          });
+          }, userId);
         } else {
           console.warn(`Ingredient not found: ${suggestedIng.ingredientName}`);
         }
       }
 
       // Fetch complete recipe with ingredients
-      const completeRecipe = await storage.getRecipeWithIngredients(recipe.id);
+      const completeRecipe = await storage.getRecipeWithIngredients(recipe.id, userId);
       res.status(201).json(completeRecipe);
     } catch (error: any) {
       console.error("Create recipe from AI error:", error);
@@ -559,8 +590,9 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
   });
 
   // AI Recipe Parser - accepts text or image
-  app.post("/api/ai/parse-recipe", upload.single("image"), async (req, res) => {
+  app.post("/api/ai/parse-recipe", upload.single("image"), isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { recipeText } = req.body;
       const imageFile = req.file;
 
@@ -588,7 +620,7 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
       }
 
       // Get AI provider settings
-      const settings = await storage.getAISettings();
+      const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
 
@@ -681,17 +713,18 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
     }
   });
 
-  app.post("/api/ai/menu-strategy", async (req, res) => {
+  app.post("/api/ai/menu-strategy", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const { customPrompt } = req.body;
       
       // Get AI provider settings from database
-      const settings = await storage.getAISettings();
+      const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
 
       // Get all recipes for context
-      const recipes = await storage.getAllRecipes();
+      const recipes = await storage.getAllRecipes(userId);
       
       const recipeList = recipes
         .map(r => {
@@ -738,9 +771,10 @@ Format your response clearly with numbered sections.`;
   });
 
   // AI Settings endpoints
-  app.get("/api/settings/ai", async (req, res) => {
+  app.get("/api/settings/ai", isAuthenticated, async (req: any, res) => {
     try {
-      const settings = await storage.getAISettings();
+      const userId = req.user.claims.sub;
+      const settings = await storage.getAISettings(userId);
       res.json(settings);
     } catch (error: any) {
       console.error("Get AI settings error:", error);
@@ -748,10 +782,11 @@ Format your response clearly with numbered sections.`;
     }
   });
 
-  app.post("/api/settings/ai", async (req, res) => {
+  app.post("/api/settings/ai", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const validatedData = insertAISettingsSchema.parse(req.body);
-      const updated = await storage.saveAISettings(validatedData);
+      const updated = await storage.saveAISettings(validatedData, userId);
       res.json(updated);
     } catch (error: any) {
       console.error("Save AI settings error:", error);

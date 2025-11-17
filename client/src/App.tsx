@@ -1,3 +1,4 @@
+// REPLIT AUTH INTEGRATION
 import { Switch, Route, Link, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -5,10 +6,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/dashboard";
 import IngredientsPage from "@/pages/ingredients";
@@ -16,8 +18,20 @@ import RecipesPage from "@/pages/recipes";
 import RecipeDetailPage from "@/pages/recipe-detail";
 import AIAgentPage from "@/pages/ai-agent";
 import SettingsPage from "@/pages/settings";
+import LandingPage from "@/pages/landing";
 
-function Router() {
+function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
+  // Show landing page while loading or when not authenticated
+  if (isLoading || !isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/" component={LandingPage} />
+        <Route component={LandingPage} />
+      </Switch>
+    );
+  }
+
+  // Show protected routes when authenticated
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
@@ -31,9 +45,10 @@ function Router() {
   );
 }
 
-function App() {
+function AppContent() {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: BarChart3, testId: "link-dashboard" },
@@ -43,12 +58,15 @@ function App() {
     { path: "/settings", label: "Settings", icon: Settings, testId: "link-settings" },
   ];
 
+  const handleLogout = () => {
+    window.location.href = "/api/logout";
+  };
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <div className="min-h-screen bg-background">
-            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="min-h-screen bg-background">
+      {/* Only show header when authenticated */}
+      {!isLoading && isAuthenticated && (
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex h-16 items-center justify-between">
                   <div className="flex items-center gap-6">
@@ -78,6 +96,15 @@ function App() {
                     </nav>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleLogout}
+                      data-testid="button-logout"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Log Out
+                    </Button>
                     <ThemeToggle />
                     <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                       <SheetTrigger asChild>
@@ -124,12 +151,22 @@ function App() {
                   </div>
                 </div>
               </div>
-            </header>
+        </header>
+      )}
 
-            <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              <Router />
-            </main>
-          </div>
+      <main className={!isLoading && isAuthenticated ? "container mx-auto px-4 sm:px-6 lg:px-8 py-8" : ""}>
+        <Router isAuthenticated={isAuthenticated} isLoading={isLoading} />
+      </main>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light">
+        <TooltipProvider>
+          <AppContent />
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>

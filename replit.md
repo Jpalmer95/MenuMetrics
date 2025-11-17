@@ -39,15 +39,27 @@ Preferred communication style: Simple, everyday language.
 
 **Server Framework**: Express.js with TypeScript
 - RESTful API design pattern
-- Session-based state management (no authentication implemented)
+- Session-based authentication using Replit Auth (OpenID Connect)
+- Multi-user support with complete data isolation by userId
 - File upload handling via Multer for Excel imports
 
+**Authentication** (Replit Auth Integration):
+- Email/password login with Google, GitHub, Apple, X login options
+- Session storage in PostgreSQL using connect-pg-simple
+- Authentication middleware on all API routes (`/api/auth/user`, `/api/login`, `/api/logout`)
+- Per-user data isolation enforced at both database and storage layer
+- CASCADE DELETE rules ensure complete user data cleanup
+
 **API Structure**:
-- `/api/ingredients` - CRUD operations for ingredients
-- `/api/recipes` - Recipe management endpoints
-- `/api/recipes/:id/ingredients` - Recipe composition
-- `/api/ai/*` - AI-powered recommendations
-- `/api/settings/ai` - AI provider configuration
+- `/api/auth/user` - Get current authenticated user
+- `/api/login` - Initiate Replit Auth login flow
+- `/api/logout` - Destroy session and log out
+- `/api/ingredients` - CRUD operations for ingredients (user-scoped)
+- `/api/ingredients/export` - Export user's ingredients to Excel
+- `/api/recipes` - Recipe management endpoints (user-scoped)
+- `/api/recipes/:id/ingredients` - Recipe composition (user-scoped)
+- `/api/ai/*` - AI-powered recommendations (user-scoped)
+- `/api/settings/ai` - AI provider configuration (user-scoped)
 
 **Key Business Logic**:
 - **Unit Conversion System** (`shared/cost-calculator.ts`): Handles weight↔volume conversions using density data
@@ -68,7 +80,12 @@ Preferred communication style: Simple, everyday language.
 
 **Schema Design** (`shared/schema.ts`):
 
+0. **Users Table** (Replit Auth):
+   - User profiles: id, email, firstName, lastName, profileImageUrl
+   - All user data linked via foreign keys with CASCADE DELETE
+
 1. **Ingredients Table**:
+   - **userId**: Foreign key to users (CASCADE DELETE) for data isolation
    - Purchase information: quantity, unit, cost, store
    - Density field (`gramsPerMilliliter`) for accurate volume↔weight conversions
    - Calculated fields: cost per ounce, gram, cup, tablespoon, etc.
@@ -76,14 +93,26 @@ Preferred communication style: Simple, everyday language.
    - `densitySource` tracks origin of density data (preset, manual, imported, USDA)
 
 2. **Recipes Table**:
+   - **userId**: Foreign key to users (CASCADE DELETE) for data isolation
    - Basic metadata: name, description, category, serving size
    - Pricing: `sellingPrice`, `totalCost`, calculated profit margin
    - Timestamps for tracking
 
 3. **Recipe Ingredients Junction Table**:
+   - **userId**: Foreign key to users (CASCADE DELETE) for security
    - Links recipes to ingredients with quantity and unit
    - Enables many-to-many relationships
    - Cost calculated dynamically based on current ingredient prices
+   - All operations filtered by userId to prevent cross-user data access
+
+4. **AI Settings Table**:
+   - **userId**: Unique foreign key to users (CASCADE DELETE)
+   - Per-user AI provider selection (OpenAI, Gemini, Grok, HuggingFace)
+   - HuggingFace API token storage (user-specific)
+
+5. **Sessions Table**:
+   - PostgreSQL-backed session storage for Replit Auth
+   - Automatic session expiry and cleanup
 
 **Migration Strategy**: Drizzle Kit with PostgreSQL dialect, migrations stored in `/migrations`
 
@@ -121,6 +150,18 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
 
 **Configuration Notes**:
 - Environment variable `DATABASE_URL` required for database connection
+- Environment variable `SESSION_SECRET` required for session encryption (auto-provisioned by Replit Auth)
 - AI providers configured via `AI_INTEGRATIONS_*` environment variables (auto-provisioned by Replit)
 - Development vs. production builds use different server entry points
 - TypeScript strict mode enabled with path aliases for clean imports
+
+## Recent Updates
+
+### November 2025: Multi-User Authentication & Team Collaboration
+- **Replit Auth Integration**: Added email/password authentication with Google, GitHub, Apple, X login support
+- **Complete Data Isolation**: All tables now include userId foreign keys with CASCADE DELETE for security
+- **Storage Layer Security**: All storage methods filter by userId to prevent cross-user data access
+- **Export Feature**: Added `/api/ingredients/export` endpoint for Excel export in import-compatible format
+- **Migration Completed**: Existing data migrated to default user account, orphaned records cleaned up
+- **Frontend Auth Flow**: Landing page for logged-out users, protected routes, logout button
+- **Team Collaboration Ready**: Multiple users can now share a business account with isolated data access

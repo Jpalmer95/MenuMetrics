@@ -9,50 +9,80 @@ import {
   type MeasurementUnit,
   type AISettingsData,
   type InsertAISettings,
+  type User,
+  type UpsertUser,
   ingredients,
   recipes,
   recipeIngredients,
   aiSettings,
+  users,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
-  getIngredient(id: string): Promise<Ingredient | undefined>;
-  getAllIngredients(): Promise<Ingredient[]>;
-  createIngredient(ingredient: InsertIngredient): Promise<Ingredient>;
-  updateIngredient(id: string, ingredient: InsertIngredient): Promise<Ingredient | undefined>;
-  deleteIngredient(id: string): Promise<boolean>;
+  // REPLIT AUTH INTEGRATION: User operations (mandatory for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
   
-  getRecipe(id: string): Promise<Recipe | undefined>;
-  getRecipeWithIngredients(id: string): Promise<RecipeWithIngredients | undefined>;
-  getAllRecipes(): Promise<Recipe[]>;
-  createRecipe(recipe: InsertRecipe): Promise<Recipe>;
-  updateRecipe(id: string, recipe: InsertRecipe): Promise<Recipe | undefined>;
-  deleteRecipe(id: string): Promise<boolean>;
-  recalculateRecipeCost(recipeId: string): Promise<Recipe | undefined>;
+  getIngredient(id: string, userId: string): Promise<Ingredient | undefined>;
+  getAllIngredients(userId: string): Promise<Ingredient[]>;
+  createIngredient(ingredient: InsertIngredient, userId: string): Promise<Ingredient>;
+  updateIngredient(id: string, ingredient: InsertIngredient, userId: string): Promise<Ingredient | undefined>;
+  deleteIngredient(id: string, userId: string): Promise<boolean>;
   
-  getRecipeIngredients(recipeId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>>;
-  createRecipeIngredient(recipeIngredient: InsertRecipeIngredient): Promise<RecipeIngredient>;
-  updateRecipeIngredientQuantity(id: string, quantity: number): Promise<RecipeIngredient | undefined>;
-  deleteRecipeIngredient(id: string): Promise<boolean>;
+  getRecipe(id: string, userId: string): Promise<Recipe | undefined>;
+  getRecipeWithIngredients(id: string, userId: string): Promise<RecipeWithIngredients | undefined>;
+  getAllRecipes(userId: string): Promise<Recipe[]>;
+  createRecipe(recipe: InsertRecipe, userId: string): Promise<Recipe>;
+  updateRecipe(id: string, recipe: InsertRecipe, userId: string): Promise<Recipe | undefined>;
+  deleteRecipe(id: string, userId: string): Promise<boolean>;
+  recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined>;
   
-  getAISettings(): Promise<AISettingsData>;
-  saveAISettings(settings: InsertAISettings): Promise<AISettingsData>;
+  getRecipeIngredients(recipeId: string, userId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>>;
+  createRecipeIngredient(recipeIngredient: InsertRecipeIngredient, userId: string): Promise<RecipeIngredient>;
+  updateRecipeIngredientQuantity(id: string, quantity: number, userId: string): Promise<RecipeIngredient | undefined>;
+  deleteRecipeIngredient(id: string, userId: string): Promise<boolean>;
+  
+  getAISettings(userId: string): Promise<AISettingsData | undefined>;
+  saveAISettings(settings: InsertAISettings, userId: string): Promise<AISettingsData>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getIngredient(id: string): Promise<Ingredient | undefined> {
-    const [ingredient] = await db.select().from(ingredients).where(eq(ingredients.id, id));
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          profileImageUrl: userData.profileImageUrl,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async getIngredient(id: string, userId: string): Promise<Ingredient | undefined> {
+    const [ingredient] = await db.select().from(ingredients).where(and(eq(ingredients.id, id), eq(ingredients.userId, userId)));
     return ingredient || undefined;
   }
 
-  async getAllIngredients(): Promise<Ingredient[]> {
-    return await db.select().from(ingredients);
+  async getAllIngredients(userId: string): Promise<Ingredient[]> {
+    return await db.select().from(ingredients).where(eq(ingredients.userId, userId));
   }
 
-  async createIngredient(insertIngredient: InsertIngredient): Promise<Ingredient> {
+  async createIngredient(insertIngredient: InsertIngredient, userId: string): Promise<Ingredient> {
     // Calculate all per-unit costs from purchase data (with density if provided)
     const unitCosts = calculateAllUnitCosts(
       insertIngredient.purchaseQuantity,
@@ -66,12 +96,13 @@ export class DatabaseStorage implements IStorage {
       .values({
         ...insertIngredient,
         ...unitCosts,
+        userId,
       })
       .returning();
     return ingredient;
   }
 
-  async updateIngredient(id: string, insertIngredient: InsertIngredient): Promise<Ingredient | undefined> {
+  async updateIngredient(id: string, insertIngredient: InsertIngredient, userId: string): Promise<Ingredient | undefined> {
     // Recalculate all per-unit costs from updated purchase data (with density if provided)
     const unitCosts = calculateAllUnitCosts(
       insertIngredient.purchaseQuantity,
@@ -87,7 +118,7 @@ export class DatabaseStorage implements IStorage {
         ...unitCosts,
         lastUpdated: new Date() 
       })
-      .where(eq(ingredients.id, id))
+      .where(and(eq(ingredients.id, id), eq(ingredients.userId, userId)))
       .returning();
 
     if (!updated) return undefined;
@@ -98,68 +129,76 @@ export class DatabaseStorage implements IStorage {
       .where(eq(recipeIngredients.ingredientId, id));
 
     for (const { recipeId } of affectedRecipeIds) {
-      await this.recalculateRecipeCost(recipeId);
+      await this.recalculateRecipeCost(recipeId, userId);
     }
 
     return updated;
   }
 
-  async deleteIngredient(id: string): Promise<boolean> {
-    const result = await db.delete(ingredients).where(eq(ingredients.id, id));
+  async deleteIngredient(id: string, userId: string): Promise<boolean> {
+    // Delete all recipe ingredients using this ingredient (filtered by userId for security)
+    // This prevents accidental deletion of other users' recipe ingredients if they share the same ingredient ID
+    await db.delete(recipeIngredients).where(and(eq(recipeIngredients.ingredientId, id), eq(recipeIngredients.userId, userId)));
+    
+    const result = await db.delete(ingredients).where(and(eq(ingredients.id, id), eq(ingredients.userId, userId)));
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  async getRecipe(id: string): Promise<Recipe | undefined> {
-    const [recipe] = await db.select().from(recipes).where(eq(recipes.id, id));
+  async getRecipe(id: string, userId: string): Promise<Recipe | undefined> {
+    const [recipe] = await db.select().from(recipes).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
     return recipe || undefined;
   }
 
-  async getRecipeWithIngredients(id: string): Promise<RecipeWithIngredients | undefined> {
-    const recipe = await this.getRecipe(id);
+  async getRecipeWithIngredients(id: string, userId: string): Promise<RecipeWithIngredients | undefined> {
+    const recipe = await this.getRecipe(id, userId);
     if (!recipe) return undefined;
 
-    const recipeIngs = await this.getRecipeIngredients(id);
+    const recipeIngs = await this.getRecipeIngredients(id, userId);
     return {
       ...recipe,
       ingredients: recipeIngs,
     };
   }
 
-  async getAllRecipes(): Promise<Recipe[]> {
-    return await db.select().from(recipes);
+  async getAllRecipes(userId: string): Promise<Recipe[]> {
+    return await db.select().from(recipes).where(eq(recipes.userId, userId));
   }
 
-  async createRecipe(insertRecipe: InsertRecipe): Promise<Recipe> {
+  async createRecipe(insertRecipe: InsertRecipe, userId: string): Promise<Recipe> {
     const [recipe] = await db
       .insert(recipes)
-      .values(insertRecipe)
+      .values({
+        ...insertRecipe,
+        userId,
+      })
       .returning();
     return recipe;
   }
 
-  async updateRecipe(id: string, insertRecipe: InsertRecipe): Promise<Recipe | undefined> {
+  async updateRecipe(id: string, insertRecipe: InsertRecipe, userId: string): Promise<Recipe | undefined> {
     const [updated] = await db
       .update(recipes)
       .set(insertRecipe)
-      .where(eq(recipes.id, id))
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
       .returning();
 
     if (!updated) return undefined;
-    await this.recalculateRecipeCost(id);
-    return await this.getRecipe(id);
+    await this.recalculateRecipeCost(id, userId);
+    return await this.getRecipe(id, userId);
   }
 
-  async deleteRecipe(id: string): Promise<boolean> {
-    await db.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, id));
-    const result = await db.delete(recipes).where(eq(recipes.id, id));
+  async deleteRecipe(id: string, userId: string): Promise<boolean> {
+    // Delete recipe ingredients (cascade delete will handle this, but being explicit for security)
+    await db.delete(recipeIngredients).where(and(eq(recipeIngredients.recipeId, id), eq(recipeIngredients.userId, userId)));
+    const result = await db.delete(recipes).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  async recalculateRecipeCost(recipeId: string): Promise<Recipe | undefined> {
-    const recipe = await this.getRecipe(recipeId);
+  async recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined> {
+    const recipe = await this.getRecipe(recipeId, userId);
     if (!recipe) return undefined;
 
-    const recipeIngs = await this.getRecipeIngredients(recipeId);
+    const recipeIngs = await this.getRecipeIngredients(recipeId, userId);
     
     const totalCost = recipeIngs.reduce((sum, ri) => {
       return sum + this.calculateIngredientCost(
@@ -174,7 +213,7 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(recipes)
       .set({ totalCost, costPerServing })
-      .where(eq(recipes.id, recipeId))
+      .where(and(eq(recipes.id, recipeId), eq(recipes.userId, userId)))
       .returning();
 
     return updated;
@@ -253,15 +292,15 @@ export class DatabaseStorage implements IStorage {
     return recipeQuantity * costPerUnit;
   }
 
-  async getRecipeIngredients(recipeId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>> {
+  async getRecipeIngredients(recipeId: string, userId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>> {
     const recipeIngs = await db
       .select()
       .from(recipeIngredients)
-      .where(eq(recipeIngredients.recipeId, recipeId));
+      .where(and(eq(recipeIngredients.recipeId, recipeId), eq(recipeIngredients.userId, userId)));
 
     const result = [];
     for (const ri of recipeIngs) {
-      const ingredient = await this.getIngredient(ri.ingredientId);
+      const ingredient = await this.getIngredient(ri.ingredientId, userId);
       if (ingredient) {
         result.push({
           ...ri,
@@ -272,65 +311,67 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async createRecipeIngredient(insertRecipeIngredient: InsertRecipeIngredient): Promise<RecipeIngredient> {
+  async createRecipeIngredient(insertRecipeIngredient: InsertRecipeIngredient, userId: string): Promise<RecipeIngredient> {
     const [recipeIngredient] = await db
       .insert(recipeIngredients)
-      .values(insertRecipeIngredient)
+      .values({
+        ...insertRecipeIngredient,
+        userId,
+      })
       .returning();
     
-    await this.recalculateRecipeCost(insertRecipeIngredient.recipeId);
+    await this.recalculateRecipeCost(insertRecipeIngredient.recipeId, userId);
     return recipeIngredient;
   }
 
-  async updateRecipeIngredientQuantity(id: string, quantity: number): Promise<RecipeIngredient | undefined> {
+  async updateRecipeIngredientQuantity(id: string, quantity: number, userId: string): Promise<RecipeIngredient | undefined> {
     const [updated] = await db
       .update(recipeIngredients)
       .set({ quantity })
-      .where(eq(recipeIngredients.id, id))
+      .where(and(eq(recipeIngredients.id, id), eq(recipeIngredients.userId, userId)))
       .returning();
 
     if (!updated) return undefined;
-    await this.recalculateRecipeCost(updated.recipeId);
+    await this.recalculateRecipeCost(updated.recipeId, userId);
     return updated;
   }
 
-  async deleteRecipeIngredient(id: string): Promise<boolean> {
+  async deleteRecipeIngredient(id: string, userId: string): Promise<boolean> {
     const [recipeIngredient] = await db
       .select()
       .from(recipeIngredients)
-      .where(eq(recipeIngredients.id, id));
+      .where(and(eq(recipeIngredients.id, id), eq(recipeIngredients.userId, userId)));
     
     if (!recipeIngredient) return false;
     
-    const result = await db.delete(recipeIngredients).where(eq(recipeIngredients.id, id));
+    const result = await db.delete(recipeIngredients).where(and(eq(recipeIngredients.id, id), eq(recipeIngredients.userId, userId)));
     if (result.rowCount && result.rowCount > 0) {
-      await this.recalculateRecipeCost(recipeIngredient.recipeId);
+      await this.recalculateRecipeCost(recipeIngredient.recipeId, userId);
       return true;
     }
     return false;
   }
 
-  async getAISettings(): Promise<AISettingsData> {
-    const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.id, "singleton"));
-    if (!settings) {
-      const [newSettings] = await db
-        .insert(aiSettings)
-        .values({ id: "singleton", huggingfaceToken: null })
-        .returning();
-      return newSettings;
-    }
-    return settings;
+  async getAISettings(userId: string): Promise<AISettingsData | undefined> {
+    const [settings] = await db.select().from(aiSettings).where(eq(aiSettings.userId, userId));
+    return settings || undefined;
   }
 
-  async saveAISettings(insertSettings: InsertAISettings): Promise<AISettingsData> {
-    const existing = await this.getAISettings();
+  async saveAISettings(insertSettings: InsertAISettings, userId: string): Promise<AISettingsData> {
     const [updated] = await db
-      .update(aiSettings)
-      .set({ 
+      .insert(aiSettings)
+      .values({
         ...insertSettings,
-        updatedAt: new Date()
+        userId,
       })
-      .where(eq(aiSettings.id, "singleton"))
+      .onConflictDoUpdate({
+        target: aiSettings.userId,
+        set: {
+          aiProvider: insertSettings.aiProvider,
+          huggingfaceToken: insertSettings.huggingfaceToken,
+          updatedAt: new Date(),
+        },
+      })
       .returning();
     return updated;
   }
