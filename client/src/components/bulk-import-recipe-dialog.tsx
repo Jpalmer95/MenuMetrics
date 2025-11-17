@@ -64,9 +64,15 @@ export function BulkImportRecipeDialog({
       const data = await response.json();
       setResult(data);
       
-      // Only auto-close if there were no errors
-      if (data.imported > 0 && (!data.errors || data.errors.length === 0)) {
+      // Always trigger completion callback when recipes were imported
+      // This ensures query invalidation and toast notification happen
+      if (data.imported > 0) {
         onImportComplete();
+      }
+      
+      // Auto-close dialog only if there were no errors
+      if (data.imported > 0 && (!data.errors || data.errors.length === 0)) {
+        handleClose();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to import recipes");
@@ -199,10 +205,7 @@ export function BulkImportRecipeDialog({
             )}
             {result && result.imported > 0 && (
               <Button
-                onClick={() => {
-                  onImportComplete();
-                  handleClose();
-                }}
+                onClick={handleClose}
                 data-testid="button-done"
               >
                 Done
