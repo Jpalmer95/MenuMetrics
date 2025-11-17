@@ -424,6 +424,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/recipes/import", upload.single("file"), isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(worksheet);
+
+      // Group rows by recipe name
+      const recipeGroups = new Map<string, any[]>();
+      for (const row of data as any[]) {
+        const recipeName = row["Recipe Name"] || row["recipe_name"] || row["name"];
+        if (!recipeName) continue;
+        
+        if (!recipeGroups.has(recipeName)) {
+          recipeGroups.set(recipeName, []);
+        }
+        recipeGroups.get(recipeName)!.push(row);
+      }
+
+      // Get all user's ingredients for matching
+      const userIngredients = await storage.getAllIngredients(userId);
+      const ingredientMap = new Map(
+        userIngredients.map(ing => [ing.name.toLowerCase().trim(), ing])
+      );
+
+      const results: { 
+        success: Array<{ name: string; ingredientsCount: number }>; 
+        errors: Array<{ recipe: string; error: string }> 
+      } = { success: [], errors: [] };
+
+      // Process each recipe
+      for (const [recipeName, rows] of recipeGroups.entries()) {
+        try {
+          const firstRow = rows[0];
+          
+          // Extract recipe metadata from first row
+          const category = firstRow["Category"] || firstRow["category"] || "";
+          const servingSizeStr = String(firstRow["Serving Size"] || firstRow["serving_size"] || "1");
+          const servings = parseFloat(servingSizeStr.replace(/[^\d.]/g, '')) || 1;
+          
+          const sellingPriceStr = firstRow["Selling Price"] || firstRow["selling_price"] || firstRow["price"];
+          const sellingPrice = sellingPriceStr ? parseFloat(String(sellingPriceStr).replace(/[$,]/g, '')) : undefined;
+          
+          const description = firstRow["Description"] || firstRow["description"] || "";
+
+          // Create recipe
+          const recipe = await storage.createRecipe({
+            name: recipeName,
+            description: description || "",
+            category: category || "Other",
+            servings,
+            sellingPrice: sellingPrice || null,
+          }, userId);
+
+          // Add ingredients to recipe
+          let ingredientCount = 0;
+          for (const row of rows) {
+            const ingredientName = row["Ingredient Name"] || row["ingredient_name"] || row["ingredient"];
+            if (!ingredientName) continue;
+
+            const ingredient = ingredientMap.get(ingredientName.toLowerCase().trim());
+            if (!ingredient) {
+              console.warn(`Ingredient "${ingredientName}" not found for recipe "${recipeName}"`);
+              continue;
+            }
+
+            const quantityStr = row["Quantity"] || row["quantity"];
+            const quantity = parseFloat(quantityStr) || 1;
+            
+            const unit = (row["Unit"] || row["unit"] || "units").toLowerCase().trim();
+            const normalizedUnit = normalizeUnit(unit) || unit;
+
+            await storage.createRecipeIngredient({
+              recipeId: recipe.id,
+              ingredientId: ingredient.id,
+              quantity,
+              unit: normalizedUnit,
+            }, userId);
+
+            ingredientCount++;
+          }
+
+          // Recalculate recipe cost
+          await storage.recalculateRecipeCost(recipe.id, userId);
+
+          results.success.push({ 
+            name: recipeName, 
+            ingredientsCount: ingredientCount 
+          });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          results.errors.push({ 
+            recipe: recipeName, 
+            error: errorMsg 
+          });
+          console.error(`Failed to import recipe "${recipeName}":`, error);
+        }
+      }
+
+      res.json({
+        imported: results.success.length,
+        skipped: results.errors.length,
+        recipes: results.success,
+        errors: results.errors,
+        message: `Imported ${results.success.length} recipes successfully${results.errors.length > 0 ? `, skipped ${results.errors.length} with errors` : ''}`
+      });
+    } catch (error) {
+      console.error("Recipe import error:", error);
+      res.status(500).json({ error: "Failed to import recipes" });
+    }
+  });
+
   app.post("/api/recipes/:id/ingredients", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
