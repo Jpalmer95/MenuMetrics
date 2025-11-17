@@ -4,6 +4,8 @@ import { Sparkles, Loader2, DollarSign, Lightbulb, Plus, Check } from "lucide-re
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -23,13 +25,17 @@ export default function AIAgentPage() {
   const [recipeIdeas, setRecipeIdeas] = useState<string>("");
   const [recipes, setRecipes] = useState<AIRecipe[] | null>(null);
   const [addedRecipes, setAddedRecipes] = useState<Set<string>>(new Set());
+  const [customRecipePrompt, setCustomRecipePrompt] = useState<string>("");
   const [menuStrategy, setMenuStrategy] = useState<string>("");
+  const [customStrategyPrompt, setCustomStrategyPrompt] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const recipeIdeasMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/ai/recipe-ideas", {});
+      const response = await apiRequest("POST", "/api/ai/recipe-ideas", {
+        customPrompt: customRecipePrompt.trim() || undefined,
+      });
       const data = await response.json();
       return data;
     },
@@ -77,7 +83,9 @@ export default function AIAgentPage() {
 
   const menuStrategyMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/ai/menu-strategy", {});
+      const response = await apiRequest("POST", "/api/ai/menu-strategy", {
+        customPrompt: customStrategyPrompt.trim() || undefined,
+      });
       const data = await response.json();
       return data.response;
     },
@@ -118,6 +126,21 @@ export default function AIAgentPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="custom-recipe-prompt">Custom Request (Optional)</Label>
+              <Textarea
+                id="custom-recipe-prompt"
+                placeholder="e.g., Christmas drinks, vegan options, winter warming beverages..."
+                value={customRecipePrompt}
+                onChange={(e) => setCustomRecipePrompt(e.target.value)}
+                rows={2}
+                data-testid="input-custom-recipe-prompt"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank for general suggestions, or describe what you're looking for
+              </p>
+            </div>
+
             <Button
               onClick={() => recipeIdeasMutation.mutate()}
               disabled={recipeIdeasMutation.isPending}
@@ -206,6 +229,21 @@ export default function AIAgentPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="custom-strategy-prompt">Custom Request (Optional)</Label>
+              <Textarea
+                id="custom-strategy-prompt"
+                placeholder="e.g., focus on high-margin items, strategies for holiday season..."
+                value={customStrategyPrompt}
+                onChange={(e) => setCustomStrategyPrompt(e.target.value)}
+                rows={2}
+                data-testid="input-custom-strategy-prompt"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank for general analysis, or ask a specific question
+              </p>
+            </div>
+
             <Button
               onClick={() => menuStrategyMutation.mutate()}
               disabled={menuStrategyMutation.isPending}

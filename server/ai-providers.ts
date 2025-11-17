@@ -13,6 +13,7 @@ interface AIRequest {
   prompt: string;
   systemPrompt?: string;
   customApiKey?: string;
+  imageUrl?: string; // Optional image URL for vision requests
 }
 
 function isRateLimitError(error: any): boolean {
@@ -72,7 +73,19 @@ async function callOpenAI(request: AIRequest): Promise<string> {
   if (request.systemPrompt) {
     messages.push({ role: "system", content: request.systemPrompt });
   }
-  messages.push({ role: "user", content: request.prompt });
+  
+  // Support vision if image URL provided
+  if (request.imageUrl) {
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: request.prompt },
+        { type: "image_url", image_url: { url: request.imageUrl } }
+      ]
+    });
+  } else {
+    messages.push({ role: "user", content: request.prompt });
+  }
 
   const response = await client.chat.completions.create({
     model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
@@ -96,6 +109,23 @@ async function callGemini(request: AIRequest): Promise<string> {
   let prompt = request.prompt;
   if (request.systemPrompt) {
     prompt = `${request.systemPrompt}\n\n${request.prompt}`;
+  }
+
+  // Support vision if image URL provided
+  if (request.imageUrl) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        { text: prompt },
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: request.imageUrl.split(",")[1] || request.imageUrl, // Handle base64 data URLs
+          },
+        },
+      ],
+    });
+    return response.text || "";
   }
 
   const response = await ai.models.generateContent({

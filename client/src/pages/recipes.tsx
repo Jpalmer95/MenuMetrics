@@ -3,12 +3,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { RecipesTable } from "@/components/recipes-table";
 import { RecipeFormDialog } from "@/components/recipe-form-dialog";
+import { ImportRecipeDialog } from "@/components/import-recipe-dialog";
 import type { Recipe, InsertRecipe } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
 export default function RecipesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | undefined>();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -101,6 +103,31 @@ export default function RecipesPage() {
     setIsFormOpen(true);
   };
 
+  const handleImportWithAI = () => {
+    setIsImportOpen(true);
+  };
+
+  const handleImportRecipe = async (recipeData: any) => {
+    try {
+      // Use the existing AI create recipe endpoint
+      const response = await apiRequest("POST", "/api/ai/create-recipe", recipeData);
+      const newRecipe = await response.json();
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setLocation(`/recipes/${newRecipe.id}`);
+      toast({
+        title: "Recipe Imported",
+        description: `"${recipeData.name}" has been added to your recipes.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to import recipe. Some ingredients may not be in your database.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleViewDetails = (recipe: Recipe) => {
     setLocation(`/recipes/${recipe.id}`);
   };
@@ -127,6 +154,7 @@ export default function RecipesPage() {
         onEdit={handleEdit}
         onDelete={(id) => deleteMutation.mutate(id)}
         onAddNew={handleAddNew}
+        onImportWithAI={handleImportWithAI}
         onViewDetails={handleViewDetails}
       />
 
@@ -139,6 +167,12 @@ export default function RecipesPage() {
         onSubmit={handleSubmit}
         recipe={editingRecipe}
         isLoading={createMutation.isPending || updateMutation.isPending}
+      />
+
+      <ImportRecipeDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onImport={handleImportRecipe}
       />
     </div>
   );

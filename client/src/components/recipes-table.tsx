@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Search, ChefHat } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,6 +27,7 @@ interface RecipesTableProps {
   onEdit: (recipe: Recipe) => void;
   onDelete: (id: string) => void;
   onAddNew: () => void;
+  onImportWithAI: () => void;
   onViewDetails: (recipe: Recipe) => void;
 }
 
@@ -35,6 +36,7 @@ export function RecipesTable({
   onEdit,
   onDelete,
   onAddNew,
+  onImportWithAI,
   onViewDetails,
 }: RecipesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -99,10 +101,16 @@ export function RecipesTable({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={onAddNew} data-testid="button-add-recipe">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Recipe
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={onImportWithAI} variant="outline" data-testid="button-import-ai">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Import with AI
+          </Button>
+          <Button onClick={onAddNew} data-testid="button-add-recipe">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Recipe
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-md bg-card">

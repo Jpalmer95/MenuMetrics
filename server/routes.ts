@@ -380,6 +380,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Agent endpoints
   app.post("/api/ai/recipe-ideas", async (req, res) => {
     try {
+      const { customPrompt } = req.body;
+      
       // Get AI provider settings from database
       const settings = await storage.getAISettings();
       const provider = (settings?.aiProvider || "openai") as AIProvider;
@@ -394,7 +396,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const systemPrompt = `You are a professional coffee shop recipe consultant specializing in cost-effective menu development. You MUST respond with valid JSON only, no additional text.`;
       
-      const prompt = `Based on these available ingredients, suggest 5 creative and cost-efficient coffee shop recipes.
+      const userRequest = customPrompt 
+        ? `User request: ${customPrompt}\n\n`
+        : '';
+      
+      const prompt = `${userRequest}Based on these available ingredients, suggest 5 creative and cost-efficient coffee shop recipes${customPrompt ? ` that match the user's request` : ''}.
 
 Available ingredients:
 ${ingredientList}
@@ -493,8 +499,133 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
     }
   });
 
+  // AI Recipe Parser - accepts text or image
+  app.post("/api/ai/parse-recipe", upload.single("image"), async (req, res) => {
+    try {
+      const { recipeText } = req.body;
+      const imageFile = req.file;
+
+      if (!recipeText && !imageFile) {
+        return res.status(400).json({ error: "Please provide either recipe text or an image" });
+      }
+
+      // Validate image file if provided
+      if (imageFile) {
+        const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+        const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/webp'];
+        
+        if (imageFile.size > MAX_FILE_SIZE) {
+          return res.status(400).json({ error: "Image file too large. Maximum size is 5MB." });
+        }
+        
+        if (!ALLOWED_TYPES.includes(imageFile.mimetype)) {
+          return res.status(400).json({ error: "Invalid image type. Allowed: JPG, PNG, HEIC, WebP." });
+        }
+      }
+
+      // Validate text length if provided
+      if (recipeText && recipeText.length > 10000) {
+        return res.status(400).json({ error: "Recipe text too long. Maximum 10,000 characters." });
+      }
+
+      // Get AI provider settings
+      const settings = await storage.getAISettings();
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
+
+      // Check if provider supports vision for image requests
+      if (imageFile && provider !== "openai" && provider !== "gemini") {
+        return res.status(400).json({ 
+          error: "Image parsing is only supported with OpenAI or Gemini. Please change your AI provider in Settings." 
+        });
+      }
+
+      // Prepare system prompt for recipe extraction
+      const systemPrompt = `You are a professional recipe parser. Extract recipe information from text or images and return ONLY valid JSON, no additional text or markdown.`;
+
+      let imageUrl: string | undefined;
+      if (imageFile) {
+        // Convert image to base64 data URL for AI vision
+        const base64Image = imageFile.buffer.toString('base64');
+        imageUrl = `data:${imageFile.mimetype};base64,${base64Image}`;
+      }
+
+      const prompt = imageFile
+        ? `Extract the recipe from this image and return the data in JSON format.`
+        : `Extract the recipe from the following text and return the data in JSON format:\n\n${recipeText}`;
+
+      const fullPrompt = `${prompt}
+
+Return a JSON object with this exact structure:
+{
+  "name": "Recipe name",
+  "description": "Brief description",
+  "category": "one of: espresso_drinks, cold_brew, tea_drinks, blended_drinks, baked_goods, breakfast, lunch, snacks, other",
+  "servings": 1,
+  "ingredients": [
+    {
+      "ingredientName": "Ingredient name",
+      "quantity": 2,
+      "unit": "one of: cups, ounces, grams, units, teaspoons, tablespoons, pounds, kilograms, milliliters, liters, pints, quarts, gallons"
+    }
+  ]
+}
+
+CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
+
+      const response = await callAI({
+        provider,
+        prompt: fullPrompt,
+        systemPrompt,
+        customApiKey,
+        imageUrl,
+      });
+
+      // Parse JSON response with robust error handling
+      try {
+        let cleanResponse = response.trim();
+        
+        // Limit response size to prevent memory issues
+        if (cleanResponse.length > 50000) {
+          throw new Error("AI response too large");
+        }
+        
+        // Remove markdown code blocks if present
+        if (cleanResponse.startsWith('```json')) {
+          cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        } else if (cleanResponse.startsWith('```')) {
+          cleanResponse = cleanResponse.replace(/```\n?/g, '').trim();
+        }
+        
+        const recipeData = JSON.parse(cleanResponse);
+        
+        // Validate required fields
+        if (!recipeData.name || !recipeData.category || !recipeData.servings) {
+          throw new Error("Missing required recipe fields");
+        }
+        
+        if (!Array.isArray(recipeData.ingredients) || recipeData.ingredients.length === 0) {
+          throw new Error("Recipe must have at least one ingredient");
+        }
+        
+        res.json(recipeData);
+      } catch (parseError: any) {
+        console.error("Failed to parse AI recipe response:", parseError);
+        res.status(500).json({ 
+          error: "AI returned invalid response. Please try again or provide clearer recipe data.",
+          details: parseError.message
+        });
+      }
+    } catch (error: any) {
+      console.error("AI recipe parser error:", error);
+      res.status(500).json({ error: error.message || "Failed to parse recipe" });
+    }
+  });
+
   app.post("/api/ai/menu-strategy", async (req, res) => {
     try {
+      const { customPrompt } = req.body;
+      
       // Get AI provider settings from database
       const settings = await storage.getAISettings();
       const provider = (settings?.aiProvider || "openai") as AIProvider;
@@ -514,7 +645,11 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
 
       const systemPrompt = `You are a professional coffee shop pricing strategist with expertise in menu optimization and profitability analysis.`;
       
-      const prompt = `Analyze this coffee shop menu and provide strategic pricing recommendations:
+      const userRequest = customPrompt 
+        ? `User request: ${customPrompt}\n\n`
+        : '';
+      
+      const prompt = `${userRequest}Analyze this coffee shop menu and provide strategic pricing recommendations${customPrompt ? ' focusing on the user\'s request' : ''}:
 
 Current Menu:
 ${recipeList}

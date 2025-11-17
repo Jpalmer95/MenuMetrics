@@ -98,9 +98,12 @@ Preferred communication style: Simple, everyday language.
 All AI providers (except HuggingFace) use Replit AI Integrations - no API keys required, usage billed to Replit credits.
 
 **AI Features**:
-- Recipe idea generation based on available ingredients and cost constraints
-- Menu pricing strategy analysis
-- Configurable provider selection via settings page
+- **Recipe Idea Generation**: AI suggests recipes based on available ingredients with optional custom prompts (e.g., "Christmas drinks", "vegan options")
+- **Menu Pricing Strategy**: AI analyzes menu profitability with optional custom queries (e.g., "focus on high-margin items")
+- **Recipe Import with AI**: Parse recipes from text paste or image upload using vision-capable AI models
+- **Structured Output**: AI returns JSON-formatted recipes for one-click import
+- **Provider Selection**: Choose between OpenAI (GPT-5 with vision), Gemini (2.5 Flash with vision), Grok, or HuggingFace
+- **Security**: Server-side file validation, size limits (5MB max), type checking, and response sanitization
 - Retry logic with exponential backoff for rate limiting
 
 **Third-Party Libraries**:
