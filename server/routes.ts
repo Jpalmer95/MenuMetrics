@@ -809,7 +809,7 @@ Rules:
           apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
           httpOptions: {
             apiVersion: "",
-            baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+            baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || "",
           },
         });
 
@@ -821,7 +821,10 @@ Rules:
           },
         });
 
-        const content = result.text;
+        const content = result.text || "";
+        if (!content) {
+          throw new Error("Gemini returned empty response");
+        }
         const parsed = JSON.parse(content);
         parsedRecipes = Array.isArray(parsed) ? parsed : parsed.recipes || [];
       } else {

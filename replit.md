@@ -162,11 +162,15 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
 - **Complete Data Isolation**: All tables now include userId foreign keys with CASCADE DELETE for security
 - **Storage Layer Security**: All storage methods filter by userId to prevent cross-user data access
 - **Ingredient Export**: Added `/api/ingredients/export` endpoint for Excel export in import-compatible format
-- **Bulk Recipe Import/Export**: Added bulk recipe import from Excel/CSV with one row per ingredient format
-  - Import endpoint validates ingredients exist in user inventory, groups rows by recipe name
-  - Export endpoint generates Excel files in import-compatible format for easy data transfer
+- **Bulk Recipe Import/Export**: Added multiple methods for bulk recipe import with detailed error reporting
+  - **Excel/CSV Import**: Upload spreadsheet files with one row per ingredient format
+  - **JSON Import**: Paste structured JSON array of recipes for fast, reliable imports (no AI needed)
+  - **AI Text Import**: Paste recipes in any format (text, markdown) and AI parses them automatically
+  - Import endpoints validate ingredients exist in user inventory (case-insensitive matching)
+  - Export endpoint generates Excel files in import-compatible format for data portability
   - Import dialog shows detailed error messages for missing ingredients and validation failures
   - Supports partial imports (successful recipes are imported even if some fail)
+  - AI text import uses configured provider (OpenAI or Gemini) from user's AI settings
 - **Migration Completed**: Existing data migrated to default user account, orphaned records cleaned up
 - **Frontend Auth Flow**: Landing page for logged-out users, protected routes, logout button
 - **Team Collaboration Ready**: Multiple users can now share a business account with isolated data access
