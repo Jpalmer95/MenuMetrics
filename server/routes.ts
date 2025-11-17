@@ -621,6 +621,310 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/recipes/import-json", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { recipes } = req.body;
+      
+      if (!Array.isArray(recipes)) {
+        return res.status(400).json({ error: "Request body must contain 'recipes' array" });
+      }
+
+      // Get all user's ingredients for matching
+      const userIngredients = await storage.getAllIngredients(userId);
+      const ingredientMap = new Map(
+        userIngredients.map(ing => [ing.name.toLowerCase().trim(), ing])
+      );
+
+      const results: { 
+        success: Array<{ name: string; ingredientsCount: number }>; 
+        errors: Array<{ recipe: string; error: string }> 
+      } = { success: [], errors: [] };
+
+      // Process each recipe
+      for (const recipeData of recipes) {
+        try {
+          const { name, category, servings, menuPrice, description, ingredients } = recipeData;
+          
+          if (!name || typeof name !== "string") {
+            throw new Error("Recipe must have a 'name' field");
+          }
+          
+          if (!Array.isArray(ingredients) || ingredients.length === 0) {
+            throw new Error("Recipe must have 'ingredients' array with at least one ingredient");
+          }
+
+          // Create recipe
+          const recipe = await storage.createRecipe({
+            name: name.trim(),
+            description: description || "",
+            category: category || "other",
+            servings: typeof servings === "number" ? servings : 1,
+            menuPrice: typeof menuPrice === "number" ? menuPrice : undefined,
+          }, userId);
+
+          // Add ingredients to recipe
+          let ingredientCount = 0;
+          const missingIngredients: string[] = [];
+          
+          for (const ingData of ingredients) {
+            const ingredientName = ingData.name;
+            if (!ingredientName) continue;
+
+            const ingredient = ingredientMap.get(ingredientName.toLowerCase().trim());
+            if (!ingredient) {
+              missingIngredients.push(ingredientName);
+              continue;
+            }
+
+            const quantity = typeof ingData.quantity === "number" ? ingData.quantity : parseFloat(ingData.quantity) || 1;
+            const unit = (ingData.unit || "units").toLowerCase().trim();
+            const normalizedUnit = normalizeUnit(unit) || unit;
+
+            await storage.createRecipeIngredient({
+              recipeId: recipe.id,
+              ingredientId: ingredient.id,
+              quantity,
+              unit: normalizedUnit,
+            }, userId);
+
+            ingredientCount++;
+          }
+
+          if (missingIngredients.length > 0) {
+            throw new Error(`Missing ingredients in inventory: ${missingIngredients.join(", ")}`);
+          }
+
+          if (ingredientCount === 0) {
+            throw new Error("No valid ingredients found in inventory");
+          }
+
+          // Recalculate recipe cost
+          await storage.recalculateRecipeCost(recipe.id, userId);
+
+          results.success.push({ 
+            name, 
+            ingredientsCount: ingredientCount 
+          });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          results.errors.push({ 
+            recipe: recipeData.name || "Unknown recipe", 
+            error: errorMsg 
+          });
+          console.error(`Failed to import recipe from JSON:`, error);
+        }
+      }
+
+      res.json({
+        imported: results.success.length,
+        skipped: results.errors.length,
+        recipes: results.success,
+        errors: results.errors,
+        message: `Imported ${results.success.length} recipes successfully${results.errors.length > 0 ? `, skipped ${results.errors.length} with errors` : ''}`
+      });
+    } catch (error) {
+      console.error("JSON recipe import error:", error);
+      res.status(500).json({ error: "Failed to import recipes from JSON" });
+    }
+  });
+
+  app.post("/api/recipes/import-text", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { text, provider } = req.body;
+      
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Request body must contain 'text' field" });
+      }
+
+      // Get user's AI settings
+      const aiSettings = await storage.getAISettings(userId);
+      const aiProvider = provider || aiSettings?.aiProvider || "openai";
+
+      // Get all user's ingredients for context
+      const userIngredients = await storage.getAllIngredients(userId);
+      const ingredientNames = userIngredients.map(ing => ing.name).join(", ");
+
+      // Prepare AI prompt
+      const systemPrompt = `You are a recipe parser. Convert the user's text into a structured JSON array of recipes.
+
+Available ingredients in inventory: ${ingredientNames || "None"}
+
+Return a JSON array where each recipe has this structure:
+{
+  "name": "Recipe Name",
+  "category": "beverage|food|dessert|other",
+  "servings": 1,
+  "menuPrice": 5.50,
+  "description": "Optional description",
+  "ingredients": [
+    {
+      "name": "Ingredient Name",
+      "quantity": 2,
+      "unit": "oz"
+    }
+  ]
+}
+
+Rules:
+1. Only use ingredients that exist in the inventory
+2. Use standard units: oz, lb, g, kg, ml, L, cup, tbsp, tsp, each, units
+3. Parse quantities and units carefully
+4. If ingredient not in inventory, skip it and note in description
+5. Return ONLY the JSON array, no other text`;
+
+      let parsedRecipes: any[];
+
+      // Call AI based on provider
+      if (aiProvider === "openai") {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: text }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.1,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`OpenAI API error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        const parsed = JSON.parse(content);
+        parsedRecipes = Array.isArray(parsed) ? parsed : parsed.recipes || [];
+      } else if (aiProvider === "gemini") {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({
+          apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
+          httpOptions: {
+            apiVersion: "",
+            baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+          },
+        });
+
+        const result = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [{ text: `${systemPrompt}\n\n${text}` }],
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+
+        const content = result.text;
+        const parsed = JSON.parse(content);
+        parsedRecipes = Array.isArray(parsed) ? parsed : parsed.recipes || [];
+      } else {
+        return res.status(400).json({ error: "Unsupported AI provider for text import. Use openai or gemini" });
+      }
+
+      // Now import the parsed recipes using the same logic as JSON import
+      const ingredientMap = new Map(
+        userIngredients.map(ing => [ing.name.toLowerCase().trim(), ing])
+      );
+
+      const results: { 
+        success: Array<{ name: string; ingredientsCount: number }>; 
+        errors: Array<{ recipe: string; error: string }> 
+      } = { success: [], errors: [] };
+
+      for (const recipeData of parsedRecipes) {
+        try {
+          const { name, category, servings, menuPrice, description, ingredients } = recipeData;
+          
+          if (!name || typeof name !== "string") {
+            throw new Error("Recipe must have a 'name' field");
+          }
+          
+          if (!Array.isArray(ingredients) || ingredients.length === 0) {
+            throw new Error("Recipe must have 'ingredients' array with at least one ingredient");
+          }
+
+          // Create recipe
+          const recipe = await storage.createRecipe({
+            name: name.trim(),
+            description: description || "",
+            category: category || "other",
+            servings: typeof servings === "number" ? servings : 1,
+            menuPrice: typeof menuPrice === "number" ? menuPrice : undefined,
+          }, userId);
+
+          // Add ingredients to recipe
+          let ingredientCount = 0;
+          const missingIngredients: string[] = [];
+          
+          for (const ingData of ingredients) {
+            const ingredientName = ingData.name;
+            if (!ingredientName) continue;
+
+            const ingredient = ingredientMap.get(ingredientName.toLowerCase().trim());
+            if (!ingredient) {
+              missingIngredients.push(ingredientName);
+              continue;
+            }
+
+            const quantity = typeof ingData.quantity === "number" ? ingData.quantity : parseFloat(ingData.quantity) || 1;
+            const unit = (ingData.unit || "units").toLowerCase().trim();
+            const normalizedUnit = normalizeUnit(unit) || unit;
+
+            await storage.createRecipeIngredient({
+              recipeId: recipe.id,
+              ingredientId: ingredient.id,
+              quantity,
+              unit: normalizedUnit,
+            }, userId);
+
+            ingredientCount++;
+          }
+
+          if (missingIngredients.length > 0) {
+            console.warn(`Recipe "${name}" missing ingredients: ${missingIngredients.join(", ")}`);
+          }
+
+          if (ingredientCount === 0) {
+            throw new Error("No valid ingredients found in inventory");
+          }
+
+          // Recalculate recipe cost
+          await storage.recalculateRecipeCost(recipe.id, userId);
+
+          results.success.push({ 
+            name, 
+            ingredientsCount: ingredientCount 
+          });
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          results.errors.push({ 
+            recipe: recipeData.name || "Unknown recipe", 
+            error: errorMsg 
+          });
+          console.error(`Failed to import recipe from AI-parsed text:`, error);
+        }
+      }
+
+      res.json({
+        imported: results.success.length,
+        skipped: results.errors.length,
+        recipes: results.success,
+        errors: results.errors,
+        message: `Imported ${results.success.length} recipes successfully${results.errors.length > 0 ? `, skipped ${results.errors.length} with errors` : ''}`
+      });
+    } catch (error) {
+      console.error("AI text import error:", error);
+      res.status(500).json({ error: "Failed to import recipes from text" });
+    }
+  });
+
   app.post("/api/recipes/:id/ingredients", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
