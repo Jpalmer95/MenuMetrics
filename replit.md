@@ -166,11 +166,18 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
   - **Excel/CSV Import**: Upload spreadsheet files with one row per ingredient format
   - **JSON Import**: Paste structured JSON array of recipes for fast, reliable imports (no AI needed)
   - **AI Text Import**: Paste recipes in any format (text, markdown) and AI parses them automatically
-  - Import endpoints validate ingredients exist in user inventory (case-insensitive matching)
+  - **AI Provider Support**: All import methods support OpenAI, Gemini, Grok, and HuggingFace
+  - **Fuzzy Ingredient Matching**: Intelligently matches ingredient names with variations
+    - Handles "whole milk" vs "Milk", "espresso shots" vs "Espresso"
+    - Uses Dice coefficient and Levenshtein distance for similarity scoring
+    - Auto-matches with ≥80% confidence, rejects below 60%
+    - Removes filler words (fresh, organic, whole) for better matching
+    - Smart singularization preserves legitimate "s" endings (citrus, glass)
+    - Logs fuzzy matches with confidence scores for transparency
+  - Import endpoints validate ingredients exist in user inventory with fuzzy matching
   - Export endpoint generates Excel files in import-compatible format for data portability
   - Import dialog shows detailed error messages for missing ingredients and validation failures
   - Supports partial imports (successful recipes are imported even if some fail)
-  - AI text import uses configured provider (OpenAI or Gemini) from user's AI settings
 - **Migration Completed**: Existing data migrated to default user account, orphaned records cleaned up
 - **Frontend Auth Flow**: Landing page for logged-out users, protected routes, logout button
 - **Team Collaboration Ready**: Multiple users can now share a business account with isolated data access
