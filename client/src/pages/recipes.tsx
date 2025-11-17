@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { RecipesTable } from "@/components/recipes-table";
 import { RecipeFormDialog } from "@/components/recipe-form-dialog";
 import { ImportRecipeDialog } from "@/components/import-recipe-dialog";
+import { BulkImportRecipeDialog } from "@/components/bulk-import-recipe-dialog";
 import type { Recipe, InsertRecipe } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -11,6 +12,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 export default function RecipesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | undefined>();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -132,6 +134,14 @@ export default function RecipesPage() {
     setLocation(`/recipes/${recipe.id}`);
   };
 
+  const handleBulkImport = () => {
+    setIsBulkImportOpen(true);
+  };
+
+  const handleExport = () => {
+    window.location.href = "/api/recipes/export";
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -155,6 +165,8 @@ export default function RecipesPage() {
         onDelete={(id) => deleteMutation.mutate(id)}
         onAddNew={handleAddNew}
         onImportWithAI={handleImportWithAI}
+        onBulkImport={handleBulkImport}
+        onExport={handleExport}
         onViewDetails={handleViewDetails}
       />
 
@@ -173,6 +185,19 @@ export default function RecipesPage() {
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
         onImport={handleImportRecipe}
+      />
+
+      <BulkImportRecipeDialog
+        open={isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
+        onImportComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+          setIsBulkImportOpen(false);
+          toast({
+            title: "Import Complete",
+            description: "Recipes have been imported successfully",
+          });
+        }}
       />
     </div>
   );
