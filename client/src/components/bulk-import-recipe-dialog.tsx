@@ -64,7 +64,8 @@ export function BulkImportRecipeDialog({
       const data = await response.json();
       setResult(data);
       
-      if (data.imported > 0) {
+      // Only auto-close if there were no errors
+      if (data.imported > 0 && (!data.errors || data.errors.length === 0)) {
         onImportComplete();
       }
     } catch (err) {
@@ -187,13 +188,26 @@ export function BulkImportRecipeDialog({
             >
               {result ? "Close" : "Cancel"}
             </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={!file || isUploading}
-              data-testid="button-upload"
-            >
-              {isUploading ? "Importing..." : "Import Recipes"}
-            </Button>
+            {!result && (
+              <Button
+                onClick={handleUpload}
+                disabled={!file || isUploading}
+                data-testid="button-upload"
+              >
+                {isUploading ? "Importing..." : "Import Recipes"}
+              </Button>
+            )}
+            {result && result.imported > 0 && (
+              <Button
+                onClick={() => {
+                  onImportComplete();
+                  handleClose();
+                }}
+                data-testid="button-done"
+              >
+                Done
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

@@ -192,10 +192,9 @@ export default function RecipesPage() {
         onOpenChange={setIsBulkImportOpen}
         onImportComplete={() => {
           queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
-          setIsBulkImportOpen(false);
           toast({
             title: "Import Complete",
-            description: "Recipes have been imported successfully",
+            description: "Recipes have been imported successfully. Check the dialog for any errors.",
           });
         }}
       />
