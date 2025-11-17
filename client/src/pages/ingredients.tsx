@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Upload, Download } from "lucide-react";
+import { Upload, Download, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IngredientsTable } from "@/components/ingredients-table";
 import { IngredientFormDialog } from "@/components/ingredient-form-dialog";
@@ -137,6 +137,11 @@ export default function IngredientsPage() {
     window.location.href = "/api/ingredients/template";
   };
 
+  const handleExport = () => {
+    // Download current ingredients as Excel
+    window.location.href = "/api/ingredients/export";
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -162,6 +167,15 @@ export default function IngredientsPage() {
           >
             <Download className="h-4 w-4 mr-2" />
             Download Template
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={ingredients.length === 0}
+            data-testid="button-export-excel"
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export Excel
           </Button>
           <Button
             variant="secondary"

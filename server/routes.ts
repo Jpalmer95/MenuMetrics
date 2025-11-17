@@ -82,6 +82,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/ingredients/export", async (req, res) => {
+    try {
+      const ingredients = await storage.getAllIngredients();
+      
+      // Map ingredients to export format
+      const headers = [
+        "Ingredient Name",
+        "Category",
+        "Purchase Quantity",
+        "Purchase Unit",
+        "Purchase Cost",
+        "Store (optional)",
+        "Density g/mL (optional)",
+        "Density Source (optional)",
+        "Packaging? (Yes/No)"
+      ];
+      
+      const rows = ingredients.map(ing => [
+        ing.name,
+        ing.category,
+        ing.purchaseQuantity,
+        ing.purchaseUnit,
+        ing.purchaseCost,
+        ing.store || "",
+        ing.gramsPerMilliliter || "",
+        ing.densitySource || "",
+        ing.isPackaging ? "Yes" : "No"
+      ]);
+      
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 20 }, // Ingredient Name
+        { wch: 15 }, // Category
+        { wch: 18 }, // Purchase Quantity
+        { wch: 15 }, // Purchase Unit
+        { wch: 15 }, // Purchase Cost
+        { wch: 15 }, // Store
+        { wch: 18 }, // Density
+        { wch: 18 }, // Density Source
+        { wch: 18 }  // Packaging
+      ];
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Ingredients");
+      
+      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      res.setHeader("Content-Disposition", `attachment; filename=ingredients-export-${timestamp}.xlsx`);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buffer);
+    } catch (error) {
+      console.error("Export error:", error);
+      res.status(500).json({ error: "Failed to export ingredients" });
+    }
+  });
+
   app.get("/api/ingredients", async (req, res) => {
     try {
       const ingredients = await storage.getAllIngredients();
