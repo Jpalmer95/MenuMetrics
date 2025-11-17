@@ -1,63 +1,47 @@
-import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Sparkles, Loader2, DollarSign, Lightbulb, Settings as SettingsIcon } from "lucide-react";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Sparkles, Loader2, DollarSign, Lightbulb, Plus, Check } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Link } from "wouter";
 
-type AIProvider = "openai" | "gemini" | "grok" | "huggingface";
-
-interface AISettings {
-  id: string;
-  huggingfaceToken: string | null;
-  updatedAt: string;
+interface AIRecipe {
+  name: string;
+  description?: string;
+  category: string;
+  servings: number;
+  ingredients: Array<{
+    ingredientName: string;
+    quantity: number;
+    unit: string;
+  }>;
 }
 
 export default function AIAgentPage() {
-  const [provider, setProvider] = useState<AIProvider>("openai");
-  const [customApiKey, setCustomApiKey] = useState("");
   const [recipeIdeas, setRecipeIdeas] = useState<string>("");
+  const [recipes, setRecipes] = useState<AIRecipe[] | null>(null);
+  const [addedRecipes, setAddedRecipes] = useState<Set<string>>(new Set());
   const [menuStrategy, setMenuStrategy] = useState<string>("");
   const { toast } = useToast();
-
-  // Load saved HuggingFace token from settings
-  const { data: settings } = useQuery<AISettings>({
-    queryKey: ["/api/settings/ai"],
-  });
-
-  // Auto-populate HuggingFace token only when switching to HuggingFace with empty field
-  useEffect(() => {
-    if (settings?.huggingfaceToken && provider === "huggingface" && !customApiKey) {
-      setCustomApiKey(settings.huggingfaceToken);
-    }
-  }, [settings?.huggingfaceToken, provider]);
+  const queryClient = useQueryClient();
 
   const recipeIdeasMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/ai/recipe-ideas", {
-        provider,
-        customApiKey: provider === "huggingface" ? customApiKey : undefined,
-      });
+      const response = await apiRequest("POST", "/api/ai/recipe-ideas", {});
       const data = await response.json();
-      return data.response;
+      return data;
     },
     onSuccess: (data) => {
-      setRecipeIdeas(data);
+      setRecipeIdeas(data.response);
+      setRecipes(data.recipes);
+      setAddedRecipes(new Set()); // Reset added recipes when new ideas generated
       toast({
         title: "Recipe Ideas Generated",
-        description: "AI has suggested cost-effective recipes based on your ingredients.",
+        description: data.recipes 
+          ? `AI suggested ${data.recipes.length} recipes that you can add to your menu.`
+          : "AI has suggested cost-effective recipes based on your ingredients.",
       });
     },
     onError: (error: any) => {
@@ -69,12 +53,31 @@ export default function AIAgentPage() {
     },
   });
 
+  const addRecipeMutation = useMutation({
+    mutationFn: async (recipe: AIRecipe) => {
+      const response = await apiRequest("POST", "/api/ai/create-recipe", recipe);
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setAddedRecipes(prev => new Set(prev).add(variables.name));
+      toast({
+        title: "Recipe Added",
+        description: `"${variables.name}" has been added to your recipes.`,
+      });
+    },
+    onError: (error: any, variables) => {
+      toast({
+        title: "Error",
+        description: error.message || `Failed to add "${variables.name}". Some ingredients may not be in your database.`,
+        variant: "destructive",
+      });
+    },
+  });
+
   const menuStrategyMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/ai/menu-strategy", {
-        provider,
-        customApiKey: provider === "huggingface" ? customApiKey : undefined,
-      });
+      const response = await apiRequest("POST", "/api/ai/menu-strategy", {});
       const data = await response.json();
       return data.response;
     },
@@ -94,88 +97,14 @@ export default function AIAgentPage() {
     },
   });
 
-  const isHuggingFace = provider === "huggingface";
-  const needsApiKey = isHuggingFace && !customApiKey;
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">AI Recipe Agent</h1>
         <p className="text-muted-foreground mt-2">
-          Use AI to discover cost-efficient recipes and optimize your menu pricing strategy
+          Use AI to discover cost-efficient recipes and optimize your menu pricing strategy. Configure AI provider in Settings.
         </p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Provider Settings</CardTitle>
-          <CardDescription>
-            Choose your preferred AI provider. OpenAI, Gemini, and Grok use Replit AI Integrations (no API key required, charges billed to your credits).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="provider-select">AI Provider</Label>
-            <Select value={provider} onValueChange={(value) => setProvider(value as AIProvider)}>
-              <SelectTrigger id="provider-select" data-testid="select-ai-provider">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="openai">OpenAI (GPT-5) - Replit AI Integrations</SelectItem>
-                <SelectItem value="gemini">Google Gemini (2.5 Flash) - Replit AI Integrations</SelectItem>
-                <SelectItem value="grok">Grok (xAI) - Replit AI Integrations</SelectItem>
-                <SelectItem value="huggingface">HuggingFace (Llama 3.3 70B) - Custom API Key</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {isHuggingFace && (
-            <div className="space-y-2">
-              <Label htmlFor="api-key-input">HuggingFace Access Token</Label>
-              <Input
-                id="api-key-input"
-                type="password"
-                placeholder="hf_..."
-                value={customApiKey}
-                onChange={(e) => setCustomApiKey(e.target.value)}
-                data-testid="input-huggingface-token"
-              />
-              {!customApiKey && (
-                <Alert>
-                  <SettingsIcon className="h-4 w-4" />
-                  <AlertDescription>
-                    No HuggingFace token found. You can{" "}
-                    <Link href="/settings" className="text-primary hover:underline font-medium">
-                      configure it in Settings
-                    </Link>
-                    {" "}or enter it here temporarily.
-                  </AlertDescription>
-                </Alert>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Get your free API token from{" "}
-                <a
-                  href="https://huggingface.co/settings/tokens"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  huggingface.co/settings/tokens
-                </a>
-              </p>
-            </div>
-          )}
-
-          {!isHuggingFace && (
-            <Alert>
-              <AlertDescription>
-                <strong>{provider === "openai" ? "OpenAI" : provider === "gemini" ? "Gemini" : "Grok"}</strong> is powered by Replit AI Integrations.
-                No API key required - charges will be billed to your Replit credits.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -191,7 +120,7 @@ export default function AIAgentPage() {
           <CardContent className="space-y-4">
             <Button
               onClick={() => recipeIdeasMutation.mutate()}
-              disabled={recipeIdeasMutation.isPending || needsApiKey}
+              disabled={recipeIdeasMutation.isPending}
               className="w-full"
               data-testid="button-generate-recipes"
             >
@@ -208,13 +137,61 @@ export default function AIAgentPage() {
               )}
             </Button>
 
-            {recipeIdeas && (
+            {recipes && recipes.length > 0 ? (
+              <div className="space-y-3">
+                {recipes.map((recipe, index) => {
+                  const isAdded = addedRecipes.has(recipe.name);
+                  return (
+                    <Card key={index} className="p-4">
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-semibold text-base">{recipe.name}</h4>
+                            {recipe.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{recipe.description}</p>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => addRecipeMutation.mutate(recipe)}
+                            disabled={isAdded || addRecipeMutation.isPending}
+                            data-testid={`button-add-recipe-${index}`}
+                          >
+                            {isAdded ? (
+                              <>
+                                <Check className="h-4 w-4 mr-1" />
+                                Added
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add to Recipes
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">{recipe.category.replace(/_/g, ' ')}</Badge>
+                          <Badge variant="outline">{recipe.servings} serving{recipe.servings > 1 ? 's' : ''}</Badge>
+                          <Badge variant="outline">{recipe.ingredients.length} ingredients</Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          <strong>Ingredients:</strong> {recipe.ingredients.map(ing => 
+                            `${ing.quantity} ${ing.unit} ${ing.ingredientName}`
+                          ).join(', ')}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : recipeIdeas ? (
               <div className="rounded-md border p-4 bg-card">
                 <pre className="whitespace-pre-wrap text-sm font-mono text-foreground" data-testid="text-recipe-ideas">
                   {recipeIdeas}
                 </pre>
               </div>
-            )}
+            ) : null}
           </CardContent>
         </Card>
 
@@ -231,7 +208,7 @@ export default function AIAgentPage() {
           <CardContent className="space-y-4">
             <Button
               onClick={() => menuStrategyMutation.mutate()}
-              disabled={menuStrategyMutation.isPending || needsApiKey}
+              disabled={menuStrategyMutation.isPending}
               className="w-full"
               data-testid="button-generate-strategy"
             >

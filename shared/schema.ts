@@ -157,6 +157,7 @@ export function calculateProfitMargin(menuPrice: number | null, costPerServing: 
 // AI Settings table - singleton pattern (only one row)
 export const aiSettings = pgTable("ai_settings", {
   id: varchar("id").primaryKey().default("singleton"),
+  aiProvider: varchar("ai_provider").default("openai"), // openai, gemini, grok, huggingface
   huggingfaceToken: text("huggingface_token"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

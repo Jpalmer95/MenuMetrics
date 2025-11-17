@@ -380,11 +380,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Agent endpoints
   app.post("/api/ai/recipe-ideas", async (req, res) => {
     try {
-      const { provider, customApiKey } = req.body;
-      
-      if (!provider) {
-        return res.status(400).json({ error: "Provider is required" });
-      }
+      // Get AI provider settings from database
+      const settings = await storage.getAISettings();
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
 
       // Get all ingredients for context
       const ingredients = await storage.getAllIngredients();
@@ -393,19 +392,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map(i => `${i.name} (${i.category}) - $${i.purchaseCost.toFixed(2)} for ${i.purchaseQuantity} ${i.purchaseUnit}`)
         .join("\n");
 
-      const systemPrompt = `You are a professional coffee shop recipe consultant specializing in cost-effective menu development.`;
+      const systemPrompt = `You are a professional coffee shop recipe consultant specializing in cost-effective menu development. You MUST respond with valid JSON only, no additional text.`;
       
-      const prompt = `Based on these available ingredients, suggest 5 creative and cost-efficient coffee shop recipes. For each recipe, include:
-- Recipe name
-- Description
-- Estimated servings
-- List of ingredients with quantities
-- Brief preparation notes
+      const prompt = `Based on these available ingredients, suggest 5 creative and cost-efficient coffee shop recipes.
 
 Available ingredients:
 ${ingredientList}
 
-Format your response as clear, parseable text with each recipe separated by "---".`;
+Respond with a JSON array where each recipe object has:
+{
+  "name": "Recipe Name",
+  "description": "Brief description",
+  "category": "one of: espresso_drinks, cold_brew, tea_drinks, blended_drinks, baked_goods, breakfast, lunch, snacks, other",
+  "servings": 1,
+  "ingredients": [
+    {
+      "ingredientName": "Exact ingredient name from the list above",
+      "quantity": 2,
+      "unit": "one of: cups, ounces, grams, units, teaspoons, tablespoons, pounds, kilograms, milliliters, liters, pints, quarts, gallons"
+    }
+  ]
+}
+
+CRITICAL: Only use ingredients from the available ingredients list above. Match ingredient names exactly. Return ONLY valid JSON, no markdown code blocks or explanations.`;
 
       const response = await callAI({
         provider: provider as AIProvider,
@@ -414,20 +423,82 @@ Format your response as clear, parseable text with each recipe separated by "---
         customApiKey,
       });
 
-      res.json({ response });
+      // Try to parse JSON response, clean up markdown code blocks if present
+      let recipes;
+      try {
+        let cleanResponse = response.trim();
+        // Remove markdown code blocks if present
+        if (cleanResponse.startsWith('```json')) {
+          cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        } else if (cleanResponse.startsWith('```')) {
+          cleanResponse = cleanResponse.replace(/```\n?/g, '').trim();
+        }
+        recipes = JSON.parse(cleanResponse);
+      } catch (parseError) {
+        console.error("Failed to parse AI response as JSON:", parseError);
+        // Fallback: return the raw text response
+        return res.json({ response, recipes: null });
+      }
+
+      res.json({ response, recipes });
     } catch (error: any) {
       console.error("AI recipe ideas error:", error);
       res.status(500).json({ error: error.message || "Failed to generate recipe ideas" });
     }
   });
 
+  // Create recipe from AI suggestion
+  app.post("/api/ai/create-recipe", async (req, res) => {
+    try {
+      const { name, description, category, servings, ingredients: suggestedIngredients } = req.body;
+
+      if (!name || !category || !servings || !Array.isArray(suggestedIngredients)) {
+        return res.status(400).json({ error: "Invalid recipe data" });
+      }
+
+      // Get all ingredients to match names
+      const allIngredients = await storage.getAllIngredients();
+      const ingredientMap = new Map(allIngredients.map(ing => [ing.name.toLowerCase().trim(), ing]));
+
+      // Create the recipe first
+      const recipe = await storage.createRecipe({
+        name,
+        description: description || "",
+        category,
+        servings,
+      });
+
+      // Add ingredients to the recipe
+      for (const suggestedIng of suggestedIngredients) {
+        const matchedIngredient = ingredientMap.get(suggestedIng.ingredientName.toLowerCase().trim());
+        
+        if (matchedIngredient) {
+          await storage.createRecipeIngredient({
+            recipeId: recipe.id,
+            ingredientId: matchedIngredient.id,
+            quantity: suggestedIng.quantity,
+            unit: suggestedIng.unit,
+          });
+        } else {
+          console.warn(`Ingredient not found: ${suggestedIng.ingredientName}`);
+        }
+      }
+
+      // Fetch complete recipe with ingredients
+      const completeRecipe = await storage.getRecipeWithIngredients(recipe.id);
+      res.status(201).json(completeRecipe);
+    } catch (error: any) {
+      console.error("Create recipe from AI error:", error);
+      res.status(500).json({ error: error.message || "Failed to create recipe" });
+    }
+  });
+
   app.post("/api/ai/menu-strategy", async (req, res) => {
     try {
-      const { provider, customApiKey } = req.body;
-      
-      if (!provider) {
-        return res.status(400).json({ error: "Provider is required" });
-      }
+      // Get AI provider settings from database
+      const settings = await storage.getAISettings();
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
 
       // Get all recipes for context
       const recipes = await storage.getAllRecipes();

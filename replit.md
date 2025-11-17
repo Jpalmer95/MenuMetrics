@@ -1,70 +1,123 @@
-# Recipe Cost Analyzer for Coffee Shops & Cafes
+# Recipe Cost Analysis - Restaurant Menu Management
 
 ## Overview
-This project is a web-based recipe cost analysis application for coffee shops and cafes. Its primary purpose is to help owners and managers track ingredient costs, create recipes, automatically calculate COGS (Cost of Goods Sold), and utilize AI for menu pricing strategy recommendations. The application is designed to be production-ready, featuring database persistence, recipe categorization, menu pricing with profit margin tracking, and robust cost analysis. It also includes optional Excel import and integrates with AI for advanced insights. The business vision is to empower cafe owners with tools for efficient food cost management and strategic pricing, addressing a key market need in the food service industry.
 
-## Recent Changes (November 2024)
-- **Mobile Navigation**: Implemented responsive Sheet-based hamburger menu for mobile devices, ensuring all pages (Dashboard, Ingredients, Recipes, AI Agent, Settings) are accessible on mobile viewports. Desktop navigation remains visible on medium+ screens.
-- **Settings Page**: Created dedicated /settings page for AI provider configuration with database persistence. Users can configure HuggingFace API tokens with proper state management and validation. Settings are stored in PostgreSQL using singleton pattern.
-- **AI Settings Backend**: Added `aiSettings` database table with GET/POST /api/settings/ai endpoints. Implements proper token clearing (sends null) and state synchronization between frontend and database.
-- **Inline Row Addition**: Users can now add ingredients directly to the table using "Add New Row" button, entering only total cost and quantity. The system auto-calculates cost per unit, cost per ounce, and cost per gram in real-time using shared cost calculator utilities. Features live preview calculations, validation, and immediate save/cancel actions without dialog interruption.
-- **Excel Import System**: Production-ready Excel import with template download, flexible column mapping supporting both combined ("64oz", "16 fl oz") and separate ("64" + "oz") quantity/unit formats, and robust unit parsing that handles decimals (1.5lb), multi-word units (fl oz, fluid ounce), and punctuation variations (2 lbs., fl. oz). Returns row-level validation feedback with detailed error messages.
-- **Packaging Cost Tracking**: Added `isPackaging` flag to ingredient schema and storage, enabling separation of packaging items (cups, lids, sleeves) from food ingredients for accurate total product costing.
-- **Recipe Builder Enhancements**: Updated UI with separate sections for ingredients and packaging, each displaying individual subtotals. Grand total card shows complete product cost (ingredients + packaging) with breakdown.
-- **Density-Aware Unit Conversions**: Ingredient schema includes optional `density` field for accurate weight-to-volume conversions with dual-warning UX for cross-family conversions.
-- **End-to-End Validation**: Comprehensive testing verified mobile navigation, settings persistence, Excel import, inline row addition, recipe creation with ingredients and packaging, subtotal calculations, quantity updates, and real-time cost recalculation.
+A professional recipe cost analysis tool designed for coffee shops and cafes to track ingredient costs, calculate COGS (Cost of Goods Sold), and optimize menu pricing. The application enables users to manage ingredient inventory, build recipes with precise costing, and leverage AI for menu strategy recommendations.
+
+**Core Purpose**: Help restaurant operators understand their true food costs, make data-driven pricing decisions, and maintain profitability through detailed ingredient-to-recipe cost tracking.
 
 ## User Preferences
-**Design Aesthetic**: Coffee shop themed with professional spreadsheet-style data tables
-- Primary Color: #8B4513 (Saddle Brown) - warm, coffee-inspired
-- Secondary Color: #D2691E (Chocolate) - rich accent
-- Background: #FFF8DC (Cornsilk) - cream/beige for warmth
-- Fonts: Open Sans (headings), Roboto (body text)
 
-**Data Management Philosophy**:
-- Primary method is robust manual data entry with inline table editing
-- Excel import is optional/supplementary feature for bulk data
-- Emphasis on spreadsheet-like user experience (sortable columns, search, inline editing)
+Preferred communication style: Simple, everyday language.
 
 ## System Architecture
-The application is built with a modern web stack.
 
-### Tech Stack
-- **Frontend**: React with TypeScript, TanStack Query, Shadcn UI with Tailwind CSS, Wouter for routing, React Hook Form with Zod validation.
-- **Backend**: Express.js with TypeScript.
-- **Database**: PostgreSQL (Neon-backed) managed with Drizzle ORM.
+### Frontend Architecture
 
-### UI/UX Decisions
-The design follows a coffee shop aesthetic, incorporating warm color palettes (browns, creams), professional spreadsheet-style data tables, and clear visual hierarchies. The application is fully responsive with mobile-first navigation (hamburger menu for mobile, horizontal nav for desktop), targeting desktop, tablet, and mobile users, with emphasis on accessibility.
+**Technology Stack**:
+- React with TypeScript for type safety
+- Vite as the build tool and development server
+- Wouter for client-side routing (lightweight alternative to React Router)
+- TanStack Query (React Query) for server state management
+- Shadcn/ui component library with Radix UI primitives
+- Tailwind CSS for styling with custom design tokens
 
-### Core Features
-1.  **Ingredients Database**: Spreadsheet-style table with inline editing, inline row addition, search, filter, and full CRUD operations. "Add New Row" button creates an editable row where users input minimal data (name, category, total cost, quantity, unit) with real-time auto-calculated cost previews (cost per oz, cost per gram). Double-click any row to edit inline. Supports various measurement units and optional density tracking for accurate weight-to-volume conversions. Ingredients can be marked as packaging items for separate cost tracking. Backend auto-calculates all per-unit costs for accuracy.
-2.  **Excel Import**: Production-ready Excel import with template download and flexible column mapping that handles both combined quantity/unit formats ("64oz", "16 fl oz") and separate columns ("64" + "fl. oz"). Robust unit parser supports decimals, multi-word units, and punctuation variations. Returns detailed row-level validation feedback with specific error messages for failed imports.
-3.  **Recipe Builder**: Allows creation of recipes with names, descriptions, servings, and optional menu prices. Features 9 distinct recipe categories and automatic COGS and profit margin calculations. Separate ingredient and packaging sections with individual subtotals provide complete product costing (food ingredients + packaging materials). Unit conversion handles disparate ingredient and recipe units with density-aware cross-family conversion warnings. Recipe costs automatically recalculate when ingredient prices change.
-4.  **Cost Analysis Dashboard**: Provides overview statistics, cost distribution charts, and quick access to critical cost data.
-5.  **AI-Powered Insights**: Integrated AI features for recipe recommendations and menu pricing strategy using multiple providers (OpenAI GPT-5, Google Gemini 2.5 Flash, Grok via OpenRouter, HuggingFace Llama 3.3 70B). Recipe Ideas generates 5 cost-efficient recipes based on current ingredients. Menu Strategy analyzes menu profitability and provides pricing recommendations.
-6.  **Settings Management**: Dedicated settings page for configuring AI provider API keys with database persistence. Supports clearing and updating tokens with proper state synchronization.
+**Design Philosophy**:
+- Material Design principles adapted for data-intensive applications
+- Cream-colored theme (#FFF8DC background) for professional credibility
+- Typography: Open Sans (body/data) + Roboto (headings)
+- Focus on spreadsheet-like clarity for quick data scanning
+- Mobile-responsive with collapsible sections
 
-### System Design Choices
--   **Automatic Cost Recalculation**: Any update to an ingredient's price automatically triggers a recalculation of all affected recipes' costs and profit margins.
--   **Unit Conversion System**: A robust system handles conversions between various measurement units to ensure accurate cost calculations, using a base unit approach.
--   **Database Persistence**: Utilizes PostgreSQL with Drizzle ORM for type-safe and persistent data storage.
+**Key UI Components**:
+- `IngredientsTable`: Editable table with inline editing capabilities
+- `RecipeBuilder`: Split-view interface for recipe composition
+- `DashboardStats`: Overview cards with charts (Recharts library)
+- Excel import/export dialogs for bulk data operations
 
-### Data Models
--   **Ingredient**: `id`, `name`, `category`, `quantity` (purchase quantity), `unit` (purchase unit), `costPerUnit` (auto-calculated), `isPackaging` (boolean flag for packaging items), `density` (optional, for weight-volume conversions), `store` (optional), `lastUpdated`.
--   **Recipe**: `id`, `name`, `description`, `category`, `servings`, `menuPrice` (optional), `totalCost` (auto-calculated from ingredients + packaging), `costPerServing` (auto-calculated), `createdAt`.
--   **RecipeIngredient**: `id`, `recipeId`, `ingredientId`, `quantity` (recipe quantity), `unit` (recipe unit, may differ from purchase unit).
--   **AISettings**: `id` (singleton "singleton"), `huggingfaceToken` (nullable), `updatedAt`.
+### Backend Architecture
 
-### API Endpoints
-Standard RESTful API endpoints are provided for CRUD operations on Ingredients, Recipes, Recipe Ingredients, and AI Settings:
-- Ingredients: GET/POST /api/ingredients, GET/PATCH/DELETE /api/ingredients/:id
-- Recipes: GET/POST /api/recipes, GET/PATCH/DELETE /api/recipes/:id
-- Recipe Ingredients: GET/POST /api/recipes/:id/ingredients, PATCH/DELETE /api/recipes/:id/ingredients/:recipeIngredientId
-- AI Settings: GET/POST /api/settings/ai
-- AI Features: POST /api/ai/recipe-ideas, POST /api/ai/menu-strategy
+**Server Framework**: Express.js with TypeScript
+- RESTful API design pattern
+- Session-based state management (no authentication implemented)
+- File upload handling via Multer for Excel imports
 
-## External Dependencies
--   **PostgreSQL (Neon-backed)**: Relational database for persistent storage.
--   **OpenAI (GPT-5)**: Integrated via Replit AI Integrations for creative recipe recommendations.
--   **Google Gemini (2.5 Flash)**: Integrated via Replit AI Integrations for pricing strategy analysis and cost optimization suggestions.
+**API Structure**:
+- `/api/ingredients` - CRUD operations for ingredients
+- `/api/recipes` - Recipe management endpoints
+- `/api/recipes/:id/ingredients` - Recipe composition
+- `/api/ai/*` - AI-powered recommendations
+- `/api/settings/ai` - AI provider configuration
+
+**Key Business Logic**:
+- **Unit Conversion System** (`shared/cost-calculator.ts`): Handles weight↔volume conversions using density data
+  - Supports 13 measurement units across weight, volume, and discrete ("each") families
+  - Density-aware conversions (e.g., 1 cup flour ≠ 1 cup milk in grams)
+  - Calculates cost-per-unit for all supported units from purchase data
+
+- **Cost Calculation**: 
+  - Purchase data (quantity, unit, cost) → per-unit costs for all measurement systems
+  - Recipe ingredients use any unit → system calculates actual cost via conversion
+  - Warning system for cross-family conversions without density data
+
+### Data Storage
+
+**Database**: PostgreSQL (via Neon serverless)
+- Drizzle ORM for type-safe database operations
+- WebSocket-based connection pooling for serverless environment
+
+**Schema Design** (`shared/schema.ts`):
+
+1. **Ingredients Table**:
+   - Purchase information: quantity, unit, cost, store
+   - Density field (`gramsPerMilliliter`) for accurate volume↔weight conversions
+   - Calculated fields: cost per ounce, gram, cup, tablespoon, etc.
+   - `isPackaging` flag to separate packaging costs from food costs
+   - `densitySource` tracks origin of density data (preset, manual, imported, USDA)
+
+2. **Recipes Table**:
+   - Basic metadata: name, description, category, serving size
+   - Pricing: `sellingPrice`, `totalCost`, calculated profit margin
+   - Timestamps for tracking
+
+3. **Recipe Ingredients Junction Table**:
+   - Links recipes to ingredients with quantity and unit
+   - Enables many-to-many relationships
+   - Cost calculated dynamically based on current ingredient prices
+
+**Migration Strategy**: Drizzle Kit with PostgreSQL dialect, migrations stored in `/migrations`
+
+### External Dependencies
+
+**AI Providers** (via Replit AI Integrations):
+- **OpenAI GPT-5**: Recipe recommendations and menu strategy (default provider)
+- **Google Gemini**: Alternative AI provider option
+- **Grok (via OpenRouter)**: Additional AI model access
+- **HuggingFace**: Custom model support with user-provided API token
+
+All AI providers (except HuggingFace) use Replit AI Integrations - no API keys required, usage billed to Replit credits.
+
+**AI Features**:
+- Recipe idea generation based on available ingredients and cost constraints
+- Menu pricing strategy analysis
+- Configurable provider selection via settings page
+- Retry logic with exponential backoff for rate limiting
+
+**Third-Party Libraries**:
+- **XLSX**: Excel file parsing and generation for bulk import/export
+- **date-fns**: Date formatting utilities
+- **Recharts**: Data visualization (bar charts, pie charts for dashboard)
+- **p-retry** & **p-limit**: Concurrency control and retry logic for AI calls
+- **zod**: Runtime schema validation with Drizzle integration
+- **react-hook-form**: Form state management with validation
+
+**Replit-Specific Integrations**:
+- `@replit/vite-plugin-runtime-error-modal`: Development error overlay
+- `@replit/vite-plugin-cartographer`: Code navigation (dev only)
+- `@replit/vite-plugin-dev-banner`: Development banner (dev only)
+
+**Configuration Notes**:
+- Environment variable `DATABASE_URL` required for database connection
+- AI providers configured via `AI_INTEGRATIONS_*` environment variables (auto-provisioned by Replit)
+- Development vs. production builds use different server entry points
+- TypeScript strict mode enabled with path aliases for clean imports
