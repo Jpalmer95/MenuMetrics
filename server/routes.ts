@@ -7,8 +7,35 @@ import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchem
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { findBestMatch } from "@shared/fuzzy-matcher";
+import type { Ingredient } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+/**
+ * Helper to find ingredient with fuzzy matching
+ * Returns exact matches immediately, otherwise tries fuzzy matching
+ */
+function findIngredientMatch(
+  searchName: string,
+  userIngredients: Ingredient[]
+): { ingredient: Ingredient | null; confidence: number; wasExactMatch: boolean } {
+  const result = findBestMatch(searchName, userIngredients, {
+    autoMatchThreshold: 0.8,
+    minThreshold: 0.6,
+    useNormalization: true,
+  });
+
+  if (!result) {
+    return { ingredient: null, confidence: 0, wasExactMatch: false };
+  }
+
+  return {
+    ingredient: result.match,
+    confidence: result.confidence,
+    wasExactMatch: result.exactMatch,
+  };
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
@@ -530,9 +557,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all user's ingredients for matching
       const userIngredients = await storage.getAllIngredients(userId);
-      const ingredientMap = new Map(
-        userIngredients.map(ing => [ing.name.toLowerCase().trim(), ing])
-      );
 
       const results: { 
         success: Array<{ name: string; ingredientsCount: number }>; 
@@ -563,17 +587,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             menuPrice: menuPrice || undefined,
           }, userId);
 
-          // Add ingredients to recipe
+          // Add ingredients to recipe with fuzzy matching
           let ingredientCount = 0;
+          const missingIngredients: string[] = [];
+          
           for (const row of rows) {
             const ingredientName = row["Ingredient Name"] || row["ingredient_name"] || row["ingredient"];
             if (!ingredientName) continue;
 
-            const ingredient = ingredientMap.get(ingredientName.toLowerCase().trim());
-            if (!ingredient) {
+            const match = findIngredientMatch(ingredientName, userIngredients);
+            if (!match.ingredient) {
+              missingIngredients.push(ingredientName);
               console.warn(`Ingredient "${ingredientName}" not found for recipe "${recipeName}"`);
               continue;
             }
+            
+            // Log fuzzy matches for transparency
+            if (!match.wasExactMatch) {
+              console.log(`Fuzzy matched "${ingredientName}" → "${match.ingredient.name}" (confidence: ${(match.confidence * 100).toFixed(0)}%)`);
+            }
+            
+            const ingredient = match.ingredient;
 
             const quantityStr = row["Quantity"] || row["quantity"];
             const quantity = parseFloat(quantityStr) || 1;
@@ -632,9 +666,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all user's ingredients for matching
       const userIngredients = await storage.getAllIngredients(userId);
-      const ingredientMap = new Map(
-        userIngredients.map(ing => [ing.name.toLowerCase().trim(), ing])
-      );
 
       const results: { 
         success: Array<{ name: string; ingredientsCount: number }>; 
@@ -663,7 +694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             menuPrice: typeof menuPrice === "number" ? menuPrice : undefined,
           }, userId);
 
-          // Add ingredients to recipe
+          // Add ingredients to recipe with fuzzy matching
           let ingredientCount = 0;
           const missingIngredients: string[] = [];
           
@@ -671,11 +702,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const ingredientName = ingData.name;
             if (!ingredientName) continue;
 
-            const ingredient = ingredientMap.get(ingredientName.toLowerCase().trim());
-            if (!ingredient) {
+            const match = findIngredientMatch(ingredientName, userIngredients);
+            if (!match.ingredient) {
               missingIngredients.push(ingredientName);
               continue;
             }
+            
+            // Log fuzzy matches for transparency
+            if (!match.wasExactMatch) {
+              console.log(`Fuzzy matched "${ingredientName}" → "${match.ingredient.name}" (confidence: ${(match.confidence * 100).toFixed(0)}%)`);
+            }
+            
+            const ingredient = match.ingredient;
 
             const quantity = typeof ingData.quantity === "number" ? ingData.quantity : parseFloat(ingData.quantity) || 1;
             const unit = (ingData.unit || "units").toLowerCase().trim();
@@ -776,66 +814,35 @@ Rules:
 
       let parsedRecipes: any[];
 
-      // Call AI based on provider
-      if (aiProvider === "openai") {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: text }
-            ],
-            response_format: { type: "json_object" },
-            temperature: 0.1,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`OpenAI API error: ${response.statusText}`);
+      // Get HuggingFace API key if using that provider
+      let customApiKey: string | undefined;
+      if (aiProvider === "huggingface") {
+        const aiSettings = await storage.getAISettings(userId);
+        if (!aiSettings?.huggingfaceToken) {
+          return res.status(400).json({ 
+            error: "HuggingFace requires an API key. Please configure it in Settings." 
+          });
         }
-
-        const data = await response.json();
-        const content = data.choices[0].message.content;
-        const parsed = JSON.parse(content);
-        parsedRecipes = Array.isArray(parsed) ? parsed : parsed.recipes || [];
-      } else if (aiProvider === "gemini") {
-        const { GoogleGenAI } = await import("@google/genai");
-        const ai = new GoogleGenAI({
-          apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
-          httpOptions: {
-            apiVersion: "",
-            baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || "",
-          },
-        });
-
-        const result = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: [{ text: `${systemPrompt}\n\n${text}` }],
-          config: {
-            responseMimeType: "application/json",
-          },
-        });
-
-        const content = result.text || "";
-        if (!content) {
-          throw new Error("Gemini returned empty response");
-        }
-        const parsed = JSON.parse(content);
-        parsedRecipes = Array.isArray(parsed) ? parsed : parsed.recipes || [];
-      } else {
-        return res.status(400).json({ error: "Unsupported AI provider for text import. Use openai or gemini" });
+        customApiKey = aiSettings.huggingfaceToken;
       }
 
-      // Now import the parsed recipes using the same logic as JSON import
-      const ingredientMap = new Map(
-        userIngredients.map(ing => [ing.name.toLowerCase().trim(), ing])
-      );
+      // Call AI using shared helper that supports all providers
+      const content = await callAI({
+        provider: aiProvider,
+        systemPrompt,
+        prompt: text,
+        customApiKey,
+      });
 
+      if (!content) {
+        throw new Error(`${aiProvider} returned empty response`);
+      }
+
+      // Parse JSON response
+      const parsed = JSON.parse(content);
+      parsedRecipes = Array.isArray(parsed) ? parsed : parsed.recipes || [];
+
+      // Now import the parsed recipes using fuzzy matching
       const results: { 
         success: Array<{ name: string; ingredientsCount: number }>; 
         errors: Array<{ recipe: string; error: string }> 
@@ -862,7 +869,7 @@ Rules:
             menuPrice: typeof menuPrice === "number" ? menuPrice : undefined,
           }, userId);
 
-          // Add ingredients to recipe
+          // Add ingredients to recipe with fuzzy matching
           let ingredientCount = 0;
           const missingIngredients: string[] = [];
           
@@ -870,11 +877,18 @@ Rules:
             const ingredientName = ingData.name;
             if (!ingredientName) continue;
 
-            const ingredient = ingredientMap.get(ingredientName.toLowerCase().trim());
-            if (!ingredient) {
+            const match = findIngredientMatch(ingredientName, userIngredients);
+            if (!match.ingredient) {
               missingIngredients.push(ingredientName);
               continue;
             }
+            
+            // Log fuzzy matches for transparency
+            if (!match.wasExactMatch) {
+              console.log(`Fuzzy matched "${ingredientName}" → "${match.ingredient.name}" (confidence: ${(match.confidence * 100).toFixed(0)}%)`);
+            }
+            
+            const ingredient = match.ingredient;
 
             const quantity = typeof ingData.quantity === "number" ? ingData.quantity : parseFloat(ingData.quantity) || 1;
             const unit = (ingData.unit || "units").toLowerCase().trim();
@@ -1056,9 +1070,8 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
         return res.status(400).json({ error: "Invalid recipe data" });
       }
 
-      // Get all ingredients to match names
+      // Get all ingredients for fuzzy matching
       const allIngredients = await storage.getAllIngredients(userId);
-      const ingredientMap = new Map(allIngredients.map(ing => [ing.name.toLowerCase().trim(), ing]));
 
       // Create the recipe first
       const recipe = await storage.createRecipe({
@@ -1068,14 +1081,19 @@ CRITICAL: Only use ingredients from the available ingredients list above. Match 
         servings,
       }, userId);
 
-      // Add ingredients to the recipe
+      // Add ingredients to the recipe with fuzzy matching
       for (const suggestedIng of suggestedIngredients) {
-        const matchedIngredient = ingredientMap.get(suggestedIng.ingredientName.toLowerCase().trim());
+        const match = findIngredientMatch(suggestedIng.ingredientName, allIngredients);
         
-        if (matchedIngredient) {
+        if (match.ingredient) {
+          // Log fuzzy matches for transparency
+          if (!match.wasExactMatch) {
+            console.log(`Fuzzy matched "${suggestedIng.ingredientName}" → "${match.ingredient.name}" (confidence: ${(match.confidence * 100).toFixed(0)}%)`);
+          }
+          
           await storage.createRecipeIngredient({
             recipeId: recipe.id,
-            ingredientId: matchedIngredient.id,
+            ingredientId: match.ingredient.id,
             quantity: suggestedIng.quantity,
             unit: suggestedIng.unit,
           }, userId);
