@@ -164,7 +164,7 @@ async function callHuggingFace(request: AIRequest): Promise<string> {
   }
 
   const response = await fetch(
-    "https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct",
+    "https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.3-70B-Instruct",
     {
       method: "POST",
       headers: {
