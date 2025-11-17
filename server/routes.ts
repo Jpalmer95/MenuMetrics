@@ -156,6 +156,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/recipes/export", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const recipes = await storage.getAllRecipes(userId);
+      
+      // Map recipes to export format (one row per ingredient)
+      const headers = [
+        "Recipe Name",
+        "Category",
+        "Serving Size",
+        "Menu Price",
+        "Description",
+        "Ingredient Name",
+        "Quantity",
+        "Unit"
+      ];
+      
+      const rows: any[] = [];
+      
+      for (const recipe of recipes) {
+        const recipeIngredients = await storage.getRecipeIngredients(recipe.id, userId);
+        
+        if (recipeIngredients.length === 0) {
+          // Recipe with no ingredients - still export it
+          rows.push([
+            recipe.name,
+            recipe.category,
+            recipe.servings,
+            recipe.menuPrice || "",
+            recipe.description || "",
+            "",
+            "",
+            ""
+          ]);
+        } else {
+          // One row per ingredient
+          for (const ri of recipeIngredients) {
+            rows.push([
+              recipe.name,
+              recipe.category,
+              recipe.servings,
+              recipe.menuPrice || "",
+              recipe.description || "",
+              ri.ingredientDetails.name,
+              ri.quantity,
+              ri.unit
+            ]);
+          }
+        }
+      }
+      
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 25 }, // Recipe Name
+        { wch: 15 }, // Category
+        { wch: 15 }, // Serving Size
+        { wch: 12 }, // Menu Price
+        { wch: 30 }, // Description
+        { wch: 25 }, // Ingredient Name
+        { wch: 10 }, // Quantity
+        { wch: 12 }  // Unit
+      ];
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Recipes");
+      
+      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      res.setHeader("Content-Disposition", `attachment; filename=recipes-export-${timestamp}.xlsx`);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buffer);
+    } catch (error) {
+      console.error("Recipe export error:", error);
+      res.status(500).json({ error: "Failed to export recipes" });
+    }
+  });
+
   app.get("/api/ingredients", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -460,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } = { success: [], errors: [] };
 
       // Process each recipe
-      for (const [recipeName, rows] of recipeGroups.entries()) {
+      for (const [recipeName, rows] of Array.from(recipeGroups.entries())) {
         try {
           const firstRow = rows[0];
           
@@ -469,8 +549,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const servingSizeStr = String(firstRow["Serving Size"] || firstRow["serving_size"] || "1");
           const servings = parseFloat(servingSizeStr.replace(/[^\d.]/g, '')) || 1;
           
-          const sellingPriceStr = firstRow["Selling Price"] || firstRow["selling_price"] || firstRow["price"];
-          const sellingPrice = sellingPriceStr ? parseFloat(String(sellingPriceStr).replace(/[$,]/g, '')) : undefined;
+          const menuPriceStr = firstRow["Menu Price"] || firstRow["menu_price"] || firstRow["price"] || firstRow["Selling Price"] || firstRow["selling_price"];
+          const menuPrice = menuPriceStr ? parseFloat(String(menuPriceStr).replace(/[$,]/g, '')) : undefined;
           
           const description = firstRow["Description"] || firstRow["description"] || "";
 
@@ -478,9 +558,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const recipe = await storage.createRecipe({
             name: recipeName,
             description: description || "",
-            category: category || "Other",
+            category: category || "other",
             servings,
-            sellingPrice: sellingPrice || null,
+            menuPrice: menuPrice || undefined,
           }, userId);
 
           // Add ingredients to recipe
