@@ -1312,6 +1312,141 @@ Format your response clearly with numbered sections.`;
     }
   });
 
+  // AI-powered density estimation for ingredients
+  app.post("/api/ingredients/estimate-densities", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get AI provider settings
+      const settings = await storage.getAISettings(userId);
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
+
+      // Get all user's ingredients
+      const allIngredients = await storage.getAllIngredients(userId);
+      
+      // Filter for ingredients missing density (and exclude packaging)
+      const needsDensity = allIngredients.filter(ing => 
+        !ing.gramsPerMilliliter && !ing.isPackaging
+      );
+
+      if (needsDensity.length === 0) {
+        return res.json({ 
+          message: "All ingredients already have density values!",
+          updated: 0,
+          total: allIngredients.length
+        });
+      }
+
+      // Prepare ingredient list for AI
+      const ingredientList = needsDensity
+        .map(ing => `${ing.name} (${ing.category})`)
+        .join("\n");
+
+      const systemPrompt = `You are a food science expert specializing in ingredient densities and measurements. Your task is to estimate accurate density values (grams per milliliter) for common food and beverage ingredients.`;
+
+      const prompt = `Estimate the density (grams per milliliter) for each of these ingredients. Use standard food science references and common knowledge about ingredient densities.
+
+Ingredients:
+${ingredientList}
+
+IMPORTANT: Return ONLY a valid JSON array with this exact structure, no other text:
+[
+  {
+    "name": "exact ingredient name from list",
+    "gramsPerMilliliter": 1.03,
+    "reasoning": "brief explanation"
+  }
+]
+
+Common reference densities:
+- Water: 1.00 g/mL
+- Milk (whole): 1.03 g/mL
+- Heavy cream: 0.99 g/mL
+- Espresso/Coffee: 1.00 g/mL
+- Sugar (granulated): 0.85 g/mL (settled)
+- Flour (all-purpose): 0.50-0.55 g/mL
+- Cocoa powder: 0.50 g/mL
+- Honey: 1.42 g/mL
+- Maple syrup: 1.33 g/mL
+- Vanilla extract: 0.88 g/mL
+- Butter: 0.91 g/mL
+- Oil (vegetable): 0.92 g/mL
+
+Return the JSON array now:`;
+
+      const response = await callAI({
+        provider,
+        prompt,
+        systemPrompt,
+        customApiKey,
+      });
+
+      // Parse AI response
+      let cleanResponse = response.trim();
+      
+      // Remove markdown code blocks
+      if (cleanResponse.startsWith('```json')) {
+        cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      } else if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.replace(/```\n?/g, '').trim();
+      }
+      
+      const densityEstimates = JSON.parse(cleanResponse);
+      
+      if (!Array.isArray(densityEstimates)) {
+        throw new Error("AI response is not an array");
+      }
+
+      // Update ingredients with estimated densities
+      let updatedCount = 0;
+      const results = [];
+
+      for (const estimate of densityEstimates) {
+        // Find matching ingredient (case-insensitive)
+        const ingredient = needsDensity.find(ing => 
+          ing.name.toLowerCase() === estimate.name.toLowerCase()
+        );
+
+        if (ingredient && typeof estimate.gramsPerMilliliter === 'number') {
+          // Update ingredient with new density (preserve all other fields)
+          await storage.updateIngredient(ingredient.id, {
+            name: ingredient.name,
+            category: ingredient.category,
+            purchaseQuantity: ingredient.purchaseQuantity,
+            purchaseUnit: ingredient.purchaseUnit,
+            purchaseCost: ingredient.purchaseCost,
+            isPackaging: ingredient.isPackaging,
+            store: ingredient.store || undefined,
+            gramsPerMilliliter: estimate.gramsPerMilliliter,
+            densitySource: `AI-estimated (${provider})`,
+          }, userId);
+          
+          updatedCount++;
+          results.push({
+            name: ingredient.name,
+            density: estimate.gramsPerMilliliter,
+            reasoning: estimate.reasoning
+          });
+        }
+      }
+
+      res.json({
+        message: `Successfully estimated densities for ${updatedCount} ingredients`,
+        updated: updatedCount,
+        total: needsDensity.length,
+        results
+      });
+
+    } catch (error: any) {
+      console.error("Density estimation error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to estimate densities",
+        details: error.originalError?.message || error.message
+      });
+    }
+  });
+
   // AI Settings endpoints
   app.get("/api/settings/ai", isAuthenticated, async (req: any, res) => {
     try {
