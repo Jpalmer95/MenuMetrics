@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Ingredient, RecipeIngredient, MeasurementUnit } from "@shared/schema";
+import { measurementUnits } from "@shared/schema";
 import { calculateIngredientCost, checkDensityWarning } from "@/lib/unit-conversions";
 
 interface RecipeBuilderProps {
@@ -51,8 +52,6 @@ const RecipeItemRow = ({
     ri.unit as MeasurementUnit
   );
   const showCostWarning = cost === 0 && ingredientWarning.needsWarning;
-
-  const unitOptions = (["cups", "ounces", "grams", "units", "teaspoons", "tablespoons", "pounds", "kilograms", "milliliters", "liters", "pints", "quarts", "gallons"] as const);
 
   return (
     <div
@@ -96,7 +95,7 @@ const RecipeItemRow = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {unitOptions.map((u) => (
+              {measurementUnits.map((u) => (
                 <SelectItem key={u} value={u}>
                   {u}
                 </SelectItem>
@@ -252,7 +251,6 @@ export function RecipeBuilder({
     packagingUnit as MeasurementUnit
   );
 
-  const unitOptions = (["cups", "ounces", "grams", "units", "teaspoons", "tablespoons", "pounds", "kilograms", "milliliters", "liters", "pints", "quarts", "gallons"] as const);
 
   return (
     <div className="space-y-6">
@@ -328,7 +326,7 @@ export function RecipeBuilder({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {unitOptions.map((u) => (
+                    {measurementUnits.map((u) => (
                       <SelectItem key={u} value={u}>
                         {u}
                       </SelectItem>
@@ -434,7 +432,7 @@ export function RecipeBuilder({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {unitOptions.map((u) => (
+                    {measurementUnits.map((u) => (
                       <SelectItem key={u} value={u}>
                         {u}
                       </SelectItem>

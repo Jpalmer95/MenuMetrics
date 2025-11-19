@@ -570,7 +570,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Extract recipe metadata from first row
           const category = firstRow["Category"] || firstRow["category"] || "";
-          const servingSizeStr = String(firstRow["Serving Size"] || firstRow["serving_size"] || firstRow["Yield"] || "1");
+          // Prioritize "Yield" (user's format) before falling back to "Serving Size"
+          const servingSizeStr = String(firstRow["Yield"] || firstRow["Serving Size"] || firstRow["serving_size"] || "1");
           const servings = parseFloat(servingSizeStr.replace(/[^\d.]/g, '')) || 1;
           
           const menuPriceStr = firstRow["Menu Price"] || firstRow["menu_price"] || firstRow["price"] || firstRow["Selling Price"] || firstRow["selling_price"];
@@ -592,7 +593,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const missingIngredients: string[] = [];
           
           for (const row of rows) {
-            const ingredientName = row["Ingredient Name"] || row["ingredient_name"] || row["ingredient"] || row["Inventory Item Match"];
+            // Prioritize "Inventory Item Match" (user's format) before falling back to other column names
+            const ingredientName = row["Inventory Item Match"] || row["Ingredient Name"] || row["ingredient_name"] || row["ingredient"];
             if (!ingredientName) continue;
 
             const match = findIngredientMatch(ingredientName, userIngredients);
