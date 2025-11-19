@@ -43,6 +43,7 @@ export interface IStorage {
   getRecipeIngredients(recipeId: string, userId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>>;
   createRecipeIngredient(recipeIngredient: InsertRecipeIngredient, userId: string): Promise<RecipeIngredient>;
   updateRecipeIngredientQuantity(id: string, quantity: number, userId: string): Promise<RecipeIngredient | undefined>;
+  updateRecipeIngredient(id: string, updates: { quantity?: number; unit?: string }, userId: string): Promise<RecipeIngredient | undefined>;
   deleteRecipeIngredient(id: string, userId: string): Promise<boolean>;
   
   getAISettings(userId: string): Promise<AISettingsData | undefined>;
@@ -328,6 +329,24 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(recipeIngredients)
       .set({ quantity })
+      .where(and(eq(recipeIngredients.id, id), eq(recipeIngredients.userId, userId)))
+      .returning();
+
+    if (!updated) return undefined;
+    await this.recalculateRecipeCost(updated.recipeId, userId);
+    return updated;
+  }
+
+  async updateRecipeIngredient(id: string, updates: { quantity?: number; unit?: string }, userId: string): Promise<RecipeIngredient | undefined> {
+    const updateData: any = {};
+    if (updates.quantity !== undefined) updateData.quantity = updates.quantity;
+    if (updates.unit !== undefined) updateData.unit = updates.unit;
+    
+    if (Object.keys(updateData).length === 0) return undefined;
+    
+    const [updated] = await db
+      .update(recipeIngredients)
+      .set(updateData)
       .where(and(eq(recipeIngredients.id, id), eq(recipeIngredients.userId, userId)))
       .returning();
 

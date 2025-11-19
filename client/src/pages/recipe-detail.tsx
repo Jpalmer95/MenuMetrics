@@ -79,6 +79,15 @@ export default function RecipeDetailPage() {
     },
   });
 
+  const updateUnitMutation = useMutation({
+    mutationFn: ({ recipeIngredientId, unit }: { recipeIngredientId: string; unit: string }) =>
+      apiRequest("PATCH", `/api/recipes/${id}/ingredients/${recipeIngredientId}`, { unit }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+    },
+  });
+
   const handleAddIngredient = (ingredientId: string, quantity: number, unit: string) => {
     addIngredientMutation.mutate({
       recipeId: id!,
@@ -94,6 +103,10 @@ export default function RecipeDetailPage() {
 
   const handleUpdateQuantity = (recipeIngredientId: string, quantity: number) => {
     updateQuantityMutation.mutate({ recipeIngredientId, quantity });
+  };
+
+  const handleUpdateUnit = (recipeIngredientId: string, unit: string) => {
+    updateUnitMutation.mutate({ recipeIngredientId, unit });
   };
 
   if (recipeLoading || ingredientsLoading) {
@@ -233,6 +246,7 @@ export default function RecipeDetailPage() {
         onAddIngredient={handleAddIngredient}
         onRemoveIngredient={handleRemoveIngredient}
         onUpdateQuantity={handleUpdateQuantity}
+        onUpdateUnit={handleUpdateUnit}
       />
     </div>
   );

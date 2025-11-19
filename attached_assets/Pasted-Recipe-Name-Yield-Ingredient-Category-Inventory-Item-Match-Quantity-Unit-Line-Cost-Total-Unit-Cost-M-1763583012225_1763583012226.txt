@@ -1,0 +1,1000 @@
+Recipe Name	Yield	Ingredient Category	Inventory Item Match	Quantity	Unit	Line Cost	Total Unit Cost	Menu Price	COGS %																		
+Small Matcha Latte (16oz)	1 Drink	Ingredient	SEN CHA Naturals Organic Everyday Matcha Powder	1	tsp	0.21	0.77	5.5	0.14																		
+Small Matcha Latte (16oz)		Ingredient	HCF Whole Milk	10	oz	0.31																					
+Small Matcha Latte (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Small Matcha Latte (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Small Matcha Latte (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Small Matcha Latte (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Large Matcha Latte (24oz)	1 Drink	Ingredient	SEN CHA Naturals Organic Everyday Matcha Powder	2	tsp	0.42	1.19	7.5	0.1586666667																		
+Large Matcha Latte (24oz)		Ingredient	HCF Whole Milk	14	oz	0.44																					
+Large Matcha Latte (24oz)		Packaging	Karat C-KC24 24oz PET Plastic Cold Cups	1	unit	0.1																					
+Large Matcha Latte (24oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Large Matcha Latte (24oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Large Matcha Latte (24oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Small Chai Latte (16oz)	1 Drink	Ingredient	Rishi Masala Chai (32 oz)	5	oz	0.91	1.29	5.5	0.2345454545																		
+Small Chai Latte (16oz)		Ingredient	HCF Whole Milk	5	oz	0.16																					
+Small Chai Latte (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Small Chai Latte (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.05																					
+Small Chai Latte (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Small Chai Latte (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Large Chai Latte (24oz)	1 Drink	Ingredient	Rishi Masala Chai (32 oz)	7	oz	1.28	1.67	7.5	0.2226666667																		
+Large Chai Latte (24oz)		Ingredient	HCF Whole Milk	7	oz	0.22																					
+Large Chai Latte (24oz)		Packaging	Karat C-KC24 24oz PET Plastic Cold Cups	1	unit	0.1																					
+Large Chai Latte (24oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.05																					
+Large Chai Latte (24oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Large Chai Latte (24oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Green Smoothie (16oz)	1 Drink	Ingredient	Fresh Granny Smith Apples	60	g	0.18	1.33	8	0.16625																		
+Green Smoothie (16oz)		Ingredient	HEB Fresh Bananas	40	g	0.04																					
+Green Smoothie (16oz)		Ingredient	Jif Peanut Butter (2 pack)	20	g	0.08																					
+Green Smoothie (16oz)		Ingredient	HEB Spinach (9oz Bag)	30	g	0.2																					
+Green Smoothie (16oz)		Ingredient	HEB Original Oat Milk	10	oz	0.61																					
+Green Smoothie (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Green Smoothie (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.05																					
+Green Smoothie (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Green Smoothie (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Strawberry Smoothie (16oz)	1 Drink	Ingredient	HEB Whole Frozen Strawberries (5 lbs)	150	g	0.73	1.6	8	0.2																		
+Strawberry Smoothie (16oz)		Ingredient	Hill Country Fare Strawberry Preserves (32 oz)	2	tbsp	0.13																					
+Strawberry Smoothie (16oz)		Ingredient	HEB Original Coconut Milk	10	oz	0.52																					
+Strawberry Smoothie (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Strawberry Smoothie (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.05																					
+Strawberry Smoothie (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Strawberry Smoothie (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Cortado (8oz Hot)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.61	4.25	0.1435294118																		
+Cortado (8oz Hot)		Ingredient	HCF Whole Milk	4	oz	0.12																					
+Cortado (8oz Hot)		Packaging	AOZITA 8oz White Paper Hot Cups	1	unit	0.07																					
+Cortado (8oz Hot)		Packaging	Karat PP 8oz Black Hot Cup Lids	1	unit	0.03																					
+																											
+Kids Steamer (8oz Hot)	1 Drink	Ingredient	Da Vinci Classic Vanilla Syrup 25.4	0.25	oz	0.07	0.43	3	0.1433333333																		
+Kids Steamer (8oz Hot)		Ingredient	HCF Whole Milk	8	oz	0.25																					
+Kids Steamer (8oz Hot)		Ingredient	Fresh Finest Ground Cinnamon (5 lb)	0.25	tsp	0.01																					
+Kids Steamer (8oz Hot)		Packaging	AOZITA 8oz White Paper Hot Cups	1	unit	0.07																					
+Kids Steamer (8oz Hot)		Packaging	Karat PP 8oz Black Hot Cup Lids	1	unit	0.03																					
+																											
+Hot Chocolate (12oz)	1 Drink	Ingredient	HEB Unsweetened Cocoa Powder (8 oz)	2	tbsp	0.29	0.81	5.5	0.1472727273																		
+Hot Chocolate (12oz)		Ingredient	HCF Whole Milk	11	oz	0.34																					
+Hot Chocolate (12oz)		Packaging	Karat C-K512WU 12oz White Paper Hot Cups	1	unit	0.07																					
+Hot Chocolate (12oz)		Packaging	Karat 12-20oz Black Hot Cup Lids	1	unit	0.04																					
+Hot Chocolate (12oz)		Packaging	FMP Brands - Kraft Coffee Cup Sleeves	1	unit	0.05																					
+																											
+Small Lavender Latte (16oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	1.04	5.5	0.1890909091																		
+Small Lavender Latte (16oz)		Ingredient	HCF Whole Milk	10	oz	0.31																					
+Small Lavender Latte (16oz)		Ingredient	Da Vinci Lavendar Syrup 25.4oz	0.5	oz	0.17																					
+Small Lavender Latte (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Small Lavender Latte (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.05																					
+Small Lavender Latte (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Small Lavender Latte (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Nitro Cold Brew (24oz)	1 Drink	Ingredient	House Beans (Cold Brew)	0.75	oz	1.13	1.32	6.75	0.1955555556																		
+Nitro Cold Brew (24oz)		Ingredient	Nitrogen Gas Cyclinder Tank	2	g	0.01																					
+Nitro Cold Brew (24oz)		Packaging	Karat C-KC24 24oz PET Plastic Cold Cups	1	unit	0.1																					
+Nitro Cold Brew (24oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.05																					
+Nitro Cold Brew (24oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Nitro Cold Brew (24oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Frappe (16oz)	1 Drink	Ingredient	House Beans (Cold Brew)	8	oz	0.5	1.23	7	0.1757142857																		
+Frappe (16oz)		Ingredient	HCF Whole Milk	8	oz	0.25																					
+Frappe (16oz)		Ingredient	Da Vinci Classic Caramel Syrup	2	tbsp	0.29																					
+Frappe (16oz)		Ingredient	HEB Real Original Dairy Whip Cream (13oz)	4	tbsp	0.08																					
+Frappe (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Frappe (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Frappe (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Frappe (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Hot Latte (12oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.93	5	0.186																		
+Hot Latte (12oz)		Ingredient	HCF Whole Milk	9	oz	0.28																					
+Hot Latte (12oz)		Packaging	Karat C-K512WU 12oz White Paper Hot Cups	1	unit	0.07																					
+Hot Latte (12oz)		Packaging	Karat 12-20oz Black Hot Cup Lids	1	unit	0.04																					
+Hot Latte (12oz)		Packaging	FMP Brands - Kraft Coffee Cup Sleeves	1	unit	0.05																					
+																											
+Hot Latte (16oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	1.11	5.75	0.193																		
+Hot Latte (16oz)		Ingredient	HCF Whole Milk	13	oz	0.41																					
+Hot Latte (16oz)		Packaging	Karat C-K516WU 16oz White Paper Hot Cups	1	unit	0.07																					
+Hot Latte (16oz)		Packaging	Karat 12-20oz Black Hot Cup Lids	1	unit	0.04																					
+Hot Latte (16oz)		Packaging	FMP Brands - Kraft Coffee Cup Sleeves	1	unit	0.05																					
+																											
+Hot Latte (20oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	1.26	oz	0.78	1.52	6.5	0.234																		
+Hot Latte (20oz)		Ingredient	HCF Whole Milk	16	oz	0.5																					
+Hot Latte (20oz)		Packaging	Karat C-K520WU 20oz White Paper Hot Cups	1	unit	0.08																					
+Hot Latte (20oz)		Packaging	Karat 12-20oz Black Hot Cup Lids	1	unit	0.04																					
+Hot Latte (20oz)		Packaging	FMP Brands - Kraft Coffee Cup Sleeves	1	unit	0.05																					
+																											
+Iced Latte (16oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.98	5.5	0.178																		
+Iced Latte (16oz)		Ingredient	HCF Whole Milk	10	oz	0.31																					
+Iced Latte (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Iced Latte (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Iced Latte (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Iced Latte (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Iced Latte (20oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	1.16	6	0.193																		
+Iced Latte (20oz)		Ingredient	HCF Whole Milk	14	oz	0.44																					
+Iced Latte (20oz)		Packaging	Karat C-KC20 20oz PET Plastic Cold Cups	1	unit	0.1																					
+Iced Latte (20oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Iced Latte (20oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Iced Latte (20oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Iced Latte (24oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	1.26	oz	0.78	1.56	7.5	0.208																		
+Iced Latte (24oz)		Ingredient	HCF Whole Milk	16	oz	0.5																					
+Iced Latte (24oz)		Packaging	Karat C-KC24 24oz PET Plastic Cold Cups	1	unit	0.1																					
+Iced Latte (24oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Iced Latte (24oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Iced Latte (24oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Cortado (8oz Hot)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.61	4.25	0.144																		
+Cortado (8oz Hot)		Ingredient	HCF Whole Milk	4	oz	0.12																					
+Cortado (8oz Hot)		Packaging	AOZITA 8oz White Paper Hot Cups	1	unit	0.07																					
+Cortado (8oz Hot)		Packaging	Karat PP 8oz Black Hot Cup Lids	1	unit	0.03																					
+																											
+Hot Americano (12oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.55	3.5	0.157																		
+Hot Americano (12oz)		Packaging	Karat C-K512WU 12oz White Paper Hot Cups	1	unit	0.07																					
+Hot Americano (12oz)		Packaging	Karat 12-20oz Black Hot Cup Lids	1	unit	0.04																					
+Hot Americano (12oz)		Packaging	FMP Brands - Kraft Coffee Cup Sleeves	1	unit	0.05																					
+																											
+Hot Americano (16oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.55	4	0.138																		
+Hot Americano (16oz)		Packaging	Karat C-K516WU 16oz White Paper Hot Cups	1	unit	0.07																					
+Hot Americano (16oz)		Packaging	Karat 12-20oz Black Hot Cup Lids	1	unit	0.04																					
+Hot Americano (16oz)		Packaging	FMP Brands - Kraft Coffee Cup Sleeves	1	unit	0.05																					
+																											
+Hot Americano (20oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	1.26	oz	0.78	0.98	4.75	0.206																		
+Hot Americano (20oz)		Packaging	Karat C-K520WU 20oz White Paper Hot Cups	1	unit	0.08																					
+Hot Americano (20oz)		Packaging	Karat 12-20oz Black Hot Cup Lids	1	unit	0.04																					
+Hot Americano (20oz)		Packaging	FMP Brands - Kraft Coffee Cup Sleeves	1	unit	0.05																					
+																											
+Iced Americano (16oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.62	4	0.155																		
+Iced Americano (16oz)		Packaging	Karat C-KC16 16oz PET Plastic Cold Cups	1	unit	0.1																					
+Iced Americano (16oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Iced Americano (16oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Iced Americano (16oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Iced Americano (20oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	0.63	oz	0.39	0.62	4.5	0.138																		
+Iced Americano (20oz)		Packaging	Karat C-KC20 20oz PET Plastic Cold Cups	1	unit	0.1																					
+Iced Americano (20oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Iced Americano (20oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Iced Americano (20oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+Iced Americano (24oz)	1 Drink	Ingredient	Espresso Beans (Double Shot ~18g)	1.26	oz	0.78	1.01	5.5	0.184																		
+Iced Americano (24oz)		Packaging	Karat C-KC24 24oz PET Plastic Cold Cups	1	unit	0.1																					
+Iced Americano (24oz)		Packaging	Karat Earth 16-24oz PET Dome Lids	1	unit	0.06																					
+Iced Americano (24oz)		Packaging	DuraHome 8in Plastic Wrapped Straws Black	1	unit	0.02																					
+Iced Americano (24oz)		Packaging	Next Day Flyers 2" Round Stickers	1	unit	0.05																					
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											
+																											

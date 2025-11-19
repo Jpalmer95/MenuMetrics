@@ -570,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Extract recipe metadata from first row
           const category = firstRow["Category"] || firstRow["category"] || "";
-          const servingSizeStr = String(firstRow["Serving Size"] || firstRow["serving_size"] || "1");
+          const servingSizeStr = String(firstRow["Serving Size"] || firstRow["serving_size"] || firstRow["Yield"] || "1");
           const servings = parseFloat(servingSizeStr.replace(/[^\d.]/g, '')) || 1;
           
           const menuPriceStr = firstRow["Menu Price"] || firstRow["menu_price"] || firstRow["price"] || firstRow["Selling Price"] || firstRow["selling_price"];
@@ -592,7 +592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const missingIngredients: string[] = [];
           
           for (const row of rows) {
-            const ingredientName = row["Ingredient Name"] || row["ingredient_name"] || row["ingredient"];
+            const ingredientName = row["Ingredient Name"] || row["ingredient_name"] || row["ingredient"] || row["Inventory Item Match"];
             if (!ingredientName) continue;
 
             const match = findIngredientMatch(ingredientName, userIngredients);
@@ -956,11 +956,29 @@ Rules:
   app.patch("/api/recipes/:recipeId/ingredients/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { quantity } = req.body;
-      if (typeof quantity !== "number" || quantity <= 0) {
-        return res.status(400).json({ error: "Invalid quantity" });
+      const { quantity, unit } = req.body;
+      
+      const updates: { quantity?: number; unit?: string } = {};
+      
+      if (quantity !== undefined) {
+        if (typeof quantity !== "number" || quantity <= 0) {
+          return res.status(400).json({ error: "Invalid quantity" });
+        }
+        updates.quantity = quantity;
       }
-      const recipeIngredient = await storage.updateRecipeIngredientQuantity(req.params.id, quantity, userId);
+      
+      if (unit !== undefined) {
+        if (typeof unit !== "string" || !unit.trim()) {
+          return res.status(400).json({ error: "Invalid unit" });
+        }
+        updates.unit = unit.trim().toLowerCase();
+      }
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No updates provided" });
+      }
+      
+      const recipeIngredient = await storage.updateRecipeIngredient(req.params.id, updates, userId);
       if (!recipeIngredient) {
         return res.status(404).json({ error: "Recipe ingredient not found" });
       }

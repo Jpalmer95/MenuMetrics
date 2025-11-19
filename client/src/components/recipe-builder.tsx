@@ -26,15 +26,18 @@ interface RecipeBuilderProps {
   onAddIngredient: (ingredientId: string, quantity: number, unit: string) => void;
   onRemoveIngredient: (recipeIngredientId: string) => void;
   onUpdateQuantity: (recipeIngredientId: string, quantity: number) => void;
+  onUpdateUnit: (recipeIngredientId: string, unit: string) => void;
 }
 
 const RecipeItemRow = ({
   ri,
   onUpdateQuantity,
+  onUpdateUnit,
   onRemoveIngredient,
 }: {
   ri: RecipeIngredient & { ingredientDetails: Ingredient };
   onUpdateQuantity: (id: string, quantity: number) => void;
+  onUpdateUnit: (id: string, unit: string) => void;
   onRemoveIngredient: (id: string) => void;
 }) => {
   const cost = calculateIngredientCost(
@@ -48,6 +51,8 @@ const RecipeItemRow = ({
     ri.unit as MeasurementUnit
   );
   const showCostWarning = cost === 0 && ingredientWarning.needsWarning;
+
+  const unitOptions = (["cups", "ounces", "grams", "units", "teaspoons", "tablespoons", "pounds", "kilograms", "milliliters", "liters", "pints", "quarts", "gallons"] as const);
 
   return (
     <div
@@ -75,7 +80,7 @@ const RecipeItemRow = ({
             </Tooltip>
           )}
         </div>
-        <div className="text-sm text-muted-foreground mt-1">
+        <div className="flex items-center gap-2 mt-1">
           <Input
             type="number"
             step="0.01"
@@ -83,10 +88,21 @@ const RecipeItemRow = ({
             onChange={(e) =>
               onUpdateQuantity(ri.id, parseFloat(e.target.value) || 0)
             }
-            className="inline-block w-20 h-7 text-sm mr-2"
+            className="w-20 h-7 text-sm"
             data-testid={`input-quantity-${ri.id}`}
           />
-          {ri.unit}
+          <Select value={ri.unit} onValueChange={(value) => onUpdateUnit(ri.id, value)}>
+            <SelectTrigger className="w-28 h-7 text-sm" data-testid={`select-unit-${ri.id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {unitOptions.map((u) => (
+                <SelectItem key={u} value={u}>
+                  {u}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -127,6 +143,7 @@ export function RecipeBuilder({
   onAddIngredient,
   onRemoveIngredient,
   onUpdateQuantity,
+  onUpdateUnit,
 }: RecipeBuilderProps) {
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -466,6 +483,7 @@ export function RecipeBuilder({
                   key={ri.id}
                   ri={ri}
                   onUpdateQuantity={onUpdateQuantity}
+                  onUpdateUnit={onUpdateUnit}
                   onRemoveIngredient={onRemoveIngredient}
                 />
               ))}
@@ -504,6 +522,7 @@ export function RecipeBuilder({
                   key={ri.id}
                   ri={ri}
                   onUpdateQuantity={onUpdateQuantity}
+                  onUpdateUnit={onUpdateUnit}
                   onRemoveIngredient={onRemoveIngredient}
                 />
               ))}
