@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Plus, Search, Check, X, PackagePlus } from "lucide-react";
+import { Trash2, Plus, Search, Check, X, PackagePlus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -101,6 +101,8 @@ export function IngredientsTable({
       purchaseUnit: ingredient.purchaseUnit,
       purchaseCost: ingredient.purchaseCost,
       isPackaging: ingredient.isPackaging,
+      gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
+      densitySource: ingredient.densitySource ?? undefined,
     });
   };
 
@@ -111,7 +113,18 @@ export function IngredientsTable({
 
   const saveEdit = () => {
     if (editingId && editValues.name && editValues.category && editValues.purchaseQuantity && editValues.purchaseUnit && editValues.purchaseCost !== undefined) {
-      onUpdate(editingId, editValues as InsertIngredient);
+      // Get the original ingredient to check if density was changed
+      const originalIngredient = ingredients.find(ing => ing.id === editingId);
+      let updateData = { ...editValues } as InsertIngredient;
+      
+      // If density was manually changed, update the source
+      if (originalIngredient && 
+          editValues.gramsPerMilliliter !== undefined && 
+          editValues.gramsPerMilliliter !== originalIngredient.gramsPerMilliliter) {
+        updateData.densitySource = "Manual";
+      }
+      
+      onUpdate(editingId, updateData);
       setEditingId(null);
       setEditValues({});
     }
@@ -137,7 +150,13 @@ export function IngredientsTable({
       newIngredient.purchaseCost !== undefined &&
       newIngredient.purchaseCost >= 0
     ) {
-      onCreate(newIngredient as InsertIngredient);
+      // Set density source to "Manual" if density was provided
+      const ingredientData = { ...newIngredient } as InsertIngredient;
+      if (ingredientData.gramsPerMilliliter !== undefined) {
+        ingredientData.densitySource = "Manual";
+      }
+      
+      onCreate(ingredientData);
       setIsAddingNew(false);
       setNewIngredient({ isPackaging: false });
     }
@@ -257,6 +276,7 @@ export function IngredientsTable({
               </TableHead>
               <TableHead className="text-right font-semibold">Per Oz</TableHead>
               <TableHead className="text-right font-semibold">Per Gram</TableHead>
+              <TableHead className="text-right font-semibold">Density (g/mL)</TableHead>
               <TableHead className="font-semibold">Last Updated</TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
@@ -360,6 +380,22 @@ export function IngredientsTable({
                     ? `$${previewCosts.costPerGram.toFixed(3)}`
                     : "-"}
                 </TableCell>
+                <TableCell className="text-right">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Optional"
+                    value={newIngredient.gramsPerMilliliter !== undefined ? newIngredient.gramsPerMilliliter : ""}
+                    onChange={(e) =>
+                      setNewIngredient({
+                        ...newIngredient,
+                        gramsPerMilliliter: e.target.value ? parseFloat(e.target.value) : undefined,
+                      })
+                    }
+                    className="h-8 text-right w-24"
+                    data-testid="input-new-density"
+                  />
+                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   New
                 </TableCell>
@@ -387,7 +423,7 @@ export function IngredientsTable({
             )}
             {sortedIngredients.length === 0 && !isAddingNew ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                   {searchTerm
                     ? "No ingredients found matching your search."
                     : "No ingredients yet. Add your first ingredient to get started."}
@@ -511,6 +547,41 @@ export function IngredientsTable({
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                       {ingredient.costPerGram ? `$${ingredient.costPerGram.toFixed(3)}` : "-"}
+                    </TableCell>
+                    <TableCell className="text-right" data-testid={`text-density-${ingredient.id}`}>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="Optional"
+                          value={editValues.gramsPerMilliliter !== undefined ? editValues.gramsPerMilliliter : ""}
+                          onChange={(e) =>
+                            setEditValues({
+                              ...editValues,
+                              gramsPerMilliliter: e.target.value ? parseFloat(e.target.value) : undefined,
+                            })
+                          }
+                          className="h-8 text-right w-24"
+                          data-testid={`input-edit-density-${ingredient.id}`}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-sm tabular-nums">
+                            {ingredient.gramsPerMilliliter 
+                              ? ingredient.gramsPerMilliliter.toFixed(2)
+                              : <span className="text-muted-foreground">-</span>
+                            }
+                          </span>
+                          {ingredient.gramsPerMilliliter && ingredient.densitySource?.includes("AI-estimated") && (
+                            <span 
+                              title={ingredient.densitySource}
+                              data-testid={`icon-ai-density-${ingredient.id}`}
+                            >
+                              <Sparkles className="h-3 w-3 text-primary" />
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {format(new Date(ingredient.lastUpdated), "MMM d, yyyy")}

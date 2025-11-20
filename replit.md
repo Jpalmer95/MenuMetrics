@@ -130,6 +130,12 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
 - **Recipe Idea Generation**: AI suggests recipes based on available ingredients with optional custom prompts (e.g., "Christmas drinks", "vegan options")
 - **Menu Pricing Strategy**: AI analyzes menu profitability with optional custom queries (e.g., "focus on high-margin items")
 - **Recipe Import with AI**: Parse recipes from text paste or image upload using vision-capable AI models
+- **AI Density Estimation**: One-click AI estimation of ingredient densities (g/mL) for accurate cost calculations
+  - Analyzes ingredients missing density values using food science knowledge
+  - Updates density database with source tracking ("AI-estimated (provider)")
+  - Visual sparkle icon (✨) indicates AI-estimated densities in ingredients table
+  - Enables cross-family unit conversions (e.g., gallons to ounces) for accurate recipe costing
+  - Manual edits override AI estimates and update source to "Manual"
 - **Structured Output**: AI returns JSON-formatted recipes for one-click import
 - **Provider Selection**: Choose between OpenAI (GPT-5 with vision), Gemini (2.5 Flash with vision), Grok, or HuggingFace
 - **Security**: Server-side file validation, size limits (5MB max), type checking, and response sanitization
@@ -181,3 +187,12 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
 - **Migration Completed**: Existing data migrated to default user account, orphaned records cleaned up
 - **Frontend Auth Flow**: Landing page for logged-out users, protected routes, logout button
 - **Team Collaboration Ready**: Multiple users can now share a business account with isolated data access
+- **Density Column & AI Estimation**: Added visible density column to ingredients table with AI estimation feature
+  - New "Density (g/mL)" column displays density values for all ingredients
+  - Inline editing allows manual density entry or modification
+  - "AI: Add Densities" button automatically estimates missing densities using AI food science knowledge
+  - Visual sparkle icon (✨) distinguishes AI-estimated densities from manual entries
+  - Hover over sparkle shows density source (e.g., "AI-estimated (OpenAI GPT-5)")
+  - Manual edits automatically update source to "Manual" and remove sparkle icon
+  - Density values immediately apply to recipe cost calculations for cross-family unit conversions
+  - Fixed AI prompt to return exact ingredient names for accurate database matching
