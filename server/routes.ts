@@ -1316,21 +1316,26 @@ Format your response clearly with numbered sections.`;
   app.post("/api/ingredients/estimate-densities", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      console.log(`[DENSITY] Starting density estimation for user ${userId}`);
       
       // Get AI provider settings
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      console.log(`[DENSITY] Using AI provider: ${provider}`);
 
       // Get all user's ingredients
       const allIngredients = await storage.getAllIngredients(userId);
+      console.log(`[DENSITY] Total ingredients: ${allIngredients.length}`);
       
       // Filter for ingredients missing density (and exclude packaging)
       const needsDensity = allIngredients.filter(ing => 
         !ing.gramsPerMilliliter && !ing.isPackaging
       );
+      console.log(`[DENSITY] Ingredients needing density: ${needsDensity.length}`, needsDensity.map(i => i.name));
 
       if (needsDensity.length === 0) {
+        console.log(`[DENSITY] No ingredients need density estimation`);
         return res.json({ 
           message: "All ingredients already have density values!",
           updated: 0,
@@ -1338,26 +1343,28 @@ Format your response clearly with numbered sections.`;
         });
       }
 
-      // Prepare ingredient list for AI
+      // Prepare ingredient list for AI (name only, no category)
       const ingredientList = needsDensity
-        .map(ing => `${ing.name} (${ing.category})`)
+        .map(ing => ing.name)
         .join("\n");
 
       const systemPrompt = `You are a food science expert specializing in ingredient densities and measurements. Your task is to estimate accurate density values (grams per milliliter) for common food and beverage ingredients.`;
 
-      const prompt = `Estimate the density (grams per milliliter) for each of these ingredients. Use standard food science references and common knowledge about ingredient densities.
+      const prompt = `Estimate the density (grams per milliliter) for each of these food/beverage ingredients. Use standard food science references and common knowledge about ingredient densities.
 
-Ingredients:
+Ingredients to estimate:
 ${ingredientList}
 
-IMPORTANT: Return ONLY a valid JSON array with this exact structure, no other text:
+IMPORTANT: Return ONLY a valid JSON array with this exact structure, no other text or markdown:
 [
   {
-    "name": "exact ingredient name from list",
+    "name": "exact ingredient name from the list above",
     "gramsPerMilliliter": 1.03,
     "reasoning": "brief explanation"
   }
 ]
+
+Make sure the "name" field exactly matches the ingredient name from the list (no extra text, no categories in parentheses).
 
 Common reference densities:
 - Water: 1.00 g/mL
@@ -1375,12 +1382,14 @@ Common reference densities:
 
 Return the JSON array now:`;
 
+      console.log(`[DENSITY] Calling AI for ${needsDensity.length} ingredients...`);
       const response = await callAI({
         provider,
         prompt,
         systemPrompt,
         customApiKey,
       });
+      console.log(`[DENSITY] AI response received, length: ${response.length} chars`);
 
       // Parse AI response
       let cleanResponse = response.trim();
@@ -1393,6 +1402,7 @@ Return the JSON array now:`;
       }
       
       const densityEstimates = JSON.parse(cleanResponse);
+      console.log(`[DENSITY] Parsed ${densityEstimates.length} density estimates from AI`);
       
       if (!Array.isArray(densityEstimates)) {
         throw new Error("AI response is not an array");
@@ -1409,28 +1419,41 @@ Return the JSON array now:`;
         );
 
         if (ingredient && typeof estimate.gramsPerMilliliter === 'number') {
+          console.log(`[DENSITY] Updating ${ingredient.name} with density ${estimate.gramsPerMilliliter}`);
           // Update ingredient with new density (preserve all other fields)
-          await storage.updateIngredient(ingredient.id, {
-            name: ingredient.name,
-            category: ingredient.category,
-            purchaseQuantity: ingredient.purchaseQuantity,
-            purchaseUnit: ingredient.purchaseUnit,
-            purchaseCost: ingredient.purchaseCost,
-            isPackaging: ingredient.isPackaging,
-            store: ingredient.store || undefined,
-            gramsPerMilliliter: estimate.gramsPerMilliliter,
-            densitySource: `AI-estimated (${provider})`,
-          }, userId);
-          
-          updatedCount++;
-          results.push({
-            name: ingredient.name,
-            density: estimate.gramsPerMilliliter,
-            reasoning: estimate.reasoning
-          });
+          try {
+            const updated = await storage.updateIngredient(ingredient.id, {
+              name: ingredient.name,
+              category: ingredient.category,
+              purchaseQuantity: ingredient.purchaseQuantity,
+              purchaseUnit: ingredient.purchaseUnit,
+              purchaseCost: ingredient.purchaseCost,
+              isPackaging: ingredient.isPackaging,
+              store: ingredient.store || undefined,
+              gramsPerMilliliter: estimate.gramsPerMilliliter,
+              densitySource: `AI-estimated (${provider})`,
+            }, userId);
+            
+            if (updated) {
+              console.log(`[DENSITY] Successfully updated ${ingredient.name}, new density: ${updated.gramsPerMilliliter}`);
+              updatedCount++;
+              results.push({
+                name: ingredient.name,
+                density: estimate.gramsPerMilliliter,
+                reasoning: estimate.reasoning
+              });
+            } else {
+              console.error(`[DENSITY] Update returned null for ${ingredient.name}`);
+            }
+          } catch (updateError: any) {
+            console.error(`[DENSITY] Failed to update ${ingredient.name}:`, updateError);
+          }
+        } else {
+          console.log(`[DENSITY] Skipping estimate for ${estimate.name} - no matching ingredient or invalid density`);
         }
       }
 
+      console.log(`[DENSITY] Completed: updated ${updatedCount} of ${needsDensity.length} ingredients`);
       res.json({
         message: `Successfully estimated densities for ${updatedCount} ingredients`,
         updated: updatedCount,
@@ -1439,7 +1462,7 @@ Return the JSON array now:`;
       });
 
     } catch (error: any) {
-      console.error("Density estimation error:", error);
+      console.error("[DENSITY] Density estimation error:", error);
       res.status(500).json({ 
         error: error.message || "Failed to estimate densities",
         details: error.originalError?.message || error.message
