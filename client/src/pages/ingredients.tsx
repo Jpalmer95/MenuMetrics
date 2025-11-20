@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Upload, Download, FileSpreadsheet } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IngredientsTable } from "@/components/ingredients-table";
 import { IngredientFormDialog } from "@/components/ingredient-form-dialog";
@@ -114,6 +114,29 @@ export default function IngredientsPage() {
     },
   });
 
+  const estimateDensitiesMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/ingredients/estimate-densities", {}),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ingredients"] });
+      toast({
+        title: "AI Density Estimation Complete",
+        description: data.updated > 0 
+          ? `Successfully estimated densities for ${data.updated} of ${data.total} ingredients that needed density values.`
+          : data.message || "All ingredients already have density values!",
+      });
+      if (data.results && data.results.length > 0) {
+        console.log("Density estimation results:", data.results);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Density Estimation Failed",
+        description: error.message || "Failed to estimate densities. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (data: InsertIngredient) => {
     if (editingIngredient) {
       updateMutation.mutate({ id: editingIngredient.id, data });
@@ -176,6 +199,15 @@ export default function IngredientsPage() {
           >
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Export Excel
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => estimateDensitiesMutation.mutate()}
+            disabled={ingredients.length === 0 || estimateDensitiesMutation.isPending}
+            data-testid="button-estimate-densities"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {estimateDensitiesMutation.isPending ? "Estimating..." : "AI: Add Densities"}
           </Button>
           <Button
             variant="secondary"
