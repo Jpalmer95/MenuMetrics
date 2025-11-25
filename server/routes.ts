@@ -961,6 +961,11 @@ Rules:
       const userId = req.user.claims.sub;
       const validatedData = insertRecipeIngredientSchema.parse(req.body);
       const recipeIngredient = await storage.createRecipeIngredient(validatedData, userId);
+      
+      // Recalculate recipe cost after adding ingredient
+      const recipeId = req.params.id;
+      await storage.recalculateRecipeCost(recipeId, userId);
+      
       res.status(201).json(recipeIngredient);
     } catch (error) {
       res.status(400).json({ error: "Invalid recipe ingredient data" });
@@ -996,6 +1001,11 @@ Rules:
       if (!recipeIngredient) {
         return res.status(404).json({ error: "Recipe ingredient not found" });
       }
+      
+      // Recalculate recipe cost after updating ingredient
+      const recipeId = req.params.recipeId;
+      await storage.recalculateRecipeCost(recipeId, userId);
+      
       res.json(recipeIngredient);
     } catch (error) {
       res.status(500).json({ error: "Failed to update recipe ingredient" });
@@ -1009,6 +1019,11 @@ Rules:
       if (!deleted) {
         return res.status(404).json({ error: "Recipe ingredient not found" });
       }
+      
+      // Recalculate recipe cost after deleting ingredient
+      const recipeId = req.params.recipeId;
+      await storage.recalculateRecipeCost(recipeId, userId);
+      
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete recipe ingredient" });
