@@ -425,13 +425,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error(`Invalid purchase cost: "${costValue}"`);
           }
           
-          // Parse price per unit (for unit-based items)
+          // Parse price per unit if provided (independent of unit type)
           const pricePerUnitValue = mapping.pricePerUnit ? rowData[mapping.pricePerUnit] : undefined;
-          const pricePerUnit = pricePerUnitValue && purchaseUnit === "units" ? parseFloat(pricePerUnitValue) : undefined;
+          const pricePerUnit = pricePerUnitValue ? parseFloat(pricePerUnitValue) : undefined;
           
-          // Parse density if provided (for weight/volume items)
+          // Parse density if provided (independent of unit type)
           const densityValue = mapping.gramsPerMilliliter ? rowData[mapping.gramsPerMilliliter] : undefined;
-          const gramsPerMilliliter = densityValue && purchaseUnit !== "units" ? parseFloat(densityValue) : undefined;
+          const gramsPerMilliliter = densityValue ? parseFloat(densityValue) : undefined;
           
           const densitySource = mapping.densitySource ? rowData[mapping.densitySource] : undefined;
           
