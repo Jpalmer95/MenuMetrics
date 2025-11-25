@@ -62,7 +62,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Purchase Unit",
         "Purchase Cost",
         "Store (optional)",
-        "Density g/mL (optional)",
+        "Price Per Unit (optional, units only)",
+        "Density g/mL (optional, weight/volume only)",
         "Density Source (optional)",
         "Packaging? (Yes/No)"
       ];
@@ -76,6 +77,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Numinous",
         "",
         "",
+        "",
         "No"
       ];
       
@@ -84,9 +86,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "1. Fill in your ingredient data starting from row 4",
         "2. Required columns: Ingredient Name, Category, Purchase Quantity, Purchase Unit, Purchase Cost",
         "3. Units must be one of: " + measurementUnits.join(", "),
-        "4. Density is optional but helps with volume↔weight conversions (e.g., 1.03 for milk, 0.5 for flour)",
-        "5. Mark 'Yes' for Packaging column if item is packaging (cups, lids, etc.)",
-        "6. Delete this instructions row before uploading"
+        "4. For unit-based items (unit='units'): Use 'Price Per Unit' column instead of Density",
+        "5. For weight/volume items: Density is optional but helps with volume↔weight conversions (e.g., 1.03 for milk, 0.5 for flour)",
+        "6. Mark 'Yes' for Packaging column if item is packaging (cups, lids, etc.)",
+        "7. Delete this instructions row before uploading"
       ];
       
       const worksheet = XLSX.utils.aoa_to_sheet([
@@ -104,7 +107,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { wch: 15 }, // Purchase Unit
         { wch: 15 }, // Purchase Cost
         { wch: 15 }, // Store
-        { wch: 18 }, // Density
+        { wch: 22 }, // Price Per Unit
+        { wch: 22 }, // Density
         { wch: 18 }, // Density Source
         { wch: 18 }  // Packaging
       ];
@@ -136,7 +140,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Purchase Unit",
         "Purchase Cost",
         "Store (optional)",
-        "Density g/mL (optional)",
+        "Price Per Unit (optional, units only)",
+        "Density g/mL (optional, weight/volume only)",
         "Density Source (optional)",
         "Packaging? (Yes/No)"
       ];
@@ -148,7 +153,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ing.purchaseUnit,
         ing.purchaseCost,
         ing.store || "",
-        ing.gramsPerMilliliter || "",
+        ing.purchaseUnit === "units" ? (ing.pricePerUnit || "") : "",
+        ing.purchaseUnit !== "units" ? (ing.gramsPerMilliliter || "") : "",
         ing.densitySource || "",
         ing.isPackaging ? "Yes" : "No"
       ]);
@@ -163,7 +169,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { wch: 15 }, // Purchase Unit
         { wch: 15 }, // Purchase Cost
         { wch: 15 }, // Store
-        { wch: 18 }, // Density
+        { wch: 22 }, // Price Per Unit
+        { wch: 22 }, // Density
         { wch: 18 }, // Density Source
         { wch: 18 }  // Packaging
       ];
@@ -418,9 +425,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             throw new Error(`Invalid purchase cost: "${costValue}"`);
           }
           
-          // Parse density if provided
+          // Parse price per unit (for unit-based items)
+          const pricePerUnitValue = mapping.pricePerUnit ? rowData[mapping.pricePerUnit] : undefined;
+          const pricePerUnit = pricePerUnitValue && purchaseUnit === "units" ? parseFloat(pricePerUnitValue) : undefined;
+          
+          // Parse density if provided (for weight/volume items)
           const densityValue = mapping.gramsPerMilliliter ? rowData[mapping.gramsPerMilliliter] : undefined;
-          const gramsPerMilliliter = densityValue ? parseFloat(densityValue) : undefined;
+          const gramsPerMilliliter = densityValue && purchaseUnit !== "units" ? parseFloat(densityValue) : undefined;
           
           const densitySource = mapping.densitySource ? rowData[mapping.densitySource] : undefined;
           
@@ -438,6 +449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             purchaseUnit,
             purchaseCost,
             store,
+            pricePerUnit,
             gramsPerMilliliter,
             densitySource,
             isPackaging,

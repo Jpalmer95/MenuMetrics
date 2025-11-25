@@ -101,6 +101,7 @@ export function IngredientsTable({
       purchaseUnit: ingredient.purchaseUnit,
       purchaseCost: ingredient.purchaseCost,
       isPackaging: ingredient.isPackaging,
+      pricePerUnit: ingredient.pricePerUnit ?? undefined,
       gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
       densitySource: ingredient.densitySource ?? undefined,
     });
@@ -117,11 +118,17 @@ export function IngredientsTable({
       const originalIngredient = ingredients.find(ing => ing.id === editingId);
       let updateData = { ...editValues } as InsertIngredient;
       
-      // If density was manually changed, update the source
-      if (originalIngredient && 
-          editValues.gramsPerMilliliter !== undefined && 
-          editValues.gramsPerMilliliter !== originalIngredient.gramsPerMilliliter) {
-        updateData.densitySource = "Manual";
+      // If density was manually changed, update the source (but not for unit-based items)
+      if (editValues.purchaseUnit !== "units") {
+        if (originalIngredient && 
+            editValues.gramsPerMilliliter !== undefined && 
+            editValues.gramsPerMilliliter !== originalIngredient.gramsPerMilliliter) {
+          updateData.densitySource = "Manual";
+        }
+      } else {
+        // Clear density for unit-based items
+        updateData.gramsPerMilliliter = undefined;
+        updateData.densitySource = undefined;
       }
       
       onUpdate(editingId, updateData);
@@ -150,10 +157,14 @@ export function IngredientsTable({
       newIngredient.purchaseCost !== undefined &&
       newIngredient.purchaseCost >= 0
     ) {
-      // Set density source to "Manual" if density was provided
+      // Set density source to "Manual" if density was provided (but not for unit-based items)
       const ingredientData = { ...newIngredient } as InsertIngredient;
-      if (ingredientData.gramsPerMilliliter !== undefined) {
+      if (newIngredient.purchaseUnit !== "units" && ingredientData.gramsPerMilliliter !== undefined) {
         ingredientData.densitySource = "Manual";
+      } else if (newIngredient.purchaseUnit === "units") {
+        // Clear density for unit-based items
+        ingredientData.gramsPerMilliliter = undefined;
+        ingredientData.densitySource = undefined;
       }
       
       onCreate(ingredientData);
@@ -276,7 +287,7 @@ export function IngredientsTable({
               </TableHead>
               <TableHead className="text-right font-semibold">Per Oz</TableHead>
               <TableHead className="text-right font-semibold">Per Gram</TableHead>
-              <TableHead className="text-right font-semibold">Density (g/mL)</TableHead>
+              <TableHead className="text-right font-semibold">Price Per Unit / Density</TableHead>
               <TableHead className="font-semibold">Last Updated</TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
@@ -381,20 +392,37 @@ export function IngredientsTable({
                     : "-"}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="Optional"
-                    value={newIngredient.gramsPerMilliliter !== undefined ? newIngredient.gramsPerMilliliter : ""}
-                    onChange={(e) =>
-                      setNewIngredient({
-                        ...newIngredient,
-                        gramsPerMilliliter: e.target.value ? parseFloat(e.target.value) : undefined,
-                      })
-                    }
-                    className="h-8 text-right w-24"
-                    data-testid="input-new-density"
-                  />
+                  {newIngredient.purchaseUnit === "units" ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Price/unit"
+                      value={newIngredient.pricePerUnit !== undefined ? newIngredient.pricePerUnit : ""}
+                      onChange={(e) =>
+                        setNewIngredient({
+                          ...newIngredient,
+                          pricePerUnit: e.target.value ? parseFloat(e.target.value) : undefined,
+                        })
+                      }
+                      className="h-8 text-right w-24"
+                      data-testid="input-new-price-per-unit"
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Optional"
+                      value={newIngredient.gramsPerMilliliter !== undefined ? newIngredient.gramsPerMilliliter : ""}
+                      onChange={(e) =>
+                        setNewIngredient({
+                          ...newIngredient,
+                          gramsPerMilliliter: e.target.value ? parseFloat(e.target.value) : undefined,
+                        })
+                      }
+                      className="h-8 text-right w-24"
+                      data-testid="input-new-density"
+                    />
+                  )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   New
@@ -423,7 +451,7 @@ export function IngredientsTable({
             )}
             {sortedIngredients.length === 0 && !isAddingNew ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   {searchTerm
                     ? "No ingredients found matching your search."
                     : "No ingredients yet. Add your first ingredient to get started."}
@@ -476,6 +504,7 @@ export function IngredientsTable({
                               purchaseCost: ingredient.purchaseCost,
                               isPackaging: !!checked,
                               store: ingredient.store ?? undefined,
+                              pricePerUnit: ingredient.pricePerUnit ?? undefined,
                               gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
                               densitySource: ingredient.densitySource ?? undefined,
                             });
@@ -548,39 +577,67 @@ export function IngredientsTable({
                     <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
                       {ingredient.costPerGram ? `$${ingredient.costPerGram.toFixed(3)}` : "-"}
                     </TableCell>
-                    <TableCell className="text-right" data-testid={`text-density-${ingredient.id}`}>
-                      {isEditing ? (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="Optional"
-                          value={editValues.gramsPerMilliliter !== undefined ? editValues.gramsPerMilliliter : ""}
-                          onChange={(e) =>
-                            setEditValues({
-                              ...editValues,
-                              gramsPerMilliliter: e.target.value ? parseFloat(e.target.value) : undefined,
-                            })
-                          }
-                          className="h-8 text-right w-24"
-                          data-testid={`input-edit-density-${ingredient.id}`}
-                        />
-                      ) : (
-                        <div className="flex items-center justify-end gap-1">
+                    <TableCell className="text-right" data-testid={`text-price-or-density-${ingredient.id}`}>
+                      {ingredient.purchaseUnit === "units" ? (
+                        // Price Per Unit for unit-based items
+                        isEditing ? (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Price/unit"
+                            value={editValues.pricePerUnit !== undefined ? editValues.pricePerUnit : ""}
+                            onChange={(e) =>
+                              setEditValues({
+                                ...editValues,
+                                pricePerUnit: e.target.value ? parseFloat(e.target.value) : undefined,
+                              })
+                            }
+                            className="h-8 text-right w-24"
+                            data-testid={`input-edit-price-per-unit-${ingredient.id}`}
+                          />
+                        ) : (
                           <span className="text-sm tabular-nums">
-                            {ingredient.gramsPerMilliliter 
-                              ? ingredient.gramsPerMilliliter.toFixed(2)
+                            {ingredient.pricePerUnit 
+                              ? `$${ingredient.pricePerUnit.toFixed(2)}`
                               : <span className="text-muted-foreground">-</span>
                             }
                           </span>
-                          {ingredient.gramsPerMilliliter && ingredient.densitySource?.includes("AI-estimated") && (
-                            <span 
-                              title={ingredient.densitySource}
-                              data-testid={`icon-ai-density-${ingredient.id}`}
-                            >
-                              <Sparkles className="h-3 w-3 text-primary" />
+                        )
+                      ) : (
+                        // Density for weight/volume items
+                        isEditing ? (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Optional"
+                            value={editValues.gramsPerMilliliter !== undefined ? editValues.gramsPerMilliliter : ""}
+                            onChange={(e) =>
+                              setEditValues({
+                                ...editValues,
+                                gramsPerMilliliter: e.target.value ? parseFloat(e.target.value) : undefined,
+                              })
+                            }
+                            className="h-8 text-right w-24"
+                            data-testid={`input-edit-density-${ingredient.id}`}
+                          />
+                        ) : (
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-sm tabular-nums">
+                              {ingredient.gramsPerMilliliter 
+                                ? ingredient.gramsPerMilliliter.toFixed(2)
+                                : <span className="text-muted-foreground">-</span>
+                              }
                             </span>
-                          )}
-                        </div>
+                            {ingredient.gramsPerMilliliter && ingredient.densitySource?.includes("AI-estimated") && (
+                              <span 
+                                title={ingredient.densitySource}
+                                data-testid={`icon-ai-density-${ingredient.id}`}
+                              >
+                                <Sparkles className="h-3 w-3 text-primary" />
+                              </span>
+                            )}
+                          </div>
+                        )
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
