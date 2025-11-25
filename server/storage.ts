@@ -204,28 +204,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   async recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined> {
-    const recipe = await this.getRecipe(recipeId, userId);
-    if (!recipe) return undefined;
+    try {
+      const recipe = await this.getRecipe(recipeId, userId);
+      if (!recipe) return undefined;
 
-    const recipeIngs = await this.getRecipeIngredients(recipeId, userId);
-    
-    const totalCost = recipeIngs.reduce((sum, ri) => {
-      return sum + this.calculateIngredientCost(
-        ri.ingredientDetails,
-        ri.quantity,
-        ri.unit
-      );
-    }, 0);
+      const recipeIngs = await this.getRecipeIngredients(recipeId, userId);
+      
+      let totalCost = 0;
+      for (const ri of recipeIngs) {
+        try {
+          const ingredientCost = this.calculateIngredientCost(
+            ri.ingredientDetails,
+            ri.quantity,
+            ri.unit
+          );
+          if (typeof ingredientCost === 'number' && !isNaN(ingredientCost)) {
+            totalCost += ingredientCost;
+          } else {
+            console.warn(`Invalid cost calculation for ingredient ${ri.ingredientDetails.name}: ${ingredientCost}`);
+          }
+        } catch (err) {
+          console.error(`Error calculating cost for ingredient ${ri.ingredientDetails.name}:`, err);
+        }
+      }
 
-    const costPerServing = recipe.servings > 0 ? totalCost / recipe.servings : 0;
+      const costPerServing = recipe.servings > 0 ? totalCost / recipe.servings : 0;
 
-    const [updated] = await db
-      .update(recipes)
-      .set({ totalCost, costPerServing })
-      .where(and(eq(recipes.id, recipeId), eq(recipes.userId, userId)))
-      .returning();
+      const [updated] = await db
+        .update(recipes)
+        .set({ totalCost, costPerServing })
+        .where(and(eq(recipes.id, recipeId), eq(recipes.userId, userId)))
+        .returning();
 
-    return updated;
+      return updated;
+    } catch (error) {
+      console.error(`Error recalculating recipe cost for recipe ${recipeId}:`, error);
+      throw error;
+    }
   }
 
   private calculateIngredientCost(
@@ -233,72 +248,90 @@ export class DatabaseStorage implements IStorage {
     recipeQuantity: number,
     recipeUnit: string
   ): number {
-    // Get the appropriate cost per unit based on the recipe unit
-    const costPerUnitMap: Record<string, number | null> = {
-      cups: ingredient.costPerCup,
-      ounces: ingredient.costPerOunce,
-      grams: ingredient.costPerGram,
-      units: ingredient.costPerUnit,
-      teaspoons: ingredient.costPerTsp,
-      tablespoons: ingredient.costPerTbsp,
-      pounds: ingredient.costPerPound,
-      kilograms: ingredient.costPerKg,
-      milliliters: ingredient.costPerMl,
-      liters: ingredient.costPerLiter,
-      pints: ingredient.costPerPint,
-      quarts: ingredient.costPerQuart,
-      gallons: ingredient.costPerGallon,
-    };
-
-    let costPerUnit = costPerUnitMap[recipeUnit];
-    
-    // Fallback: If pre-calculated cost is null, calculate on demand from purchase data using shared logic
-    if (costPerUnit === null || costPerUnit === undefined) {
-      // Check that we have valid purchase data for fallback calculation
-      if (
-        ingredient.purchaseQuantity &&
-        ingredient.purchaseUnit &&
-        ingredient.purchaseCost !== null &&
-        ingredient.purchaseCost !== undefined
-      ) {
-        // Use shared cost calculator to ensure consistency (with density if available)
-        const options = ingredient.gramsPerMilliliter 
-          ? { densityGramsPerMl: ingredient.gramsPerMilliliter }
-          : undefined;
-        
-        costPerUnit = calculateCostPerUnit(
-          ingredient.purchaseQuantity,
-          ingredient.purchaseUnit as MeasurementUnit,
-          ingredient.purchaseCost,
-          recipeUnit as MeasurementUnit,
-          options
-        );
-        
-        // Still null means incompatible units or missing density for cross-family conversion
-        if (costPerUnit === null) {
-          const purchaseFamily = ingredient.purchaseUnit;
-          const targetFamily = recipeUnit;
-          if (!ingredient.gramsPerMilliliter) {
-            console.warn(
-              `Cross-family conversion from ${purchaseFamily} to ${targetFamily} requires density for ingredient ${ingredient.name}. Add density to enable accurate cost calculation.`
-            );
-          } else {
-            console.warn(
-              `Cannot convert between ${purchaseFamily} and ${targetFamily} for ingredient ${ingredient.name}`
-            );
-          }
-          return 0;
-        }
-      } else {
-        // Missing purchase data - cannot calculate cost
-        console.error(
-          `Missing purchase data for ingredient ${ingredient.name}, cannot calculate cost for ${recipeUnit}`
-        );
+    try {
+      // Validate inputs
+      if (!ingredient || recipeQuantity <= 0 || !recipeUnit) {
         return 0;
       }
+
+      // Get the appropriate cost per unit based on the recipe unit
+      const costPerUnitMap: Record<string, number | null> = {
+        cups: ingredient.costPerCup,
+        ounces: ingredient.costPerOunce,
+        grams: ingredient.costPerGram,
+        units: ingredient.costPerUnit,
+        teaspoons: ingredient.costPerTsp,
+        tablespoons: ingredient.costPerTbsp,
+        pounds: ingredient.costPerPound,
+        kilograms: ingredient.costPerKg,
+        milliliters: ingredient.costPerMl,
+        liters: ingredient.costPerLiter,
+        pints: ingredient.costPerPint,
+        quarts: ingredient.costPerQuart,
+        gallons: ingredient.costPerGallon,
+      };
+
+      let costPerUnit = costPerUnitMap[recipeUnit];
+      
+      // Fallback: If pre-calculated cost is null, calculate on demand from purchase data using shared logic
+      if (costPerUnit === null || costPerUnit === undefined) {
+        // Check that we have valid purchase data for fallback calculation
+        if (
+          ingredient.purchaseQuantity &&
+          ingredient.purchaseUnit &&
+          ingredient.purchaseCost !== null &&
+          ingredient.purchaseCost !== undefined
+        ) {
+          // Use shared cost calculator to ensure consistency (with density if available)
+          const options = ingredient.gramsPerMilliliter 
+            ? { densityGramsPerMl: ingredient.gramsPerMilliliter }
+            : undefined;
+          
+          costPerUnit = calculateCostPerUnit(
+            ingredient.purchaseQuantity,
+            ingredient.purchaseUnit as MeasurementUnit,
+            ingredient.purchaseCost,
+            recipeUnit as MeasurementUnit,
+            options
+          );
+          
+          // Still null means incompatible units or missing density for cross-family conversion
+          if (costPerUnit === null) {
+            const purchaseFamily = ingredient.purchaseUnit;
+            const targetFamily = recipeUnit;
+            if (!ingredient.gramsPerMilliliter) {
+              console.warn(
+                `Cross-family conversion from ${purchaseFamily} to ${targetFamily} requires density for ingredient ${ingredient.name}. Add density to enable accurate cost calculation.`
+              );
+            } else {
+              console.warn(
+                `Cannot convert between ${purchaseFamily} and ${targetFamily} for ingredient ${ingredient.name}`
+              );
+            }
+            return 0;
+          }
+        } else {
+          // Missing purchase data - cannot calculate cost
+          console.error(
+            `Missing purchase data for ingredient ${ingredient.name}, cannot calculate cost for ${recipeUnit}`
+          );
+          return 0;
+        }
+      }
+      
+      const cost = recipeQuantity * (costPerUnit || 0);
+      
+      // Guard against NaN or infinity
+      if (!isFinite(cost)) {
+        console.warn(`Invalid cost calculation result for ${ingredient.name}: ${cost}`);
+        return 0;
+      }
+      
+      return cost;
+    } catch (error) {
+      console.error(`Error in calculateIngredientCost for ingredient:`, error);
+      return 0;
     }
-    
-    return recipeQuantity * costPerUnit;
   }
 
   async getRecipeIngredients(recipeId: string, userId: string): Promise<Array<RecipeIngredient & { ingredientDetails: Ingredient }>> {
