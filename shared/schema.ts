@@ -182,14 +182,14 @@ export const insertRecipeSchema = createInsertSchema(recipes).omit({
   servings: z.number().positive("Servings must be positive"),
   category: z.enum(recipeCategories),
   menuPrice: z.number().nonnegative("Menu price must be non-negative").optional(),
-  wastePercentage: z.number().min(0).max(100).optional(),
-  targetMargin: z.number().min(0).max(100).optional(),
+  wastePercentage: z.number().min(0).max(99).optional(),
+  targetMargin: z.number().min(1).max(99).optional(),
   consumablesBuffer: z.number().nonnegative().optional(),
 });
 
 export const updateRecipePricingSchema = z.object({
-  wastePercentage: z.number().min(0).max(100).optional(),
-  targetMargin: z.number().min(0).max(100).optional(),
+  wastePercentage: z.number().min(0).max(99).optional(),
+  targetMargin: z.number().min(1).max(99).optional(),
   consumablesBuffer: z.number().nonnegative().optional(),
   menuPrice: z.number().nonnegative().optional(),
 });
@@ -202,12 +202,12 @@ export function calculateSuggestedPrice(
   marginPct: number,
   bufferFlat: number
 ): number {
-  const yieldPct = 1 - wastePct / 100;
-  if (yieldPct <= 0) return 0;
+  const clampedWaste = Math.min(Math.max(wastePct, 0), 99);
+  const clampedMargin = Math.min(Math.max(marginPct, 1), 99);
+  const yieldPct = 1 - clampedWaste / 100;
   const trueCost = baseCost / yieldPct;
   const totalCost = trueCost + bufferFlat;
-  const costPct = 1 - marginPct / 100;
-  if (costPct <= 0) return 0;
+  const costPct = 1 - clampedMargin / 100;
   const rawPrice = totalCost / costPct;
   return Math.round(rawPrice * 100) / 100;
 }
@@ -217,8 +217,8 @@ export function calculateTrueCost(
   wastePct: number,
   bufferFlat: number
 ): number {
-  const yieldPct = 1 - wastePct / 100;
-  if (yieldPct <= 0) return baseCost + bufferFlat;
+  const clampedWaste = Math.min(Math.max(wastePct, 0), 99);
+  const yieldPct = 1 - clampedWaste / 100;
   const trueCost = baseCost / yieldPct;
   return Math.round((trueCost + bufferFlat) * 100) / 100;
 }
