@@ -51,7 +51,8 @@ const RecipeItemRow = ({
     ri.ingredientDetails,
     ri.unit as MeasurementUnit
   );
-  const showCostWarning = cost === 0 && ingredientWarning.needsWarning;
+  // Only show incompatible unit warnings - density is now optional
+  const showIncompatibleWarning = ingredientWarning.needsWarning && ingredientWarning.warningType === "incompatible";
 
   return (
     <div
@@ -65,12 +66,12 @@ const RecipeItemRow = ({
           <Badge variant="secondary" className="text-xs">
             {ri.ingredientDetails.category}
           </Badge>
-          {showCostWarning && (
+          {showIncompatibleWarning && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="destructive" className="text-xs gap-1" data-testid={`badge-density-warning-${ri.id}`}>
+                <Badge variant="destructive" className="text-xs gap-1" data-testid={`badge-incompatible-warning-${ri.id}`}>
                   <AlertTriangle className="h-3 w-3" />
-                  Needs density
+                  Incompatible units
                 </Badge>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
@@ -106,23 +107,9 @@ const RecipeItemRow = ({
       </div>
 
       <div className="flex items-center gap-3">
-        {showCostWarning ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-sm font-medium tabular-nums text-destructive flex items-center gap-1" data-testid={`text-cost-warning-${ri.id}`}>
-                <AlertTriangle className="h-3 w-3" />
-                ${cost.toFixed(2)}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-sm">Cost may be inaccurate - density required</p>
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <span className="text-sm font-medium tabular-nums">
-            ${cost.toFixed(2)}
-          </span>
-        )}
+        <span className="text-sm font-medium tabular-nums" data-testid={`text-ingredient-cost-${ri.id}`}>
+          ${cost.toFixed(2)}
+        </span>
         <Button
           variant="ghost"
           size="icon"

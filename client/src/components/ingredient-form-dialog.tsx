@@ -297,8 +297,8 @@ export function IngredientFormDialog({
                 <div className="flex-1">
                   <div className="text-sm font-medium">Density (Optional)</div>
                   <div className="text-xs text-muted-foreground">
-                    Required for accurate volume↔weight conversions (e.g., converting cups to ounces).
-                    If not provided, cross-family unit conversions will show as unavailable.
+                    Improves accuracy for volume↔weight conversions (e.g., converting cups to ounces).
+                    You can leave density blank—costs will be calculated based on available units.
                   </div>
                 </div>
               </div>

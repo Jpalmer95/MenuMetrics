@@ -87,7 +87,8 @@ export function calculateCostPerUnit(
     }
   }
   
-  // Cross-family conversion (weight↔volume) requires density
+  // Cross-family conversion (weight↔volume)
+  // Only attempt if density is provided - otherwise return null (can't convert)
   if (!options?.densityGramsPerMl) {
     return null; // Can't convert without density
   }

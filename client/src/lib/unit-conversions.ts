@@ -75,17 +75,11 @@ export function calculateIngredientCost(
         options
       );
       
-      // Still null means incompatible units or missing density for cross-family conversion
+      // If still null, we cannot convert between these units without density
       if (costPerUnit === null) {
-        if (!ingredient.gramsPerMilliliter) {
-          console.warn(
-            `Cross-family conversion from ${ingredient.purchaseUnit} to ${recipeUnit} requires density for ingredient ${ingredient.name}. Add density to enable accurate cost calculation.`
-          );
-        } else {
-          console.warn(
-            `Cannot convert between ${ingredient.purchaseUnit} and ${recipeUnit} for ingredient ${ingredient.name}`
-          );
-        }
+        console.warn(
+          `Cannot calculate cost from ${ingredient.purchaseUnit} to ${recipeUnit} for ingredient ${ingredient.name}. Same-family units or density required.`
+        );
         return 0;
       }
     } else {
@@ -101,8 +95,8 @@ export function calculateIngredientCost(
 }
 
 /**
- * Check if an ingredient needs density for accurate cost calculation in a given unit
- * Returns warning info if density is required but missing
+ * Check if an ingredient has an incompatible unit combination
+ * Note: Density warnings have been removed - density is now optional
  */
 export function checkDensityWarning(
   ingredient: Ingredient | null,
@@ -133,16 +127,7 @@ export function checkDensityWarning(
     };
   }
 
-  // Cross-family conversion (volume ↔ weight)
-  // Check if ingredient has density
-  if (!ingredient.gramsPerMilliliter) {
-    return {
-      needsWarning: true,
-      warningType: "cross-family",
-      message: `${ingredient.name} requires density for accurate conversion from "${ingredient.purchaseUnit}" to "${recipeUnit}". Edit the ingredient to add density.`,
-    };
-  }
-
-  // Has density - no warning
+  // Cross-family conversions (volume ↔ weight) are now allowed without density
+  // Cost will be 0 if density is not provided, but no warning is shown
   return { needsWarning: false, warningType: null, message: "" };
 }

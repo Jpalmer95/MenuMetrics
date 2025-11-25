@@ -396,7 +396,7 @@ export function AddRecipeWithIngredientsDialog({
                     </Button>
                   </div>
 
-                  {densityWarning && densityWarning.needsWarning && (
+                  {densityWarning && densityWarning.needsWarning && densityWarning.warningType === "incompatible" && (
                     <Alert className="border-yellow-600 bg-yellow-50 text-yellow-900 dark:bg-yellow-900/20 dark:text-yellow-200">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-sm">{densityWarning.message}</AlertDescription>
@@ -414,7 +414,8 @@ export function AddRecipeWithIngredientsDialog({
                         if (!ing) return null;
                         const cost = calculateIngredientCost(ing, ri.quantity, ri.unit as any);
                         const ingredientWarning = checkDensityWarning(ing, ri.unit as any);
-                        const showCostWarning = cost === 0 && ingredientWarning.needsWarning;
+                        // Only show incompatible unit warnings - density is now optional
+                        const showIncompatibleWarning = ingredientWarning.needsWarning && ingredientWarning.warningType === "incompatible";
 
                         return (
                           <div
@@ -428,12 +429,12 @@ export function AddRecipeWithIngredientsDialog({
                                 <Badge variant="secondary" className="text-xs">
                                   {ing.category}
                                 </Badge>
-                                {showCostWarning && (
+                                {showIncompatibleWarning && (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <Badge variant="destructive" className="text-xs gap-1">
                                         <AlertTriangle className="h-3 w-3" />
-                                        Needs density
+                                        Incompatible units
                                       </Badge>
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-xs">
@@ -472,23 +473,9 @@ export function AddRecipeWithIngredientsDialog({
                             </div>
 
                             <div className="flex items-center gap-3">
-                              {showCostWarning ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-sm font-medium tabular-nums text-destructive flex items-center gap-1">
-                                      <AlertTriangle className="h-3 w-3" />
-                                      ${cost.toFixed(2)}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-sm">Cost may be inaccurate - density required</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <span className="text-sm font-medium tabular-nums">
-                                  ${cost.toFixed(2)}
-                                </span>
-                              )}
+                              <span className="text-sm font-medium tabular-nums" data-testid={`text-ingredient-cost-${ri.tempId}`}>
+                                ${cost.toFixed(2)}
+                              </span>
                               <Button
                                 variant="ghost"
                                 size="icon"
