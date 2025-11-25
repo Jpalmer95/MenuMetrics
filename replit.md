@@ -175,6 +175,12 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
   - Visual comparison between current menu price and suggested price
   - "Apply Suggested Price" button to update menu price with one click
   - All Recipes Overview table showing pricing status across entire menu
+- **Global Settings** (new):
+  - Global Waste % slider (0-50%) with "Apply to All Recipes" button for bulk updates
+  - Minimum Margin Threshold slider (10-95%, default 80%) flags underperforming items
+  - Items below threshold shown with red warning icon and "Below X%" status badge
+  - Summary counter shows number of flagged recipes in table header
+  - Visual feedback shows whether all recipes meet the margin threshold
 - **API Endpoint**: PATCH `/api/recipes/:id/pricing` for saving pricing settings
 - **Schema Updates**: Added `wastePercentage`, `targetMargin`, `consumablesBuffer` fields to recipes table
 - **Edge Case Handling**: Input validation prevents invalid values (waste capped at 99%, margin 1-99%)

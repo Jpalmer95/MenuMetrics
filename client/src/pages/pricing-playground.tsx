@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package } from "lucide-react";
+import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,9 @@ export default function PricingPlaygroundPage() {
   const [targetMargin, setTargetMargin] = useState<number>(70);
   const [consumablesBuffer, setConsumablesBuffer] = useState<number>(0);
   const [hasChanges, setHasChanges] = useState(false);
+  
+  const [globalWaste, setGlobalWaste] = useState<number>(10);
+  const [minimumMarginThreshold, setMinimumMarginThreshold] = useState<number>(80);
 
   const { data: recipes = [], isLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
@@ -93,6 +96,70 @@ export default function PricingPlaygroundPage() {
     },
   });
 
+  const applyGlobalWasteMutation = useMutation({
+    mutationFn: async (wasteValue: number) => {
+      const updates = recipes.map(recipe => 
+        apiRequest("PATCH", `/api/recipes/${recipe.id}/pricing`, {
+          wastePercentage: wasteValue,
+          targetMargin: recipe.targetMargin ?? 70,
+          consumablesBuffer: recipe.consumablesBuffer ?? 0,
+        })
+      );
+      await Promise.all(updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      if (selectedRecipeId) {
+        setWastePercentage(globalWaste);
+      }
+      toast({
+        title: "Global Waste Applied",
+        description: `Waste percentage set to ${globalWaste}% for all ${recipes.length} recipes.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to apply global waste percentage.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const recipesWithMetrics = useMemo(() => {
+    return recipes.map(recipe => {
+      const recipeTrueCost = calculateTrueCost(
+        recipe.costPerServing,
+        recipe.wastePercentage ?? 0,
+        recipe.consumablesBuffer ?? 0
+      );
+      const recipeSuggested = calculateSuggestedPrice(
+        recipe.costPerServing,
+        recipe.wastePercentage ?? 0,
+        recipe.targetMargin ?? 70,
+        recipe.consumablesBuffer ?? 0
+      );
+      const recipeMargin = (recipe.menuPrice ?? 0) > 0
+        ? (((recipe.menuPrice ?? 0) - recipeTrueCost) / (recipe.menuPrice ?? 0)) * 100
+        : 0;
+      const isBelowMinMargin = (recipe.menuPrice ?? 0) > 0 && recipeMargin < minimumMarginThreshold;
+      const isOnTarget = (recipe.menuPrice ?? 0) > 0 && recipeMargin >= (recipe.targetMargin ?? 70) - 5;
+      
+      return {
+        ...recipe,
+        trueCost: recipeTrueCost,
+        suggestedPrice: recipeSuggested,
+        margin: recipeMargin,
+        isBelowMinMargin,
+        isOnTarget,
+      };
+    });
+  }, [recipes, minimumMarginThreshold]);
+
+  const flaggedRecipesCount = useMemo(() => {
+    return recipesWithMetrics.filter(r => r.isBelowMinMargin).length;
+  }, [recipesWithMetrics]);
+
   const handleSave = () => {
     if (!selectedRecipeId) return;
     updatePricingMutation.mutate({
@@ -135,6 +202,107 @@ export default function PricingPlaygroundPage() {
           Calculate true costs and suggested pricing that accounts for waste, shrinkage, and profit margins
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings2 className="h-5 w-5" />
+            Global Settings
+          </CardTitle>
+          <CardDescription>
+            Apply settings across all recipes and set margin thresholds
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help underline decoration-dotted">Global Waste %</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Set a uniform waste percentage for all recipes. Useful when you want to apply the same shrinkage rate across your entire menu.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
+                  <span className="font-medium tabular-nums" data-testid="text-global-waste">{globalWaste}%</span>
+                </div>
+                <Slider
+                  value={[globalWaste]}
+                  onValueChange={(values) => setGlobalWaste(values[0])}
+                  max={50}
+                  step={1}
+                  data-testid="slider-global-waste"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>0% (No waste)</span>
+                  <span>50% (Heavy waste)</span>
+                </div>
+              </div>
+              <Button
+                onClick={() => applyGlobalWasteMutation.mutate(globalWaste)}
+                disabled={applyGlobalWasteMutation.isPending || recipes.length === 0}
+                className="w-full"
+                data-testid="button-apply-global-waste"
+              >
+                <Wand2 className="h-4 w-4 mr-2" />
+                {applyGlobalWasteMutation.isPending 
+                  ? "Applying..." 
+                  : `Apply ${globalWaste}% Waste to All Recipes`
+                }
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help underline decoration-dotted">Minimum Margin Threshold</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Items with margins below this threshold will be flagged in the overview table. Use this to quickly identify underperforming menu items.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
+                  <span className="font-medium tabular-nums" data-testid="text-min-margin-threshold">{minimumMarginThreshold}%</span>
+                </div>
+                <Slider
+                  value={[minimumMarginThreshold]}
+                  onValueChange={(values) => setMinimumMarginThreshold(values[0])}
+                  max={95}
+                  min={10}
+                  step={5}
+                  data-testid="slider-min-margin"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>10% (Low)</span>
+                  <span>95% (High)</span>
+                </div>
+              </div>
+              {flaggedRecipesCount > 0 ? (
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <span className="text-sm text-red-700">
+                    {flaggedRecipesCount} {flaggedRecipesCount === 1 ? "recipe" : "recipes"} below {minimumMarginThreshold}% margin
+                  </span>
+                </div>
+              ) : recipes.length > 0 ? (
+                <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-green-700">
+                    All priced recipes meet minimum margin threshold
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -410,13 +578,18 @@ export default function PricingPlaygroundPage() {
           <CardTitle className="flex items-center gap-2">
             <Percent className="h-5 w-5" />
             All Recipes Overview
+            {flaggedRecipesCount > 0 && (
+              <Badge className="bg-red-500/20 text-red-700 border-red-500/30 ml-2">
+                {flaggedRecipesCount} flagged
+              </Badge>
+            )}
           </CardTitle>
           <CardDescription>
-            Compare pricing metrics across all your recipes
+            Compare pricing metrics across all your recipes. Items below {minimumMarginThreshold}% margin are flagged.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {recipes.length === 0 ? (
+          {recipesWithMetrics.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
               No recipes found. Create some recipes first to see pricing analysis.
             </p>
@@ -436,55 +609,66 @@ export default function PricingPlaygroundPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recipes.map((recipe) => {
-                    const recipeTrueCost = calculateTrueCost(
-                      recipe.costPerServing,
-                      recipe.wastePercentage ?? 0,
-                      recipe.consumablesBuffer ?? 0
-                    );
-                    const recipeSuggested = calculateSuggestedPrice(
-                      recipe.costPerServing,
-                      recipe.wastePercentage ?? 0,
-                      recipe.targetMargin ?? 70,
-                      recipe.consumablesBuffer ?? 0
-                    );
-                    const recipeMargin = (recipe.menuPrice ?? 0) > 0
-                      ? (((recipe.menuPrice ?? 0) - recipeTrueCost) / (recipe.menuPrice ?? 0)) * 100
-                      : 0;
-                    const isOnTarget = (recipe.menuPrice ?? 0) > 0 && recipeMargin >= (recipe.targetMargin ?? 70) - 5;
+                  {recipesWithMetrics.map((recipe) => {
                     const isSelected = recipe.id === selectedRecipeId;
 
                     return (
                       <tr 
                         key={recipe.id} 
-                        className={`border-b hover-elevate cursor-pointer transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                        className={`border-b hover-elevate cursor-pointer transition-colors ${
+                          recipe.isBelowMinMargin 
+                            ? "bg-red-500/5" 
+                            : isSelected 
+                              ? "bg-primary/5" 
+                              : ""
+                        }`}
                         onClick={() => handleRecipeSelect(recipe.id)}
                         data-testid={`row-recipe-${recipe.id}`}
                       >
                         <td className="p-3">
-                          <div className="font-medium">{recipe.name}</div>
-                          <div className="text-xs text-muted-foreground">{recipe.category}</div>
+                          <div className="flex items-center gap-2">
+                            {recipe.isBelowMinMargin && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Margin below {minimumMarginThreshold}% threshold</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            <div>
+                              <div className="font-medium">{recipe.name}</div>
+                              <div className="text-xs text-muted-foreground">{recipe.category}</div>
+                            </div>
+                          </div>
                         </td>
                         <td className="p-3 text-right tabular-nums">${recipe.costPerServing.toFixed(2)}</td>
                         <td className="p-3 text-right tabular-nums">{recipe.wastePercentage ?? 0}%</td>
-                        <td className="p-3 text-right tabular-nums">${recipeTrueCost.toFixed(2)}</td>
+                        <td className="p-3 text-right tabular-nums">${recipe.trueCost.toFixed(2)}</td>
                         <td className="p-3 text-right tabular-nums">
                           {(recipe.menuPrice ?? 0) > 0 ? `$${(recipe.menuPrice ?? 0).toFixed(2)}` : "-"}
                         </td>
                         <td className={`p-3 text-right tabular-nums ${
                           (recipe.menuPrice ?? 0) > 0 ? (
-                            isOnTarget ? "text-green-600" : "text-orange-600"
+                            recipe.isBelowMinMargin 
+                              ? "text-red-600 font-medium" 
+                              : recipe.isOnTarget 
+                                ? "text-green-600" 
+                                : "text-orange-600"
                           ) : "text-muted-foreground"
                         }`}>
-                          {(recipe.menuPrice ?? 0) > 0 ? `${recipeMargin.toFixed(1)}%` : "-"}
+                          {(recipe.menuPrice ?? 0) > 0 ? `${recipe.margin.toFixed(1)}%` : "-"}
                         </td>
                         <td className="p-3 text-right tabular-nums text-primary font-medium">
-                          ${recipeSuggested.toFixed(2)}
+                          ${recipe.suggestedPrice.toFixed(2)}
                         </td>
                         <td className="p-3 text-center">
                           {(recipe.menuPrice ?? 0) === 0 ? (
                             <Badge variant="outline">Not priced</Badge>
-                          ) : isOnTarget ? (
+                          ) : recipe.isBelowMinMargin ? (
+                            <Badge className="bg-red-500/20 text-red-700 border-red-500/30">Below {minimumMarginThreshold}%</Badge>
+                          ) : recipe.isOnTarget ? (
                             <Badge className="bg-green-500/20 text-green-700 border-green-500/30">On target</Badge>
                           ) : (
                             <Badge className="bg-orange-500/20 text-orange-700 border-orange-500/30">Review</Badge>
