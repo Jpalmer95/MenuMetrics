@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, measurementUnits } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, measurementUnits } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -527,6 +527,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(recipe);
     } catch (error) {
       res.status(400).json({ error: "Invalid recipe data" });
+    }
+  });
+
+  app.patch("/api/recipes/:id/pricing", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = updateRecipePricingSchema.parse(req.body);
+      const recipe = await storage.updateRecipePricing(req.params.id, validatedData, userId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid pricing data" });
     }
   });
 
