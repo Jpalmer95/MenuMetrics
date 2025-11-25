@@ -70,6 +70,7 @@ export function IngredientFormDialog({
       purchaseQuantity: 1,
       purchaseUnit: "units",
       purchaseCost: 0,
+      pricePerUnit: undefined,
       gramsPerMilliliter: undefined,
       densitySource: undefined,
     },
@@ -84,6 +85,7 @@ export function IngredientFormDialog({
         purchaseQuantity: ingredient.purchaseQuantity,
         purchaseUnit: ingredient.purchaseUnit,
         purchaseCost: ingredient.purchaseCost,
+        pricePerUnit: ingredient.pricePerUnit || undefined,
         gramsPerMilliliter: ingredient.gramsPerMilliliter || undefined,
         densitySource: ingredient.densitySource || undefined,
       });
@@ -98,6 +100,7 @@ export function IngredientFormDialog({
         purchaseQuantity: 1,
         purchaseUnit: "units",
         purchaseCost: 0,
+        pricePerUnit: undefined,
         gramsPerMilliliter: undefined,
         densitySource: undefined,
       });
@@ -106,6 +109,10 @@ export function IngredientFormDialog({
   }, [ingredient, form]);
 
   const handleSubmit = (data: InsertIngredient) => {
+    // Auto-calculate pricePerUnit if unit type is "units"
+    if (data.purchaseUnit === "units" && data.purchaseQuantity > 0) {
+      data.pricePerUnit = data.purchaseCost / data.purchaseQuantity;
+    }
     onSubmit(data);
     form.reset();
     setSelectedPreset("");
@@ -247,6 +254,41 @@ export function IngredientFormDialog({
                 </FormItem>
               )}
             />
+
+            {form.watch("purchaseUnit") === "units" && (
+              <FormField
+                control={form.control}
+                name="pricePerUnit"
+                render={({ field }) => {
+                  const purchaseQuantity = form.watch("purchaseQuantity");
+                  const purchaseCost = form.watch("purchaseCost");
+                  const autoCalculated = purchaseQuantity > 0 && purchaseCost >= 0 
+                    ? (purchaseCost / purchaseQuantity).toFixed(2)
+                    : null;
+                  
+                  return (
+                    <FormItem>
+                      <FormLabel>Price Per Unit ($)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder={autoCalculated ? `Auto: $${autoCalculated}` : "Will auto-calculate"}
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                          value={field.value ?? ""}
+                          data-testid="input-ingredient-price-per-unit"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {autoCalculated ? `Auto-calculated: $${autoCalculated}` : ""}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
+            )}
 
             {/* Density Section */}
             <div className="space-y-4 rounded-md border p-4">

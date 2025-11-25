@@ -125,6 +125,11 @@ export function IngredientsTable({
         updateData.densitySource = "Manual";
       }
       
+      // Auto-calculate pricePerUnit if unit type is "units"
+      if (editValues.purchaseUnit === "units" && editValues.purchaseQuantity > 0) {
+        updateData.pricePerUnit = editValues.purchaseCost / editValues.purchaseQuantity;
+      }
+      
       onUpdate(editingId, updateData);
       setEditingId(null);
       setEditValues({});
@@ -152,9 +157,14 @@ export function IngredientsTable({
       newIngredient.purchaseCost >= 0
     ) {
       // Set density source to "Manual" if density was provided
-      const ingredientData = { ...newIngredient } as InsertIngredient;
+      let ingredientData = { ...newIngredient } as InsertIngredient;
       if (ingredientData.gramsPerMilliliter !== undefined) {
         ingredientData.densitySource = "Manual";
+      }
+      
+      // Auto-calculate pricePerUnit if unit type is "units"
+      if (newIngredient.purchaseUnit === "units" && newIngredient.purchaseQuantity > 0) {
+        ingredientData.pricePerUnit = newIngredient.purchaseCost / newIngredient.purchaseQuantity;
       }
       
       onCreate(ingredientData);
