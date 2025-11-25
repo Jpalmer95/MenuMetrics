@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -19,6 +19,7 @@ import RecipeDetailPage from "@/pages/recipe-detail";
 import AIAgentPage from "@/pages/ai-agent";
 import SettingsPage from "@/pages/settings";
 import LandingPage from "@/pages/landing";
+import DensitiesPage from "@/pages/densities";
 
 function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
   // Show landing page while loading or when not authenticated
@@ -38,6 +39,7 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
       <Route path="/ingredients" component={IngredientsPage} />
       <Route path="/recipes" component={RecipesPage} />
       <Route path="/recipes/:id" component={RecipeDetailPage} />
+      <Route path="/densities" component={DensitiesPage} />
       <Route path="/ai-agent" component={AIAgentPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
@@ -54,6 +56,7 @@ function AppContent() {
     { path: "/", label: "Dashboard", icon: BarChart3, testId: "link-dashboard" },
     { path: "/ingredients", label: "Ingredients", icon: Package, testId: "link-ingredients" },
     { path: "/recipes", label: "Recipes", icon: ChefHat, testId: "link-recipes" },
+    { path: "/densities", label: "Densities", icon: Beaker, testId: "link-densities" },
     { path: "/ai-agent", label: "AI Agent", icon: Sparkles, testId: "link-ai-agent" },
     { path: "/settings", label: "Settings", icon: Settings, testId: "link-settings" },
   ];

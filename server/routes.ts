@@ -1494,6 +1494,32 @@ Return the JSON array now:`;
     }
   });
 
+  // Density heuristics endpoints
+  app.get("/api/density-heuristics", async (req, res) => {
+    try {
+      const heuristics = await storage.getAllDensityHeuristics();
+      res.json(heuristics);
+    } catch (error: any) {
+      console.error("Get density heuristics error:", error);
+      res.status(500).json({ error: "Failed to retrieve density heuristics" });
+    }
+  });
+
+  app.patch("/api/density-heuristics/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const updated = await storage.updateDensityHeuristic(id, updates);
+      if (!updated) {
+        return res.status(404).json({ error: "Density heuristic not found" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update density heuristic error:", error);
+      res.status(400).json({ error: error.message || "Failed to update density heuristic" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

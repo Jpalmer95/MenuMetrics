@@ -11,11 +11,14 @@ import {
   type InsertAISettings,
   type User,
   type UpsertUser,
+  type DensityHeuristic,
+  type InsertDensityHeuristic,
   ingredients,
   recipes,
   recipeIngredients,
   aiSettings,
   users,
+  densityHeuristics,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -48,6 +51,11 @@ export interface IStorage {
   
   getAISettings(userId: string): Promise<AISettingsData | undefined>;
   saveAISettings(settings: InsertAISettings, userId: string): Promise<AISettingsData>;
+  
+  // Density heuristics (global reference densities)
+  getAllDensityHeuristics(): Promise<DensityHeuristic[]>;
+  updateDensityHeuristic(id: string, updates: Partial<InsertDensityHeuristic>): Promise<DensityHeuristic | undefined>;
+  createDensityHeuristic(heuristic: InsertDensityHeuristic): Promise<DensityHeuristic>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -393,6 +401,30 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return updated;
+  }
+
+  async getAllDensityHeuristics(): Promise<DensityHeuristic[]> {
+    return await db.select().from(densityHeuristics);
+  }
+
+  async updateDensityHeuristic(id: string, updates: Partial<InsertDensityHeuristic>): Promise<DensityHeuristic | undefined> {
+    const [updated] = await db
+      .update(densityHeuristics)
+      .set({
+        ...updates,
+        lastUpdated: new Date(),
+      })
+      .where(eq(densityHeuristics.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async createDensityHeuristic(heuristic: InsertDensityHeuristic): Promise<DensityHeuristic> {
+    const [created] = await db
+      .insert(densityHeuristics)
+      .values(heuristic)
+      .returning();
+    return created;
   }
 }
 

@@ -2,12 +2,19 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { RecipesTable } from "@/components/recipes-table";
-import { RecipeFormDialog } from "@/components/recipe-form-dialog";
+import { AddRecipeWithIngredientsDialog } from "@/components/add-recipe-with-ingredients-dialog";
 import { ImportRecipeDialog } from "@/components/import-recipe-dialog";
 import { BulkImportRecipeDialog } from "@/components/bulk-import-recipe-dialog";
-import type { Recipe, InsertRecipe } from "@shared/schema";
+import type { Recipe, InsertRecipe, Ingredient } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+
+interface RecipeIngredientRow {
+  tempId: string;
+  ingredientId: string;
+  quantity: number;
+  unit: string;
+}
 
 export default function RecipesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -21,10 +28,26 @@ export default function RecipesPage() {
     queryKey: ["/api/recipes"],
   });
 
-  const createMutation = useMutation<Recipe, Error, InsertRecipe>({
-    mutationFn: async (data: InsertRecipe) => {
-      const response = await apiRequest("POST", "/api/recipes", data);
-      return await response.json();
+  const { data: ingredients = [] } = useQuery<Ingredient[]>({
+    queryKey: ["/api/ingredients"],
+  });
+
+  const createMutation = useMutation<Recipe, Error, { recipe: InsertRecipe; ingredients: RecipeIngredientRow[] }>({
+    mutationFn: async ({ recipe, ingredients: recipeIngredients }) => {
+      // Create recipe first
+      const recipeResponse = await apiRequest("POST", "/api/recipes", recipe);
+      const newRecipe = await recipeResponse.json();
+
+      // Add ingredients
+      for (const ri of recipeIngredients) {
+        await apiRequest("POST", "/api/recipes/" + newRecipe.id + "/ingredients", {
+          ingredientId: ri.ingredientId,
+          quantity: ri.quantity,
+          unit: ri.unit,
+        });
+      }
+
+      return newRecipe;
     },
     onSuccess: (newRecipe: Recipe) => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
@@ -32,7 +55,7 @@ export default function RecipesPage() {
       setLocation(`/recipes/${newRecipe.id}`);
       toast({
         title: "Success",
-        description: "Recipe created successfully. Now add ingredients!",
+        description: "Recipe created successfully with ingredients!",
       });
     },
     onError: () => {
@@ -87,11 +110,11 @@ export default function RecipesPage() {
     },
   });
 
-  const handleSubmit = (data: InsertRecipe) => {
+  const handleSubmit = (data: InsertRecipe, recipeIngredients: RecipeIngredientRow[]) => {
     if (editingRecipe) {
       updateMutation.mutate({ id: editingRecipe.id, data });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate({ recipe: data, ingredients: recipeIngredients });
     }
   };
 
@@ -170,14 +193,14 @@ export default function RecipesPage() {
         onViewDetails={handleViewDetails}
       />
 
-      <RecipeFormDialog
+      <AddRecipeWithIngredientsDialog
         open={isFormOpen}
         onOpenChange={(open) => {
           setIsFormOpen(open);
           if (!open) setEditingRecipe(undefined);
         }}
         onSubmit={handleSubmit}
-        recipe={editingRecipe}
+        ingredients={ingredients}
         isLoading={createMutation.isPending || updateMutation.isPending}
       />
 

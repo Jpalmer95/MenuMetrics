@@ -205,6 +205,24 @@ export const insertAISettingsSchema = createInsertSchema(aiSettings).omit({
 export type InsertAISettings = z.infer<typeof insertAISettingsSchema>;
 export type AISettingsData = typeof aiSettings.$inferSelect;
 
+// Density heuristics table - global reference densities for common ingredients
+export const densityHeuristics = pgTable("density_heuristics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ingredientName: text("ingredient_name").notNull().unique(),
+  gramsPerMilliliter: real("grams_per_milliliter").notNull(),
+  category: text("category"), // e.g., "Dairy", "Flour", "Sugar", "Oil", etc.
+  notes: text("notes"), // Optional notes about the ingredient
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+});
+
+export const insertDensityHeuristicSchema = createInsertSchema(densityHeuristics).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type InsertDensityHeuristic = z.infer<typeof insertDensityHeuristicSchema>;
+export type DensityHeuristic = typeof densityHeuristics.$inferSelect;
+
 import { relations } from "drizzle-orm";
 
 export const ingredientsRelations = relations(ingredients, ({ many }) => ({
