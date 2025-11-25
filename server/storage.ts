@@ -13,6 +13,7 @@ import {
   type UpsertUser,
   type DensityHeuristic,
   type InsertDensityHeuristic,
+  type UpdateRecipePricing,
   ingredients,
   recipes,
   recipeIngredients,
@@ -40,6 +41,7 @@ export interface IStorage {
   getAllRecipes(userId: string): Promise<Recipe[]>;
   createRecipe(recipe: InsertRecipe, userId: string): Promise<Recipe>;
   updateRecipe(id: string, recipe: InsertRecipe, userId: string): Promise<Recipe | undefined>;
+  updateRecipePricing(id: string, pricing: UpdateRecipePricing, userId: string): Promise<Recipe | undefined>;
   deleteRecipe(id: string, userId: string): Promise<boolean>;
   recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined>;
   
@@ -194,6 +196,24 @@ export class DatabaseStorage implements IStorage {
     if (!updated) return undefined;
     await this.recalculateRecipeCost(id, userId);
     return await this.getRecipe(id, userId);
+  }
+
+  async updateRecipePricing(id: string, pricing: UpdateRecipePricing, userId: string): Promise<Recipe | undefined> {
+    const updateData: Partial<Recipe> = {};
+    if (pricing.wastePercentage !== undefined) updateData.wastePercentage = pricing.wastePercentage;
+    if (pricing.targetMargin !== undefined) updateData.targetMargin = pricing.targetMargin;
+    if (pricing.consumablesBuffer !== undefined) updateData.consumablesBuffer = pricing.consumablesBuffer;
+    if (pricing.menuPrice !== undefined) updateData.menuPrice = pricing.menuPrice;
+    
+    if (Object.keys(updateData).length === 0) return undefined;
+    
+    const [updated] = await db
+      .update(recipes)
+      .set(updateData)
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .returning();
+    
+    return updated || undefined;
   }
 
   async deleteRecipe(id: string, userId: string): Promise<boolean> {

@@ -166,6 +166,9 @@ export const recipes = pgTable("recipes", {
   totalCost: real("total_cost").notNull().default(0),
   costPerServing: real("cost_per_serving").notNull().default(0),
   menuPrice: real("menu_price"),
+  wastePercentage: real("waste_percentage").notNull().default(0),
+  targetMargin: real("target_margin").notNull().default(70),
+  consumablesBuffer: real("consumables_buffer").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -179,7 +182,46 @@ export const insertRecipeSchema = createInsertSchema(recipes).omit({
   servings: z.number().positive("Servings must be positive"),
   category: z.enum(recipeCategories),
   menuPrice: z.number().nonnegative("Menu price must be non-negative").optional(),
+  wastePercentage: z.number().min(0).max(100).optional(),
+  targetMargin: z.number().min(0).max(100).optional(),
+  consumablesBuffer: z.number().nonnegative().optional(),
 });
+
+export const updateRecipePricingSchema = z.object({
+  wastePercentage: z.number().min(0).max(100).optional(),
+  targetMargin: z.number().min(0).max(100).optional(),
+  consumablesBuffer: z.number().nonnegative().optional(),
+  menuPrice: z.number().nonnegative().optional(),
+});
+
+export type UpdateRecipePricing = z.infer<typeof updateRecipePricingSchema>;
+
+export function calculateSuggestedPrice(
+  baseCost: number,
+  wastePct: number,
+  marginPct: number,
+  bufferFlat: number
+): number {
+  const yieldPct = 1 - wastePct / 100;
+  if (yieldPct <= 0) return 0;
+  const trueCost = baseCost / yieldPct;
+  const totalCost = trueCost + bufferFlat;
+  const costPct = 1 - marginPct / 100;
+  if (costPct <= 0) return 0;
+  const rawPrice = totalCost / costPct;
+  return Math.round(rawPrice * 100) / 100;
+}
+
+export function calculateTrueCost(
+  baseCost: number,
+  wastePct: number,
+  bufferFlat: number
+): number {
+  const yieldPct = 1 - wastePct / 100;
+  if (yieldPct <= 0) return baseCost + bufferFlat;
+  const trueCost = baseCost / yieldPct;
+  return Math.round((trueCost + bufferFlat) * 100) / 100;
+}
 
 export type InsertRecipe = z.infer<typeof insertRecipeSchema>;
 export type Recipe = typeof recipes.$inferSelect;
