@@ -58,6 +58,7 @@ Preferred communication style: Simple, everyday language.
 - `/api/ingredients/export` - Export user's ingredients to Excel
 - `/api/recipes` - Recipe management endpoints (user-scoped)
 - `/api/recipes/:id/ingredients` - Recipe composition (user-scoped)
+- `/api/recipes/:id/pricing` - PATCH endpoint for Pricing Playground settings (user-scoped)
 - `/api/ai/*` - AI-powered recommendations (user-scoped)
 - `/api/settings/ai` - AI provider configuration (user-scoped)
 
@@ -95,7 +96,8 @@ Preferred communication style: Simple, everyday language.
 2. **Recipes Table**:
    - **userId**: Foreign key to users (CASCADE DELETE) for data isolation
    - Basic metadata: name, description, category, serving size
-   - Pricing: `sellingPrice`, `totalCost`, calculated profit margin
+   - Pricing: `menuPrice`, `totalCost`, calculated profit margin
+   - **Pricing Playground fields**: `wastePercentage` (0-99%), `targetMargin` (1-99%), `consumablesBuffer` (flat cost)
    - Timestamps for tracking
 
 3. **Recipe Ingredients Junction Table**:
@@ -162,6 +164,20 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
 - TypeScript strict mode enabled with path aliases for clean imports
 
 ## Recent Updates
+
+### November 2025: Pricing Playground Feature
+- **Pricing Playground Page** (`/pricing`): New dedicated page for calculating recommended menu pricing
+  - Account for hidden costs like waste/shrinkage (spoilage, breakage, calibration, misorders, theft)
+  - Set target profit margins (10-95%) with real-time price recommendations
+  - Add consumables buffer costs (cups, lids, napkins, etc.)
+  - True Cost Calculation: `Base Cost / (1 - Waste%) + Consumables`
+  - Suggested Price Calculation: `True Cost / (1 - Target Margin%)`
+  - Visual comparison between current menu price and suggested price
+  - "Apply Suggested Price" button to update menu price with one click
+  - All Recipes Overview table showing pricing status across entire menu
+- **API Endpoint**: PATCH `/api/recipes/:id/pricing` for saving pricing settings
+- **Schema Updates**: Added `wastePercentage`, `targetMargin`, `consumablesBuffer` fields to recipes table
+- **Edge Case Handling**: Input validation prevents invalid values (waste capped at 99%, margin 1-99%)
 
 ### November 2025: Multi-User Authentication & Team Collaboration
 - **Replit Auth Integration**: Added email/password authentication with Google, GitHub, Apple, X login support
