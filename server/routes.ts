@@ -966,7 +966,9 @@ Rules:
       const recipeId = req.params.id;
       await storage.recalculateRecipeCost(recipeId, userId);
       
-      res.status(201).json(recipeIngredient);
+      // Return the updated recipe with ingredients so frontend cache is updated
+      const updatedRecipe = await storage.getRecipeWithIngredients(recipeId, userId);
+      res.status(201).json(updatedRecipe);
     } catch (error) {
       res.status(400).json({ error: "Invalid recipe ingredient data" });
     }
@@ -1006,7 +1008,9 @@ Rules:
       const recipeId = req.params.recipeId;
       await storage.recalculateRecipeCost(recipeId, userId);
       
-      res.json(recipeIngredient);
+      // Return the updated recipe with ingredients so frontend cache is updated
+      const updatedRecipe = await storage.getRecipeWithIngredients(recipeId, userId);
+      res.json(updatedRecipe);
     } catch (error) {
       res.status(500).json({ error: "Failed to update recipe ingredient" });
     }
@@ -1024,7 +1028,9 @@ Rules:
       const recipeId = req.params.recipeId;
       await storage.recalculateRecipeCost(recipeId, userId);
       
-      res.status(204).send();
+      // Return the updated recipe with ingredients so frontend cache is updated
+      const updatedRecipe = await storage.getRecipeWithIngredients(recipeId, userId);
+      res.json(updatedRecipe);
     } catch (error) {
       res.status(500).json({ error: "Failed to delete recipe ingredient" });
     }

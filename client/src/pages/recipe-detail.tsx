@@ -33,8 +33,8 @@ export default function RecipeDetailPage() {
   const addIngredientMutation = useMutation({
     mutationFn: (data: InsertRecipeIngredient) =>
       apiRequest("POST", `/api/recipes/${id}/ingredients`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recipes", id] });
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
       toast({
         title: "Success",
@@ -53,8 +53,8 @@ export default function RecipeDetailPage() {
   const removeIngredientMutation = useMutation({
     mutationFn: (recipeIngredientId: string) =>
       apiRequest("DELETE", `/api/recipes/${id}/ingredients/${recipeIngredientId}`, undefined),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recipes", id] });
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
       toast({
         title: "Success",
@@ -73,8 +73,8 @@ export default function RecipeDetailPage() {
   const updateQuantityMutation = useMutation({
     mutationFn: ({ recipeIngredientId, quantity }: { recipeIngredientId: string; quantity: number }) =>
       apiRequest("PATCH", `/api/recipes/${id}/ingredients/${recipeIngredientId}`, { quantity }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recipes", id] });
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
     },
   });
@@ -82,8 +82,8 @@ export default function RecipeDetailPage() {
   const updateUnitMutation = useMutation({
     mutationFn: ({ recipeIngredientId, unit }: { recipeIngredientId: string; unit: string }) =>
       apiRequest("PATCH", `/api/recipes/${id}/ingredients/${recipeIngredientId}`, { unit }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recipes", id] });
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
     },
   });
