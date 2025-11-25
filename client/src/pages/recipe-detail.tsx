@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { calculateIngredientCost } from "@/lib/unit-conversions";
 
 export default function RecipeDetailPage() {
   const { id } = useParams();
@@ -129,7 +130,31 @@ export default function RecipeDetailPage() {
     );
   }
 
-  const profitMargin = calculateProfitMargin(recipe.menuPrice, recipe.costPerServing);
+  // Calculate totals fresh from ingredients to ensure accuracy
+  const calculateCost = (items: typeof recipe.ingredients) => {
+    return items.reduce((sum, ri) => {
+      const cost = calculateIngredientCost(
+        ri.ingredientDetails,
+        ri.quantity,
+        ri.unit as any
+      );
+      return sum + cost;
+    }, 0);
+  };
+
+  const recipeRegularIngredients = (recipe.ingredients || []).filter(
+    (ri) => !ri.ingredientDetails.isPackaging
+  );
+  const recipePackagingItems = (recipe.ingredients || []).filter(
+    (ri) => ri.ingredientDetails.isPackaging
+  );
+
+  const ingredientsCost = calculateCost(recipeRegularIngredients);
+  const packagingCost = calculateCost(recipePackagingItems);
+  const totalRecipeCost = ingredientsCost + packagingCost;
+  const costPerServing = recipe.servings > 0 ? totalRecipeCost / recipe.servings : 0;
+
+  const profitMargin = calculateProfitMargin(recipe.menuPrice, costPerServing);
 
   return (
     <div className="space-y-6">
@@ -156,7 +181,7 @@ export default function RecipeDetailPage() {
           )}
           <p className="text-muted-foreground mt-1">
             {recipe.servings} serving{recipe.servings !== 1 ? "s" : ""} • $
-            {recipe.costPerServing.toFixed(2)} per serving
+            {costPerServing.toFixed(2)} per serving
           </p>
         </div>
       </div>
@@ -170,7 +195,7 @@ export default function RecipeDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold tabular-nums text-destructive" data-testid="text-recipe-total-cost">
-              ${recipe.totalCost.toFixed(2)}
+              ${totalRecipeCost.toFixed(2)}
             </div>
           </CardContent>
         </Card>
@@ -183,7 +208,7 @@ export default function RecipeDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold tabular-nums" data-testid="text-recipe-cost-per-serving">
-              ${recipe.costPerServing.toFixed(2)}
+              ${costPerServing.toFixed(2)}
             </div>
           </CardContent>
         </Card>
