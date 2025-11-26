@@ -1,0 +1,415 @@
+Ingredient Category
+
+Ingredient Type
+
+Density (g/mL)
+
+Matches in Your Inventory / Examples
+
+Dairy
+
+Whole Milk
+
+1.03
+
+Standard Milk
+
+
+
+Skim / 2% Milk
+
+1.03
+
+
+
+
+
+Half & Half
+
+1.02
+
+HEB Half & Half (64oz)
+
+
+
+Heavy Cream
+
+1.00
+
+Heavy Whipping Cream
+
+
+
+Whipped Cream (Fluid)
+
+0.99
+
+Liquid before whipping (often sold by weight)
+
+
+
+Plant Milks (Almond/Oat)
+
+1.03
+
+Oatly, Almond Breeze (roughly same as milk)
+
+
+
+Condensed Milk
+
+1.29
+
+Sweetened Condensed Milk
+
+Meat & Deli
+
+Shredded Cheese
+
+0.34
+
+HCF Shredded Cheddar Cheese. Light/Fluffy.
+
+
+
+Sausage (Smoked)
+
+1.02
+
+HEB Texas Heritage Sausage. Solid meat.
+
+
+
+Pepperoni Slices
+
+1.02
+
+HCF Original Pepperoni Slices.
+
+
+
+Mayonnaise
+
+0.91
+
+HEB Real Mayonnaise. Oil emulsion.
+
+
+
+Pesto
+
+0.96
+
+HEB Basil Pesto.
+
+
+
+Marinara Sauce
+
+1.08
+
+HEB Marinara Sauce.
+
+
+
+Tomato Soup
+
+1.03
+
+HEB Organic Tomato Basil Soup.
+
+Dry Goods & Spices
+
+Cornstarch
+
+0.67
+
+HCF Cornstarch. Packed powder.
+
+
+
+Cornmeal
+
+0.64
+
+HCF Enriched Yellow Cornmeal.
+
+
+
+Matcha Powder
+
+0.43
+
+SEN CHA Organic Matcha. Fine powder.
+
+
+
+Italian Seasoning
+
+0.25
+
+McCormick Italian Seasoning. Dried herbs.
+
+
+
+Dried Basil
+
+0.15
+
+McCormick Culinary Dried Basil. Very light.
+
+
+
+Cardamom (Ground)
+
+0.45
+
+Rani Ground Cardamom.
+
+
+
+Pecan Halves
+
+0.55
+
+Kirkland Pecan Halves.
+
+
+
+Potato Chips (Crushed)
+
+0.15
+
+Mrs. Vickie's. Whole chips are mostly air; this is for topping.
+
+Syrups & Sweeteners
+
+Simple Syrup / Flavored
+
+1.25
+
+Vanilla Syrup, Hazelnut Syrup (Monin/Torani)
+
+
+
+Rich Syrup / Sauces
+
+1.35
+
+Caramel Sauce, Mocha Sauce, White Chocolate Sauce
+
+
+
+Honey
+
+1.42
+
+
+
+
+
+Agave Nectar
+
+1.38
+
+
+
+
+
+Molasses
+
+1.40
+
+
+
+Fruit & Preserves
+
+Fruit Preserves / Jams
+
+1.35
+
+Hill Country Fare Strawberry Preserves, Peach & Mango Fruit Spread
+
+
+
+Fruit Puree / Pumpkin
+
+1.06
+
+Libby's Pure Pumpkin Can, Smoothies bases.
+
+
+
+Lemon/Lime Juice
+
+1.04
+
+Fresh squeezed or bottled juice
+
+Concentrates
+
+Chai Concentrate
+
+1.08
+
+Rishi Masala Chai (32 oz) (Est. for 1:1 concentrate)
+
+
+
+Cold Brew Concentrate
+
+1.01
+
+Coffee concentrates
+
+
+
+Espresso
+
+1.00
+
+Pulled shots
+
+Oils & Sprays
+
+Cooking Oil
+
+0.92
+
+Canola, Vegetable, Olive Oil
+
+
+
+Cooking Spray
+
+0.92
+
+HCF Canola Cooking Spray. (Usually costed by second/can).
+
+
+
+Vinegar
+
+1.01
+
+Apple Cider, Balsamic
+
+Solids & Particulates
+
+Frozen Strawberries
+
+0.60
+
+HEB Whole Frozen Strawberries (5 lbs) (Includes air gaps)
+
+(Bulk Density)
+
+Frozen Blueberries
+
+0.65
+
+HEB Whole Frozen Blueberries (5 lbs)
+
+
+
+Frozen Mango
+
+0.63
+
+HEB Frozen Mango Chunks (16 oz)
+
+
+
+Spinach (Raw)
+
+0.13
+
+HEB Spinach (9oz Bag) (Very light/fluffy)
+
+
+
+Coffee Beans (Whole)
+
+0.38
+
+Decaf Beans (Roasted beans are light)
+
+
+
+Bee Pollen
+
+0.65
+
+Granules
+
+
+
+Ice
+
+0.92
+
+Solid ice (if costing ice by weight)
+
+
+
+Generic Protein Powder
+
+0.40
+
+Varies by scoop size, but typically light
+
+Peel/Yield Items
+
+Banana (Mashed)
+
+1.05
+
+Heavy/Dense. Use 35% Shrinkage for peel.
+
+
+
+Banana (Sliced)
+
+0.63
+
+Lighter (air gaps). Use 35% Shrinkage for peel.
+
+
+
+Apples (Granny Smith)
+
+0.55
+
+Diced/Bulk. Use 25% Shrinkage for core/peel.
+
+
+
+Avocado (Mashed)
+
+0.96
+
+Use 26% Shrinkage for pit/skin.
+
+
+
+Canned Jalapenos
+
+0.95
+
+La Costena Pickled Jalapeno. Use 45% Shrinkage for brine.
+
+
+
+Bread (Gluten Free)
+
+0.25
+
+Canyon Bakehouse. Light. Use 0% if using whole slices.
+
+Gases & Consumables
+
+Nitrogen Gas Tank
+
+N/A
+
+Batch Costing: Do not use density. 1 Tank ≈ 4-10 Kegs.
