@@ -1552,6 +1552,34 @@ Return the JSON array now:`;
     }
   });
 
+  // Suggest density for an ingredient using fuzzy matching
+  app.get("/api/density-heuristics/suggest/:ingredientName", async (req, res) => {
+    try {
+      const { ingredientName } = req.params;
+      const heuristics = await storage.getAllDensityHeuristics();
+      
+      // Import and use fuzzy matching
+      const { findMatchingDensity } = await import("@shared/density-lookup");
+      const match = findMatchingDensity(ingredientName, heuristics);
+      
+      if (match) {
+        res.json({
+          found: true,
+          ingredientName: match.match.ingredientName,
+          density: match.match.gramsPerMilliliter,
+          confidence: match.confidence,
+          category: match.match.category,
+          notes: match.match.notes,
+        });
+      } else {
+        res.json({ found: false });
+      }
+    } catch (error: any) {
+      console.error("Suggest density error:", error);
+      res.status(500).json({ error: "Failed to suggest density" });
+    }
+  });
+
   app.post("/api/density-heuristics", async (req, res) => {
     try {
       const validatedData = insertDensityHeuristicSchema.parse(req.body);
