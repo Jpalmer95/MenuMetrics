@@ -33,6 +33,7 @@ export default function PricingPlaygroundPage() {
   const [hasChanges, setHasChanges] = useState(false);
   
   const [globalWaste, setGlobalWaste] = useState<number>(15);
+  const [globalTargetMargin, setGlobalTargetMargin] = useState<number>(80);
   const [minimumMarginThreshold, setMinimumMarginThreshold] = useState<number>(80);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
@@ -122,6 +123,36 @@ export default function PricingPlaygroundPage() {
       toast({
         title: "Error",
         description: "Failed to apply global waste percentage.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const applyGlobalTargetMarginMutation = useMutation({
+    mutationFn: async (marginValue: number) => {
+      const updates = recipes.map(recipe => 
+        apiRequest("PATCH", `/api/recipes/${recipe.id}/pricing`, {
+          wastePercentage: recipe.wastePercentage ?? 0,
+          targetMargin: marginValue,
+          consumablesBuffer: recipe.consumablesBuffer ?? 0,
+        })
+      );
+      await Promise.all(updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      if (selectedRecipeId) {
+        setTargetMargin(globalTargetMargin);
+      }
+      toast({
+        title: "Global Target Margin Applied",
+        description: `Target profit margin set to ${globalTargetMargin}% for all ${recipes.length} recipes.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to apply global target margin.",
         variant: "destructive",
       });
     },
@@ -264,6 +295,46 @@ export default function PricingPlaygroundPage() {
                 {applyGlobalWasteMutation.isPending 
                   ? "Applying..." 
                   : `Apply ${globalWaste}% Waste to All Recipes`
+                }
+              </Button>
+
+              <div className="space-y-2 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help underline decoration-dotted">Global Target Margin %</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>Set a uniform target profit margin for all recipes. This will recalculate suggested prices across your entire menu based on this target.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
+                  <span className="font-medium tabular-nums" data-testid="text-global-margin">{globalTargetMargin}%</span>
+                </div>
+                <Slider
+                  value={[globalTargetMargin]}
+                  onValueChange={(values) => setGlobalTargetMargin(values[0])}
+                  max={95}
+                  min={10}
+                  step={1}
+                  data-testid="slider-global-margin"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>10% (Low margin)</span>
+                  <span>95% (High margin)</span>
+                </div>
+              </div>
+              <Button
+                onClick={() => applyGlobalTargetMarginMutation.mutate(globalTargetMargin)}
+                disabled={applyGlobalTargetMarginMutation.isPending || recipes.length === 0}
+                className="w-full"
+                data-testid="button-apply-global-margin"
+              >
+                <Wand2 className="h-4 w-4 mr-2" />
+                {applyGlobalTargetMarginMutation.isPending 
+                  ? "Applying..." 
+                  : `Apply ${globalTargetMargin}% Margin to All Recipes`
                 }
               </Button>
             </div>
