@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Upload, Download, FileSpreadsheet, Sparkles } from "lucide-react";
+import { Upload, Download, FileSpreadsheet, Sparkles, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IngredientsTable } from "@/components/ingredients-table";
 import { IngredientFormDialog } from "@/components/ingredient-form-dialog";
@@ -137,6 +137,29 @@ export default function IngredientsPage() {
     },
   });
 
+  const refreshDensitiesMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/ingredients/refresh-densities", {}),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ingredients"] });
+      toast({
+        title: "Densities Refreshed",
+        description: data.updated > 0 
+          ? `Successfully matched and updated ${data.updated} ingredient${data.updated !== 1 ? "s" : ""} with densities from the reference table.`
+          : "No ingredients found to update. All already have densities assigned.",
+      });
+      if (data.results && data.results.length > 0) {
+        console.log("Density refresh results:", data.results);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Refresh Failed",
+        description: error.message || "Failed to refresh densities. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (data: InsertIngredient) => {
     if (editingIngredient) {
       updateMutation.mutate({ id: editingIngredient.id, data });
@@ -213,6 +236,15 @@ export default function IngredientsPage() {
           >
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Export Excel
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => refreshDensitiesMutation.mutate()}
+            disabled={ingredients.length === 0 || refreshDensitiesMutation.isPending}
+            data-testid="button-refresh-densities"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            {refreshDensitiesMutation.isPending ? "Refreshing..." : "Refresh Densities"}
           </Button>
           <Button
             variant="outline"

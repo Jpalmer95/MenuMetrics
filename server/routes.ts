@@ -1606,6 +1606,69 @@ Return the JSON array now:`;
     }
   });
 
+  // Refresh ingredient densities by matching against density heuristics
+  app.post("/api/ingredients/refresh-densities", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { findMatchingDensity } = await import("@shared/density-lookup");
+      
+      const ingredients = await storage.getAllIngredients(userId);
+      const densityHeuristics = await storage.getAllDensityHeuristics();
+      
+      let updated = 0;
+      const results: Array<{ name: string; density: number; confidence: number }> = [];
+      
+      for (const ingredient of ingredients) {
+        // Skip if already has density or is packaging
+        if (ingredient.gramsPerMilliliter || ingredient.isPackaging) {
+          continue;
+        }
+        
+        // Skip if purchaseUnit is "units" (these don't use density)
+        if (ingredient.purchaseUnit === "units") {
+          continue;
+        }
+        
+        // Try to find matching density
+        const match = findMatchingDensity(ingredient.name, densityHeuristics);
+        
+        if (match && match.confidence >= 0.75) {
+          // Update the ingredient with the found density
+          const updated_ingredient = await storage.updateIngredient(
+            ingredient.id,
+            {
+              ...ingredient,
+              gramsPerMilliliter: match.match.gramsPerMilliliter,
+              densitySource: `Matched from density table: ${match.match.ingredientName}`,
+            },
+            userId
+          );
+          
+          if (updated_ingredient) {
+            updated++;
+            results.push({
+              name: ingredient.name,
+              density: match.match.gramsPerMilliliter,
+              confidence: match.confidence,
+            });
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        updated,
+        total: ingredients.length,
+        skipped: ingredients.filter(i => i.gramsPerMilliliter || i.isPackaging || i.purchaseUnit === "units").length,
+        results: results.slice(0, 10),
+        message: `Successfully updated ${updated} ingredient${updated !== 1 ? "s" : ""} with densities from the reference table.`,
+      });
+    } catch (error: any) {
+      console.error("Refresh densities error:", error);
+      res.status(500).json({ error: "Failed to refresh densities" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
