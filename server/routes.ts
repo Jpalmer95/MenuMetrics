@@ -1610,13 +1610,15 @@ Return the JSON array now:`;
   app.post("/api/ingredients/refresh-densities", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { findMatchingDensity } = await import("@shared/density-lookup");
+      const { findBestMatch } = await import("@shared/fuzzy-matcher");
       
       const ingredients = await storage.getAllIngredients(userId);
       let densityHeuristics = await storage.getAllDensityHeuristics();
       
-      // Filter out invalid density heuristics (those without ingredientName)
-      densityHeuristics = densityHeuristics.filter(h => h.ingredientName && h.ingredientName.trim());
+      // Filter out invalid density heuristics and map to have 'name' property for fuzzy matching
+      const validDensities = densityHeuristics
+        .filter(h => h.ingredientName && h.ingredientName.trim())
+        .map(h => ({ ...h, name: h.ingredientName }));
       
       let updated = 0;
       const results: Array<{ name: string; density: number; confidence: number }> = [];
@@ -1632,8 +1634,12 @@ Return the JSON array now:`;
           continue;
         }
         
-        // Try to find matching density
-        const match = findMatchingDensity(ingredient.name, densityHeuristics);
+        // Try to find matching density using fuzzy matching
+        const match = findBestMatch(ingredient.name, validDensities, {
+          autoMatchThreshold: 0.75,
+          minThreshold: 0.6,
+          useNormalization: true,
+        });
         
         if (match && match.confidence >= 0.75) {
           // Update the ingredient with the found density
