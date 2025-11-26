@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2 } from "lucide-react";
+import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,12 +28,13 @@ export default function PricingPlaygroundPage() {
   const { toast } = useToast();
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [wastePercentage, setWastePercentage] = useState<number>(0);
-  const [targetMargin, setTargetMargin] = useState<number>(70);
+  const [targetMargin, setTargetMargin] = useState<number>(80);
   const [consumablesBuffer, setConsumablesBuffer] = useState<number>(0);
   const [hasChanges, setHasChanges] = useState(false);
   
-  const [globalWaste, setGlobalWaste] = useState<number>(10);
+  const [globalWaste, setGlobalWaste] = useState<number>(15);
   const [minimumMarginThreshold, setMinimumMarginThreshold] = useState<number>(80);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const { data: recipes = [], isLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
@@ -48,7 +49,7 @@ export default function PricingPlaygroundPage() {
     if (recipe) {
       setSelectedRecipeId(recipeId);
       setWastePercentage(recipe.wastePercentage ?? 0);
-      setTargetMargin(recipe.targetMargin ?? 70);
+      setTargetMargin(recipe.targetMargin ?? 80);
       setConsumablesBuffer(recipe.consumablesBuffer ?? 0);
       setHasChanges(false);
     }
@@ -101,7 +102,7 @@ export default function PricingPlaygroundPage() {
       const updates = recipes.map(recipe => 
         apiRequest("PATCH", `/api/recipes/${recipe.id}/pricing`, {
           wastePercentage: wasteValue,
-          targetMargin: recipe.targetMargin ?? 70,
+          targetMargin: recipe.targetMargin ?? 80,
           consumablesBuffer: recipe.consumablesBuffer ?? 0,
         })
       );
@@ -136,14 +137,14 @@ export default function PricingPlaygroundPage() {
       const recipeSuggested = calculateSuggestedPrice(
         recipe.costPerServing,
         recipe.wastePercentage ?? 0,
-        recipe.targetMargin ?? 70,
+        recipe.targetMargin ?? 80,
         recipe.consumablesBuffer ?? 0
       );
       const recipeMargin = (recipe.menuPrice ?? 0) > 0
         ? (((recipe.menuPrice ?? 0) - recipeTrueCost) / (recipe.menuPrice ?? 0)) * 100
         : 0;
       const isBelowMinMargin = (recipe.menuPrice ?? 0) > 0 && recipeMargin < minimumMarginThreshold;
-      const isOnTarget = (recipe.menuPrice ?? 0) > 0 && recipeMargin >= (recipe.targetMargin ?? 70) - 5;
+      const isOnTarget = (recipe.menuPrice ?? 0) > 0 && recipeMargin >= (recipe.targetMargin ?? 80) - 5;
       
       return {
         ...recipe,
