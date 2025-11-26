@@ -41,18 +41,38 @@ const RecipeItemRow = ({
   onUpdateUnit: (id: string, unit: string) => void;
   onRemoveIngredient: (id: string) => void;
 }) => {
+  const [localQuantity, setLocalQuantity] = useState(ri.quantity);
+  const [localUnit, setLocalUnit] = useState(ri.unit);
+  const [hasChanges, setHasChanges] = useState(false);
+
   const cost = calculateIngredientCost(
     ri.ingredientDetails,
-    ri.quantity,
-    ri.unit as any
+    localQuantity,
+    localUnit as any
   );
   
   const ingredientWarning = checkDensityWarning(
     ri.ingredientDetails,
-    ri.unit as MeasurementUnit
+    localUnit as MeasurementUnit
   );
   // Only show incompatible unit warnings - density is now optional
   const showIncompatibleWarning = ingredientWarning.needsWarning && ingredientWarning.warningType === "incompatible";
+
+  const handleQuantityChange = (value: number) => {
+    setLocalQuantity(value);
+    setHasChanges(true);
+  };
+
+  const handleUnitChange = (value: string) => {
+    setLocalUnit(value);
+    setHasChanges(true);
+  };
+
+  const handleSave = () => {
+    onUpdateQuantity(ri.id, localQuantity);
+    onUpdateUnit(ri.id, localUnit);
+    setHasChanges(false);
+  };
 
   return (
     <div
@@ -66,6 +86,11 @@ const RecipeItemRow = ({
           <Badge variant="secondary" className="text-xs">
             {ri.ingredientDetails.category}
           </Badge>
+          {hasChanges && (
+            <Badge variant="outline" className="text-xs">
+              Unsaved
+            </Badge>
+          )}
           {showIncompatibleWarning && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -84,14 +109,14 @@ const RecipeItemRow = ({
           <Input
             type="number"
             step="0.01"
-            value={ri.quantity}
+            value={localQuantity}
             onChange={(e) =>
-              onUpdateQuantity(ri.id, parseFloat(e.target.value) || 0)
+              handleQuantityChange(parseFloat(e.target.value) || 0)
             }
             className="w-20 h-7 text-sm"
             data-testid={`input-quantity-${ri.id}`}
           />
-          <Select value={ri.unit} onValueChange={(value) => onUpdateUnit(ri.id, value)}>
+          <Select value={localUnit} onValueChange={handleUnitChange}>
             <SelectTrigger className="w-28 h-7 text-sm" data-testid={`select-unit-${ri.id}`}>
               <SelectValue />
             </SelectTrigger>
@@ -106,10 +131,19 @@ const RecipeItemRow = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <span className="text-sm font-medium tabular-nums" data-testid={`text-ingredient-cost-${ri.id}`}>
           ${cost.toFixed(2)}
         </span>
+        {hasChanges && (
+          <Button
+            size="sm"
+            onClick={handleSave}
+            data-testid={`button-save-ingredient-${ri.id}`}
+          >
+            Save
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
