@@ -73,6 +73,20 @@ export default function DashboardPage() {
       cost: r.costPerServing,
     }));
 
+  const mostProfitableByDollarAmount = [...recipes]
+    .filter((r) => r.menuPrice && r.menuPrice > 0)
+    .map((r) => ({
+      ...r,
+      costPerServing: r.servings > 0 ? r.totalCost / r.servings : 0,
+      profitPerUnit: (r.menuPrice || 0) - (r.servings > 0 ? r.totalCost / r.servings : 0),
+    }))
+    .sort((a, b) => b.profitPerUnit - a.profitPerUnit)
+    .slice(0, 5)
+    .map((r) => ({
+      name: r.name.length > 15 ? r.name.substring(0, 15) + "..." : r.name,
+      profit: r.profitPerUnit,
+    }));
+
   return (
     <div className="space-y-6">
       <div>
