@@ -171,7 +171,7 @@ export default function RecipeDetailPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-bold tracking-tight">{recipe.name}</h1>
             <Badge variant="outline" data-testid="badge-recipe-category">
-              {(recipe.category || "other").charAt(0).toUpperCase() + (recipe.category || "other").slice(1)}
+              {((recipe.category || "other") || "").charAt(0).toUpperCase() + ((recipe.category || "other") || "").slice(1)}
             </Badge>
           </div>
           {recipe.description && (
