@@ -173,8 +173,22 @@ export default function IngredientsPage() {
     );
   }
 
+  // Count ingredients missing densities (those that aren't "units" and don't have density)
+  const missingDensityCount = ingredients.filter(
+    ing => ing.purchaseUnit !== "units" && !ing.gramsPerMilliliter && !ing.isPackaging
+  ).length;
+
   return (
     <div className="space-y-6">
+      {missingDensityCount > 0 && (
+        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-4 border border-amber-200 dark:border-amber-800">
+          <p className="text-sm text-amber-900 dark:text-amber-100">
+            <strong>{missingDensityCount}</strong> ingredient{missingDensityCount !== 1 ? "s" : ""} {missingDensityCount === 1 ? "is" : "are"} missing densities.
+            These densities improve accuracy for volume↔weight conversions in recipes. Try adding them manually, use the AI density estimator, or check the density reference table.
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Ingredients Database</h1>

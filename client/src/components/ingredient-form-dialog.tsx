@@ -28,7 +28,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-import { Info } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 // Common ingredient density presets (grams per milliliter)
 const DENSITY_PRESETS = [
@@ -60,6 +62,9 @@ export function IngredientFormDialog({
   isLoading,
 }: IngredientFormDialogProps) {
   const [selectedPreset, setSelectedPreset] = useState<string>("");
+  const [densitySuggestion, setDensitySuggestion] = useState<{ name: string; density: number; confidence: number } | null>(null);
+  const [checkingDensity, setCheckingDensity] = useState(false);
+  const currentName = ingredient?.name || "";
   
   const form = useForm<InsertIngredient>({
     resolver: zodResolver(insertIngredientSchema),
@@ -75,6 +80,51 @@ export function IngredientFormDialog({
       densitySource: undefined,
     },
   });
+
+  // Auto-lookup density when ingredient name changes
+  useEffect(() => {
+    const subscription = form.watch((formValues) => {
+      const name = formValues.name?.trim();
+      
+      // Only auto-lookup if:
+      // 1. Name is provided and not empty
+      // 2. Ingredient doesn't already have a manually set density
+      // 3. Name is different from what we're editing
+      if (name && name.length > 2 && !formValues.gramsPerMilliliter && name !== currentName) {
+        setCheckingDensity(true);
+        
+        // Debounce the lookup
+        const timeoutId = setTimeout(async () => {
+          try {
+            const response = await fetch(`/api/density-heuristics/suggest/${encodeURIComponent(name)}`);
+            const data = await response.json();
+            
+            if (data.found) {
+              setDensitySuggestion({
+                name: data.ingredientName,
+                density: data.density,
+                confidence: data.confidence,
+              });
+            } else {
+              setDensitySuggestion(null);
+            }
+          } catch (error) {
+            console.error("Error looking up density:", error);
+            setDensitySuggestion(null);
+          } finally {
+            setCheckingDensity(false);
+          }
+        }, 500); // Debounce for 500ms
+        
+        return () => clearTimeout(timeoutId);
+      } else {
+        setDensitySuggestion(null);
+        setCheckingDensity(false);
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form, currentName]);
 
   useEffect(() => {
     if (ingredient) {
@@ -302,6 +352,32 @@ export function IngredientFormDialog({
                   </div>
                 </div>
               </div>
+
+              {densitySuggestion && (
+                <div className="flex items-center justify-between rounded-md bg-blue-50 dark:bg-blue-950/30 p-3 border border-blue-200 dark:border-blue-800">
+                  <div>
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      Found: {densitySuggestion.name}
+                    </p>
+                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                      Density: {densitySuggestion.density} g/mL ({Math.round(densitySuggestion.confidence * 100)}% match)
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      form.setValue("gramsPerMilliliter", densitySuggestion.density);
+                      form.setValue("densitySource", "Reference Table");
+                      setSelectedPreset("custom");
+                    }}
+                    data-testid="button-apply-suggested-density"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              )}
 
               <FormField
                 control={form.control}
