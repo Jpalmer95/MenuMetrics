@@ -195,7 +195,7 @@ export default function DashboardPage() {
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: "var(--radius))",
+                    borderRadius: "var(--radius)",
                   }}
                 />
               </PieChart>

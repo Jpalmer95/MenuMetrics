@@ -155,7 +155,8 @@ export default function RecipeDetailPage() {
   const costPerServing = recipe.servings > 0 ? totalRecipeCost / recipe.servings : 0;
 
   const profitMargin = calculateProfitMargin(recipe.menuPrice, costPerServing);
-  const categoryDisplay = String(recipe.category || "other").trim() || "other";
+  const category = (recipe.category || "other").toString().trim();
+  const categoryDisplay = category && category.length > 0 ? category : "other";
 
   return (
     <div className="space-y-6">
