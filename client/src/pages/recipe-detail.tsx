@@ -155,8 +155,8 @@ export default function RecipeDetailPage() {
   const costPerServing = recipe.servings > 0 ? totalRecipeCost / recipe.servings : 0;
 
   const profitMargin = calculateProfitMargin(recipe.menuPrice, costPerServing);
-  const category = (recipe.category || "other").toString().trim();
-  const categoryDisplay = category && category.length > 0 ? category : "other";
+  const categoryDisplay = (recipe.category || "other").toString().trim() || "other";
+  const displayCategory = categoryDisplay.charAt(0).toUpperCase() + categoryDisplay.slice(1);
 
   return (
     <div className="space-y-6">
@@ -173,7 +173,7 @@ export default function RecipeDetailPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-bold tracking-tight">{recipe.name}</h1>
             <Badge variant="outline" data-testid="badge-recipe-category">
-              {categoryDisplay.charAt(0).toUpperCase() + categoryDisplay.slice(1)}
+              {displayCategory}
             </Badge>
           </div>
           {recipe.description && (
