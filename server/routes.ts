@@ -1613,7 +1613,10 @@ Return the JSON array now:`;
       const { findMatchingDensity } = await import("@shared/density-lookup");
       
       const ingredients = await storage.getAllIngredients(userId);
-      const densityHeuristics = await storage.getAllDensityHeuristics();
+      let densityHeuristics = await storage.getAllDensityHeuristics();
+      
+      // Filter out invalid density heuristics (those without ingredientName)
+      densityHeuristics = densityHeuristics.filter(h => h.ingredientName && h.ingredientName.trim());
       
       let updated = 0;
       const results: Array<{ name: string; density: number; confidence: number }> = [];
