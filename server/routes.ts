@@ -1620,28 +1620,30 @@ Return the JSON array now:`;
         .filter(h => h.ingredientName && h.ingredientName.trim())
         .map(h => ({ ...h, name: h.ingredientName }));
       
+      // Find ingredients that need density matching
+      const ingredientsNeedingDensity = ingredients.filter(i => 
+        !i.gramsPerMilliliter && 
+        !i.isPackaging && 
+        i.purchaseUnit !== "units"
+      );
+      
+      console.log(`Refresh densities: Found ${ingredientsNeedingDensity.length} ingredients needing density`);
+      console.log(`Valid densities available: ${validDensities.length}`);
+      
       let updated = 0;
       const results: Array<{ name: string; density: number; confidence: number }> = [];
       
-      for (const ingredient of ingredients) {
-        // Skip if already has density or is packaging
-        if (ingredient.gramsPerMilliliter || ingredient.isPackaging) {
-          continue;
-        }
-        
-        // Skip if purchaseUnit is "units" (these don't use density)
-        if (ingredient.purchaseUnit === "units") {
-          continue;
-        }
-        
+      for (const ingredient of ingredientsNeedingDensity) {
         // Try to find matching density using fuzzy matching
         const match = findBestMatch(ingredient.name, validDensities, {
-          autoMatchThreshold: 0.65,
-          minThreshold: 0.6,
+          autoMatchThreshold: 0.60,
+          minThreshold: 0.55,
           useNormalization: true,
         });
         
-        if (match && match.confidence >= 0.65) {
+        console.log(`Checking "${ingredient.name}": ${match ? `matched "${match.match.ingredientName}" (${match.confidence.toFixed(2)})` : "no match"}`);
+        
+        if (match && match.confidence >= 0.60) {
           // Update the ingredient with the found density
           const updated_ingredient = await storage.updateIngredient(
             ingredient.id,
@@ -1660,6 +1662,7 @@ Return the JSON array now:`;
               density: match.match.gramsPerMilliliter,
               confidence: match.confidence,
             });
+            console.log(`Updated "${ingredient.name}" with density ${match.match.gramsPerMilliliter}`);
           }
         }
       }
@@ -1668,7 +1671,7 @@ Return the JSON array now:`;
         success: true,
         updated,
         total: ingredients.length,
-        skipped: ingredients.filter(i => i.gramsPerMilliliter || i.isPackaging || i.purchaseUnit === "units").length,
+        skipped: ingredients.length - ingredientsNeedingDensity.length,
         results: results.slice(0, 10),
         message: `Successfully updated ${updated} ingredient${updated !== 1 ? "s" : ""} with densities from the reference table.`,
       });
