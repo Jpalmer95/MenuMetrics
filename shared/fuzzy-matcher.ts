@@ -167,6 +167,29 @@ export interface FuzzyMatchResult<T> {
   exactMatch: boolean;
 }
 
+/**
+ * Word-level matching: check if reference words all appear in search string
+ * E.g., "pecan halves" should match "Kirkland Pecan Halves (2 lbs)"
+ */
+function wordLevelMatch(searchStr: string, refStr: string): number {
+  const refWords = refStr.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  const searchStr_lower = searchStr.toLowerCase();
+  
+  // If reference is empty, return 0
+  if (refWords.length === 0) return 0;
+  
+  // Count how many reference words appear in the search string
+  let matchedWords = 0;
+  for (const word of refWords) {
+    if (searchStr_lower.includes(word)) {
+      matchedWords++;
+    }
+  }
+  
+  // Return ratio of matched words (e.g., 2/2 = 1.0 for perfect match)
+  return matchedWords / refWords.length;
+}
+
 export function findBestMatch<T extends { name: string }>(
   searchName: string,
   inventory: T[],
@@ -209,19 +232,31 @@ export function findBestMatch<T extends { name: string }>(
     const diceScore = diceCoefficient(normalizedSearch, normalizedItem);
     const levenScore = levenshteinRatio(normalizedSearch, normalizedItem);
     
-    // Also check if one is a substring of the other (useful for "milk" vs "whole milk")
-    // Only apply bonus if both strings are non-empty and one is meaningfully contained
-    const substringBonus = 
-      normalizedSearch.length > 0 && 
-      normalizedItem.length > 0 && 
-      normalizedSearch.length >= 3 && 
-      normalizedItem.length >= 3 &&
-      (normalizedSearch.includes(normalizedItem) || normalizedItem.includes(normalizedSearch))
-        ? 0.15 
-        : 0;
+    // Word-level matching: do all reference words appear in search string?
+    // This catches cases like "pecan halves" matching "Kirkland Pecan Halves (2 lbs)"
+    const wordMatch = wordLevelMatch(normalizedSearch, normalizedItem);
     
-    // Weighted average with substring bonus
-    const score = Math.min(1.0, (diceScore * 0.5 + levenScore * 0.5) + substringBonus);
+    // If word-level match is perfect or near-perfect, boost confidence significantly
+    let score: number;
+    if (wordMatch >= 0.9) {
+      // If reference words all appear in search, consider it a very strong match
+      score = Math.min(1.0, 0.95);
+    } else if (wordMatch >= 0.75) {
+      // Most words match
+      score = Math.min(1.0, (diceScore * 0.3 + levenScore * 0.3 + wordMatch * 0.4));
+    } else {
+      // Fall back to character-level matching
+      const substringBonus = 
+        normalizedSearch.length > 0 && 
+        normalizedItem.length > 0 && 
+        normalizedSearch.length >= 3 && 
+        normalizedItem.length >= 3 &&
+        (normalizedSearch.includes(normalizedItem) || normalizedItem.includes(normalizedSearch))
+          ? 0.15 
+          : 0;
+      
+      score = Math.min(1.0, (diceScore * 0.5 + levenScore * 0.5) + substringBonus);
+    }
     
     if (score > bestScore) {
       bestScore = score;
@@ -273,17 +308,26 @@ export function findAllMatches<T extends { name: string }>(
     const diceScore = diceCoefficient(normalizedSearch, normalizedItem);
     const levenScore = levenshteinRatio(normalizedSearch, normalizedItem);
     
-    // Only apply bonus if both strings are non-empty and one is meaningfully contained
-    const substringBonus = 
-      normalizedSearch.length > 0 && 
-      normalizedItem.length > 0 && 
-      normalizedSearch.length >= 3 && 
-      normalizedItem.length >= 3 &&
-      (normalizedSearch.includes(normalizedItem) || normalizedItem.includes(normalizedSearch))
-        ? 0.15 
-        : 0;
+    // Word-level matching
+    const wordMatch = wordLevelMatch(normalizedSearch, normalizedItem);
     
-    const score = Math.min(1.0, (diceScore * 0.5 + levenScore * 0.5) + substringBonus);
+    let score: number;
+    if (wordMatch >= 0.9) {
+      score = Math.min(1.0, 0.95);
+    } else if (wordMatch >= 0.75) {
+      score = Math.min(1.0, (diceScore * 0.3 + levenScore * 0.3 + wordMatch * 0.4));
+    } else {
+      const substringBonus = 
+        normalizedSearch.length > 0 && 
+        normalizedItem.length > 0 && 
+        normalizedSearch.length >= 3 && 
+        normalizedItem.length >= 3 &&
+        (normalizedSearch.includes(normalizedItem) || normalizedItem.includes(normalizedSearch))
+          ? 0.15 
+          : 0;
+      
+      score = Math.min(1.0, (diceScore * 0.5 + levenScore * 0.5) + substringBonus);
+    }
     
     if (score >= minConfidence) {
       results.push({
