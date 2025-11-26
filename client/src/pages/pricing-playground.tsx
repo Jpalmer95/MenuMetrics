@@ -161,6 +161,17 @@ export default function PricingPlaygroundPage() {
     return recipesWithMetrics.filter(r => r.isBelowMinMargin).length;
   }, [recipesWithMetrics]);
 
+  const filteredRecipes = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return recipesWithMetrics;
+    }
+    const query = searchQuery.toLowerCase();
+    return recipesWithMetrics.filter(recipe =>
+      recipe.name.toLowerCase().includes(query) ||
+      (recipe.category && recipe.category.toLowerCase().includes(query))
+    );
+  }, [recipesWithMetrics, searchQuery]);
+
   const handleSave = () => {
     if (!selectedRecipeId) return;
     updatePricingMutation.mutate({
@@ -576,23 +587,53 @@ export default function PricingPlaygroundPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Percent className="h-5 w-5" />
-            All Recipes Overview
-            {flaggedRecipesCount > 0 && (
-              <Badge className="bg-red-500/20 text-red-700 border-red-500/30 ml-2">
-                {flaggedRecipesCount} flagged
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Compare pricing metrics across all your recipes. Items below {minimumMarginThreshold}% margin are flagged.
-          </CardDescription>
+          <div className="flex flex-col gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Percent className="h-5 w-5" />
+                All Recipes Overview
+                {flaggedRecipesCount > 0 && (
+                  <Badge className="bg-red-500/20 text-red-700 border-red-500/30 ml-2">
+                    {flaggedRecipesCount} flagged
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Compare pricing metrics across all your recipes. Items below {minimumMarginThreshold}% margin are flagged.
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Search recipes by name or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-recipe-search"
+                />
+              </div>
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSearchQuery("")}
+                  data-testid="button-clear-search"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {recipesWithMetrics.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
               No recipes found. Create some recipes first to see pricing analysis.
+            </p>
+          ) : filteredRecipes.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No recipes match your search. Try a different search term.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -610,7 +651,7 @@ export default function PricingPlaygroundPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recipesWithMetrics.map((recipe) => {
+                  {filteredRecipes.map((recipe) => {
                     const isSelected = recipe.id === selectedRecipeId;
 
                     return (
