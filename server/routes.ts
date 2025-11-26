@@ -1636,12 +1636,12 @@ Return the JSON array now:`;
         
         // Try to find matching density using fuzzy matching
         const match = findBestMatch(ingredient.name, validDensities, {
-          autoMatchThreshold: 0.75,
+          autoMatchThreshold: 0.65,
           minThreshold: 0.6,
           useNormalization: true,
         });
         
-        if (match && match.confidence >= 0.75) {
+        if (match && match.confidence >= 0.65) {
           // Update the ingredient with the found density
           const updated_ingredient = await storage.updateIngredient(
             ingredient.id,
