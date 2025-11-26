@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, measurementUnits } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -1549,6 +1549,17 @@ Return the JSON array now:`;
     } catch (error: any) {
       console.error("Get density heuristics error:", error);
       res.status(500).json({ error: "Failed to retrieve density heuristics" });
+    }
+  });
+
+  app.post("/api/density-heuristics", async (req, res) => {
+    try {
+      const validatedData = insertDensityHeuristicSchema.parse(req.body);
+      const created = await storage.createDensityHeuristic(validatedData);
+      res.status(201).json(created);
+    } catch (error: any) {
+      console.error("Create density heuristic error:", error);
+      res.status(400).json({ error: error.message || "Failed to create density heuristic" });
     }
   });
 

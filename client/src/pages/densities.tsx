@@ -19,11 +19,36 @@ import type { DensityHeuristic } from "@shared/schema";
 export default function DensitiesPage() {
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [editValues, setEditValues] = useState<Partial<DensityHeuristic>>({});
+  const [newDensity, setNewDensity] = useState({ ingredientName: "", gramsPerMilliliter: "", category: "", notes: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: densities = [], isLoading } = useQuery<DensityHeuristic[]>({
     queryKey: ["/api/density-heuristics"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest("POST", "/api/density-heuristics", data);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/density-heuristics"] });
+      setIsCreating(false);
+      setNewDensity({ ingredientName: "", gramsPerMilliliter: "", category: "", notes: "" });
+      toast({
+        title: "Success",
+        description: "New density added successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create density",
+        variant: "destructive",
+      });
+    },
   });
 
   const updateMutation = useMutation<DensityHeuristic, Error, { id: string; updates: Partial<DensityHeuristic> }>({
@@ -80,6 +105,24 @@ export default function DensitiesPage() {
     }
   };
 
+  const handleCreateDensity = () => {
+    const density = parseFloat(newDensity.gramsPerMilliliter);
+    if (!newDensity.ingredientName.trim() || !density || isNaN(density)) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter ingredient name and valid density value",
+        variant: "destructive",
+      });
+      return;
+    }
+    createMutation.mutate({
+      ingredientName: newDensity.ingredientName.trim(),
+      gramsPerMilliliter: density,
+      category: newDensity.category || null,
+      notes: newDensity.notes || null,
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -113,10 +156,72 @@ export default function DensitiesPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 data-testid="input-search-densities"
               />
-              <Button size="icon" variant="outline" disabled data-testid="button-add-density">
+              <Button 
+                size="icon" 
+                variant="outline" 
+                onClick={() => setIsCreating(!isCreating)}
+                data-testid="button-add-density"
+              >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+
+            {isCreating && (
+              <Card className="bg-muted/30 border-dashed">
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-12 gap-4">
+                    <Input
+                      placeholder="Ingredient name (e.g., Mayo, Pesto)"
+                      value={newDensity.ingredientName}
+                      onChange={(e) => setNewDensity({ ...newDensity, ingredientName: e.target.value })}
+                      className="col-span-3"
+                      data-testid="input-new-ingredient-name"
+                    />
+                    <Input
+                      placeholder="Category (e.g., Condiment)"
+                      value={newDensity.category}
+                      onChange={(e) => setNewDensity({ ...newDensity, category: e.target.value })}
+                      className="col-span-2"
+                      data-testid="input-new-category"
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Density (g/mL)"
+                      value={newDensity.gramsPerMilliliter}
+                      onChange={(e) => setNewDensity({ ...newDensity, gramsPerMilliliter: e.target.value })}
+                      className="col-span-2"
+                      data-testid="input-new-density-value"
+                    />
+                    <Input
+                      placeholder="Notes (optional)"
+                      value={newDensity.notes}
+                      onChange={(e) => setNewDensity({ ...newDensity, notes: e.target.value })}
+                      className="col-span-3"
+                      data-testid="input-new-notes"
+                    />
+                    <div className="col-span-2 flex gap-2">
+                      <Button
+                        onClick={handleCreateDensity}
+                        disabled={createMutation.isPending}
+                        className="flex-1"
+                        data-testid="button-save-new-density"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsCreating(false)}
+                        className="flex-1"
+                        data-testid="button-cancel-new-density"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <div className="border rounded-lg overflow-hidden">
               <div className="grid grid-cols-12 gap-4 p-3 bg-muted font-medium text-sm sticky top-0 z-10">
