@@ -72,11 +72,54 @@ export function IngredientsTable({
     const aVal = a[sortColumn];
     const bVal = b[sortColumn];
     
-    // Handle null values
-    if (aVal === null && bVal === null) return 0;
-    if (aVal === null) return 1; // null values go to the end
-    if (bVal === null) return -1;
+    // Handle null and undefined values - treat both as "missing"
+    const aIsMissing = aVal === null || aVal === undefined;
+    const bIsMissing = bVal === null || bVal === undefined;
     
+    if (aIsMissing && bIsMissing) return 0;
+    if (aIsMissing) return 1; // missing values go to the end
+    if (bIsMissing) return -1;
+    
+    // Handle date columns (lastUpdated) - parse ISO date strings with NaN guard
+    if (sortColumn === 'lastUpdated') {
+      const aDate = new Date(aVal as string | Date).getTime();
+      const bDate = new Date(bVal as string | Date).getTime();
+      // If either date is invalid, treat as missing
+      if (isNaN(aDate) && isNaN(bDate)) return 0;
+      if (isNaN(aDate)) return 1;
+      if (isNaN(bDate)) return -1;
+      return sortDirection === "asc" ? aDate - bDate : bDate - aDate;
+    }
+    
+    // Handle numeric columns with NaN guard
+    const numericColumns = ['purchaseCost', 'purchaseQuantity', 'costPerOunce', 'costPerGram', 
+      'costPerCup', 'costPerTbsp', 'costPerTsp', 'costPerPound', 'costPerKg', 'costPerLiter', 
+      'costPerMl', 'costPerPint', 'costPerQuart', 'costPerGallon', 'costPerUnit', 
+      'pricePerUnit', 'gramsPerMilliliter', 'yieldPercentage'];
+    
+    if (numericColumns.includes(sortColumn)) {
+      const aNum = Number(aVal);
+      const bNum = Number(bVal);
+      // If either number is invalid, treat as missing
+      if (isNaN(aNum) && isNaN(bNum)) return 0;
+      if (isNaN(aNum)) return 1;
+      if (isNaN(bNum)) return -1;
+      return sortDirection === "asc" ? aNum - bNum : bNum - aNum;
+    }
+    
+    // Handle string comparisons (case-insensitive) - for name, category, store, etc.
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      const comparison = aVal.toLowerCase().localeCompare(bVal.toLowerCase());
+      return sortDirection === "asc" ? comparison : -comparison;
+    }
+    
+    // Handle boolean comparisons
+    if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+      const comparison = (aVal === bVal) ? 0 : aVal ? -1 : 1;
+      return sortDirection === "asc" ? comparison : -comparison;
+    }
+    
+    // Fallback comparison
     if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
     if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
     return 0;
@@ -275,7 +318,15 @@ export function IngredientsTable({
                 )}
               </TableHead>
               <TableHead className="font-semibold text-center">Packaging</TableHead>
-              <TableHead className="font-semibold">Store</TableHead>
+              <TableHead 
+                className="cursor-pointer font-semibold"
+                onClick={() => handleSort("store")}
+              >
+                Store
+                {sortColumn === "store" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
               <TableHead className="font-semibold">Purchase Info</TableHead>
               <TableHead
                 className="text-right cursor-pointer font-semibold"
@@ -286,13 +337,61 @@ export function IngredientsTable({
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
-              <TableHead className="text-right font-semibold">Per Oz</TableHead>
-              <TableHead className="text-right font-semibold">Per Gram</TableHead>
-              <TableHead className="text-right font-semibold">Price Per Unit</TableHead>
-              <TableHead className="text-right font-semibold">Density (g/mL)</TableHead>
-              <TableHead className="text-right font-semibold">Yield %</TableHead>
-              <TableHead className="font-semibold">Last Updated</TableHead>
-              <TableHead className="text-right font-semibold">Actions</TableHead>
+              <TableHead 
+                className="text-right cursor-pointer font-semibold"
+                onClick={() => handleSort("costPerOunce")}
+              >
+                Per Oz
+                {sortColumn === "costPerOunce" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer font-semibold"
+                onClick={() => handleSort("costPerGram")}
+              >
+                Per Gram
+                {sortColumn === "costPerGram" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer font-semibold"
+                onClick={() => handleSort("pricePerUnit")}
+              >
+                Price Per Unit
+                {sortColumn === "pricePerUnit" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer font-semibold"
+                onClick={() => handleSort("gramsPerMilliliter")}
+              >
+                Density (g/mL)
+                {sortColumn === "gramsPerMilliliter" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer font-semibold"
+                onClick={() => handleSort("yieldPercentage")}
+              >
+                Yield %
+                {sortColumn === "yieldPercentage" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer font-semibold"
+                onClick={() => handleSort("lastUpdated")}
+              >
+                Last Updated
+                {sortColumn === "lastUpdated" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
+              <TableHead className="text-right font-semibold sticky right-0 bg-muted/50 z-10">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -447,7 +546,7 @@ export function IngredientsTable({
                 <TableCell className="text-sm text-muted-foreground">
                   New
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right sticky right-0 bg-accent/20 z-10">
                   <div className="flex items-center justify-end gap-1">
                     <Button
                       variant="ghost"
@@ -685,7 +784,7 @@ export function IngredientsTable({
                     <TableCell className="text-sm text-muted-foreground">
                       {format(new Date(ingredient.lastUpdated), "MMM d, yyyy")}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className={`text-right sticky right-0 z-10 ${isEditing ? 'bg-muted/30' : 'bg-card'}`}>
                       {isEditing ? (
                         <div className="flex items-center justify-end gap-1">
                           <Button
