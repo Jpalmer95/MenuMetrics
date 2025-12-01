@@ -1128,11 +1128,16 @@ Rules:
   app.post("/api/recipes/:id/ingredients", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const validatedData = insertRecipeIngredientSchema.parse(req.body);
+      const recipeId = req.params.id;
+      
+      // Add recipeId to the request body for validation
+      const validatedData = insertRecipeIngredientSchema.parse({
+        ...req.body,
+        recipeId,
+      });
       const recipeIngredient = await storage.createRecipeIngredient(validatedData, userId);
       
       // Recalculate recipe cost after adding ingredient
-      const recipeId = req.params.id;
       await storage.recalculateRecipeCost(recipeId, userId);
       
       // Return the updated recipe with ingredients so frontend cache is updated
