@@ -239,6 +239,29 @@ export function calculateProfitMargin(menuPrice: number | null, costPerServing: 
   return ((menuPrice - costPerServing) / menuPrice) * 100;
 }
 
+// Category pricing settings - stores default waste and margin per category
+export const categoryPricingSettings = pgTable("category_pricing_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  category: text("category").notNull(), // food, drink, seasonal_food, seasonal_drink, other
+  wastePercentage: real("waste_percentage").notNull().default(15),
+  targetMargin: real("target_margin").notNull().default(80),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertCategoryPricingSettingsSchema = createInsertSchema(categoryPricingSettings).omit({
+  id: true,
+  userId: true,
+  updatedAt: true,
+}).extend({
+  category: z.enum(recipeCategories),
+  wastePercentage: z.number().min(0).max(99),
+  targetMargin: z.number().min(1).max(99),
+});
+
+export type InsertCategoryPricingSettings = z.infer<typeof insertCategoryPricingSettingsSchema>;
+export type CategoryPricingSettings = typeof categoryPricingSettings.$inferSelect;
+
 // AI Settings table - now per-user (instead of singleton)
 export const aiSettings = pgTable("ai_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
