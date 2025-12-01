@@ -5,6 +5,8 @@ import {
   type InsertRecipe,
   type RecipeIngredient,
   type InsertRecipeIngredient,
+  type RecipeSubIngredient,
+  type InsertRecipeSubIngredient,
   type RecipeWithIngredients,
   type MeasurementUnit,
   type AISettingsData,
@@ -20,6 +22,7 @@ import {
   ingredients,
   recipes,
   recipeIngredients,
+  recipeSubIngredients,
   aiSettings,
   users,
   densityHeuristics,
@@ -57,6 +60,12 @@ export interface IStorage {
   updateRecipeIngredientQuantity(id: string, quantity: number, userId: string): Promise<RecipeIngredient | undefined>;
   updateRecipeIngredient(id: string, updates: { quantity?: number; unit?: string }, userId: string): Promise<RecipeIngredient | undefined>;
   deleteRecipeIngredient(id: string, userId: string): Promise<boolean>;
+  
+  getRecipeSubIngredients(recipeId: string, userId: string): Promise<Array<RecipeSubIngredient & { subRecipeDetails: Recipe }>>;
+  createRecipeSubIngredient(subIngredient: InsertRecipeSubIngredient, userId: string): Promise<RecipeSubIngredient>;
+  updateRecipeSubIngredientQuantity(id: string, quantity: number, userId: string): Promise<RecipeSubIngredient | undefined>;
+  deleteRecipeSubIngredient(id: string, userId: string): Promise<boolean>;
+  checkCircularDependency(recipeId: string, subRecipeId: string, userId: string): Promise<boolean>;
   
   getAISettings(userId: string): Promise<AISettingsData | undefined>;
   saveAISettings(settings: InsertAISettings, userId: string): Promise<AISettingsData>;
@@ -179,9 +188,11 @@ export class DatabaseStorage implements IStorage {
     if (!recipe) return undefined;
 
     const recipeIngs = await this.getRecipeIngredients(id, userId);
+    const subRecipes = await this.getRecipeSubIngredients(id, userId);
     return {
       ...recipe,
       ingredients: recipeIngs,
+      subRecipes,
     };
   }
 
@@ -195,9 +206,11 @@ export class DatabaseStorage implements IStorage {
     
     for (const recipe of allRecipes) {
       const recipeIngs = await this.getRecipeIngredients(recipe.id, userId);
+      const subRecipes = await this.getRecipeSubIngredients(recipe.id, userId);
       results.push({
         ...recipe,
         ingredients: recipeIngs,
+        subRecipes,
       });
     }
     
@@ -279,12 +292,25 @@ export class DatabaseStorage implements IStorage {
       }, userId);
     }
 
+    if (original.subRecipes) {
+      for (const si of original.subRecipes) {
+        await this.createRecipeSubIngredient({
+          recipeId: newRecipe.id,
+          subRecipeId: si.subRecipeId,
+          quantity: si.quantity,
+        }, userId);
+      }
+    }
+
     return await this.getRecipeWithIngredients(newRecipe.id, userId);
   }
 
   async deleteRecipe(id: string, userId: string): Promise<boolean> {
     // Delete recipe ingredients (cascade delete will handle this, but being explicit for security)
     await db.delete(recipeIngredients).where(and(eq(recipeIngredients.recipeId, id), eq(recipeIngredients.userId, userId)));
+    // Delete sub-recipe relationships where this recipe is either the parent or the child
+    await db.delete(recipeSubIngredients).where(and(eq(recipeSubIngredients.recipeId, id), eq(recipeSubIngredients.userId, userId)));
+    await db.delete(recipeSubIngredients).where(and(eq(recipeSubIngredients.subRecipeId, id), eq(recipeSubIngredients.userId, userId)));
     const result = await db.delete(recipes).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
     return result.rowCount ? result.rowCount > 0 : false;
   }
@@ -311,6 +337,20 @@ export class DatabaseStorage implements IStorage {
           }
         } catch (err) {
           console.error(`Error calculating cost for ingredient ${ri.ingredientDetails.name}:`, err);
+        }
+      }
+
+      const subRecipes = await this.getRecipeSubIngredients(recipeId, userId);
+      for (const si of subRecipes) {
+        try {
+          const subRecipeCost = si.subRecipeDetails.costPerServing * si.quantity;
+          if (typeof subRecipeCost === 'number' && !isNaN(subRecipeCost)) {
+            totalCost += subRecipeCost;
+          } else {
+            console.warn(`Invalid cost calculation for sub-recipe ${si.subRecipeDetails.name}: ${subRecipeCost}`);
+          }
+        } catch (err) {
+          console.error(`Error calculating cost for sub-recipe ${si.subRecipeDetails.name}:`, err);
         }
       }
 
@@ -495,6 +535,93 @@ export class DatabaseStorage implements IStorage {
       await this.recalculateRecipeCost(recipeIngredient.recipeId, userId);
       return true;
     }
+    return false;
+  }
+
+  async getRecipeSubIngredients(recipeId: string, userId: string): Promise<Array<RecipeSubIngredient & { subRecipeDetails: Recipe }>> {
+    const subIngs = await db
+      .select()
+      .from(recipeSubIngredients)
+      .where(and(eq(recipeSubIngredients.recipeId, recipeId), eq(recipeSubIngredients.userId, userId)));
+
+    const result = [];
+    for (const si of subIngs) {
+      const subRecipe = await this.getRecipe(si.subRecipeId, userId);
+      if (subRecipe) {
+        result.push({
+          ...si,
+          subRecipeDetails: subRecipe,
+        });
+      }
+    }
+    return result;
+  }
+
+  async createRecipeSubIngredient(insertSubIngredient: InsertRecipeSubIngredient, userId: string): Promise<RecipeSubIngredient> {
+    const [subIngredient] = await db
+      .insert(recipeSubIngredients)
+      .values({
+        ...insertSubIngredient,
+        userId,
+      })
+      .returning();
+    
+    await this.recalculateRecipeCost(insertSubIngredient.recipeId, userId);
+    return subIngredient;
+  }
+
+  async updateRecipeSubIngredientQuantity(id: string, quantity: number, userId: string): Promise<RecipeSubIngredient | undefined> {
+    const [updated] = await db
+      .update(recipeSubIngredients)
+      .set({ quantity })
+      .where(and(eq(recipeSubIngredients.id, id), eq(recipeSubIngredients.userId, userId)))
+      .returning();
+
+    if (!updated) return undefined;
+    await this.recalculateRecipeCost(updated.recipeId, userId);
+    return updated;
+  }
+
+  async deleteRecipeSubIngredient(id: string, userId: string): Promise<boolean> {
+    const [subIngredient] = await db
+      .select()
+      .from(recipeSubIngredients)
+      .where(and(eq(recipeSubIngredients.id, id), eq(recipeSubIngredients.userId, userId)));
+    
+    if (!subIngredient) return false;
+    
+    const result = await db.delete(recipeSubIngredients).where(and(eq(recipeSubIngredients.id, id), eq(recipeSubIngredients.userId, userId)));
+    if (result.rowCount && result.rowCount > 0) {
+      await this.recalculateRecipeCost(subIngredient.recipeId, userId);
+      return true;
+    }
+    return false;
+  }
+
+  async checkCircularDependency(recipeId: string, subRecipeId: string, userId: string): Promise<boolean> {
+    if (recipeId === subRecipeId) return true;
+    
+    const visited = new Set<string>();
+    const queue = [subRecipeId];
+    
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (currentId === recipeId) return true;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+      
+      const subIngs = await db
+        .select({ subRecipeId: recipeSubIngredients.subRecipeId })
+        .from(recipeSubIngredients)
+        .where(and(eq(recipeSubIngredients.recipeId, currentId), eq(recipeSubIngredients.userId, userId)));
+      
+      for (const { subRecipeId: childId } of subIngs) {
+        if (!visited.has(childId)) {
+          queue.push(childId);
+        }
+      }
+    }
+    
     return false;
   }
 

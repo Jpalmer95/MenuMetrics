@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, type RecipeCategory } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, type RecipeCategory } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -1202,6 +1202,83 @@ Rules:
       res.json(updatedRecipe);
     } catch (error) {
       res.status(500).json({ error: "Failed to delete recipe ingredient" });
+    }
+  });
+
+  app.post("/api/recipes/:id/sub-recipes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const recipeId = req.params.id;
+      
+      const parseResult = insertRecipeSubIngredientSchema.safeParse({
+        ...req.body,
+        recipeId,
+      });
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.message });
+      }
+      
+      const hasCircularDep = await storage.checkCircularDependency(
+        recipeId,
+        parseResult.data.subRecipeId,
+        userId
+      );
+      
+      if (hasCircularDep) {
+        return res.status(400).json({ error: "Cannot add this recipe as it would create a circular dependency" });
+      }
+      
+      await storage.createRecipeSubIngredient(parseResult.data, userId);
+      await storage.recalculateRecipeCost(recipeId, userId);
+      
+      const updatedRecipe = await storage.getRecipeWithIngredients(recipeId, userId);
+      res.json(updatedRecipe);
+    } catch (error) {
+      console.error("Error adding sub-recipe:", error);
+      res.status(500).json({ error: "Failed to add sub-recipe to recipe" });
+    }
+  });
+
+  app.patch("/api/recipes/:recipeId/sub-recipes/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { quantity } = req.body;
+      
+      if (typeof quantity !== "number" || quantity <= 0) {
+        return res.status(400).json({ error: "Invalid quantity" });
+      }
+      
+      const updated = await storage.updateRecipeSubIngredientQuantity(req.params.id, quantity, userId);
+      if (!updated) {
+        return res.status(404).json({ error: "Recipe sub-ingredient not found" });
+      }
+      
+      const recipeId = req.params.recipeId;
+      await storage.recalculateRecipeCost(recipeId, userId);
+      
+      const updatedRecipe = await storage.getRecipeWithIngredients(recipeId, userId);
+      res.json(updatedRecipe);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update sub-recipe quantity" });
+    }
+  });
+
+  app.delete("/api/recipes/:recipeId/sub-recipes/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteRecipeSubIngredient(req.params.id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Recipe sub-ingredient not found" });
+      }
+      
+      const recipeId = req.params.recipeId;
+      await storage.recalculateRecipeCost(recipeId, userId);
+      
+      const updatedRecipe = await storage.getRecipeWithIngredients(recipeId, userId);
+      res.json(updatedRecipe);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete sub-recipe from recipe" });
     }
   });
 

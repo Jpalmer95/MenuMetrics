@@ -11,6 +11,7 @@ import type {
   Ingredient,
   RecipeIngredient,
   InsertRecipeIngredient,
+  InsertRecipeSubIngredient,
   RecipeCategory,
 } from "@shared/schema";
 import { calculateProfitMargin, recipeCategories, recipeCategoryLabels } from "@shared/schema";
@@ -45,6 +46,10 @@ export default function RecipeDetailPage() {
 
   const { data: ingredients = [], isLoading: ingredientsLoading } = useQuery<Ingredient[]>({
     queryKey: ["/api/ingredients"],
+  });
+
+  const { data: allRecipes = [] } = useQuery<Recipe[]>({
+    queryKey: ["/api/recipes"],
   });
 
   const addIngredientMutation = useMutation({
@@ -99,6 +104,55 @@ export default function RecipeDetailPage() {
   const updateUnitMutation = useMutation({
     mutationFn: ({ recipeIngredientId, unit }: { recipeIngredientId: string; unit: string }) =>
       apiRequest("PATCH", `/api/recipes/${id}/ingredients/${recipeIngredientId}`, { unit }),
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+    },
+  });
+
+  const addSubRecipeMutation = useMutation({
+    mutationFn: (data: { subRecipeId: string; quantity: number }) =>
+      apiRequest("POST", `/api/recipes/${id}/sub-recipes`, data),
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "Success",
+        description: "Recipe added as ingredient",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to add recipe as ingredient",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeSubRecipeMutation = useMutation({
+    mutationFn: (subRecipeIngredientId: string) =>
+      apiRequest("DELETE", `/api/recipes/${id}/sub-recipes/${subRecipeIngredientId}`, undefined),
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "Success",
+        description: "Recipe ingredient removed",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove recipe ingredient",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateSubRecipeQuantityMutation = useMutation({
+    mutationFn: ({ subRecipeIngredientId, quantity }: { subRecipeIngredientId: string; quantity: number }) =>
+      apiRequest("PATCH", `/api/recipes/${id}/sub-recipes/${subRecipeIngredientId}`, { quantity }),
     onSuccess: (updatedRecipe: RecipeWithIngredients) => {
       queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
@@ -187,6 +241,18 @@ export default function RecipeDetailPage() {
 
   const handleUpdateUnit = (recipeIngredientId: string, unit: string) => {
     updateUnitMutation.mutate({ recipeIngredientId, unit });
+  };
+
+  const handleAddSubRecipe = (subRecipeId: string, quantity: number) => {
+    addSubRecipeMutation.mutate({ subRecipeId, quantity });
+  };
+
+  const handleRemoveSubRecipe = (subRecipeIngredientId: string) => {
+    removeSubRecipeMutation.mutate(subRecipeIngredientId);
+  };
+
+  const handleUpdateSubRecipeQuantity = (subRecipeIngredientId: string, quantity: number) => {
+    updateSubRecipeQuantityMutation.mutate({ subRecipeIngredientId, quantity });
   };
 
   const handleStartEditMenuPrice = () => {
@@ -527,6 +593,12 @@ export default function RecipeDetailPage() {
         onRemoveIngredient={handleRemoveIngredient}
         onUpdateQuantity={handleUpdateQuantity}
         onUpdateUnit={handleUpdateUnit}
+        allRecipes={allRecipes}
+        currentRecipeId={id!}
+        subRecipes={recipe.subRecipes || []}
+        onAddSubRecipe={handleAddSubRecipe}
+        onRemoveSubRecipe={handleRemoveSubRecipe}
+        onUpdateSubRecipeQuantity={handleUpdateSubRecipeQuantity}
       />
     </div>
   );

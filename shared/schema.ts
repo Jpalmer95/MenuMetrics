@@ -149,6 +149,24 @@ export const insertRecipeIngredientSchema = createInsertSchema(recipeIngredients
 export type InsertRecipeIngredient = z.infer<typeof insertRecipeIngredientSchema>;
 export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 
+export const recipeSubIngredients = pgTable("recipe_sub_ingredients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  recipeId: varchar("recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
+  subRecipeId: varchar("sub_recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
+  quantity: real("quantity").notNull(),
+});
+
+export const insertRecipeSubIngredientSchema = createInsertSchema(recipeSubIngredients).omit({
+  id: true,
+  userId: true,
+}).extend({
+  quantity: z.number().positive("Quantity must be positive"),
+});
+
+export type InsertRecipeSubIngredient = z.infer<typeof insertRecipeSubIngredientSchema>;
+export type RecipeSubIngredient = typeof recipeSubIngredients.$inferSelect;
+
 export const recipeCategories = [
   "food",
   "drink",
@@ -239,6 +257,7 @@ export type Recipe = typeof recipes.$inferSelect;
 
 export interface RecipeWithIngredients extends Recipe {
   ingredients: Array<RecipeIngredient & { ingredientDetails: Ingredient }>;
+  subRecipes?: Array<RecipeSubIngredient & { subRecipeDetails: Recipe }>;
 }
 
 export function calculateProfitMargin(menuPrice: number | null, costPerServing: number): number | null {
@@ -313,6 +332,7 @@ export const ingredientsRelations = relations(ingredients, ({ many }) => ({
 
 export const recipesRelations = relations(recipes, ({ many }) => ({
   recipeIngredients: many(recipeIngredients),
+  recipeSubIngredients: many(recipeSubIngredients),
 }));
 
 export const recipeIngredientsRelations = relations(recipeIngredients, ({ one }) => ({
@@ -323,5 +343,16 @@ export const recipeIngredientsRelations = relations(recipeIngredients, ({ one })
   ingredient: one(ingredients, {
     fields: [recipeIngredients.ingredientId],
     references: [ingredients.id],
+  }),
+}));
+
+export const recipeSubIngredientsRelations = relations(recipeSubIngredients, ({ one }) => ({
+  recipe: one(recipes, {
+    fields: [recipeSubIngredients.recipeId],
+    references: [recipes.id],
+  }),
+  subRecipe: one(recipes, {
+    fields: [recipeSubIngredients.subRecipeId],
+    references: [recipes.id],
   }),
 }));
