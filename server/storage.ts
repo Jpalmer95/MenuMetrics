@@ -14,12 +14,16 @@ import {
   type DensityHeuristic,
   type InsertDensityHeuristic,
   type UpdateRecipePricing,
+  type CategoryPricingSettings,
+  type InsertCategoryPricingSettings,
+  type RecipeCategory,
   ingredients,
   recipes,
   recipeIngredients,
   aiSettings,
   users,
   densityHeuristics,
+  categoryPricingSettings,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -60,6 +64,11 @@ export interface IStorage {
   getAllDensityHeuristics(): Promise<DensityHeuristic[]>;
   updateDensityHeuristic(id: string, updates: Partial<InsertDensityHeuristic>): Promise<DensityHeuristic | undefined>;
   createDensityHeuristic(heuristic: InsertDensityHeuristic): Promise<DensityHeuristic>;
+  
+  // Category pricing settings
+  getCategoryPricingSettings(userId: string): Promise<CategoryPricingSettings[]>;
+  getCategoryPricingSetting(userId: string, category: RecipeCategory): Promise<CategoryPricingSettings | undefined>;
+  upsertCategoryPricingSetting(settings: InsertCategoryPricingSettings, userId: string): Promise<CategoryPricingSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -517,6 +526,43 @@ export class DatabaseStorage implements IStorage {
       .values(heuristic)
       .returning();
     return created;
+  }
+
+  async getCategoryPricingSettings(userId: string): Promise<CategoryPricingSettings[]> {
+    return await db.select().from(categoryPricingSettings).where(eq(categoryPricingSettings.userId, userId));
+  }
+
+  async getCategoryPricingSetting(userId: string, category: RecipeCategory): Promise<CategoryPricingSettings | undefined> {
+    const [setting] = await db.select().from(categoryPricingSettings).where(
+      and(eq(categoryPricingSettings.userId, userId), eq(categoryPricingSettings.category, category))
+    );
+    return setting || undefined;
+  }
+
+  async upsertCategoryPricingSetting(settings: InsertCategoryPricingSettings, userId: string): Promise<CategoryPricingSettings> {
+    const existing = await this.getCategoryPricingSetting(userId, settings.category as RecipeCategory);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(categoryPricingSettings)
+        .set({
+          wastePercentage: settings.wastePercentage,
+          targetMargin: settings.targetMargin,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(categoryPricingSettings.userId, userId), eq(categoryPricingSettings.category, settings.category)))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(categoryPricingSettings)
+        .values({
+          ...settings,
+          userId,
+        })
+        .returning();
+      return created;
+    }
   }
 }
 
