@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, type RecipeCategory } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -558,6 +558,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(recipe);
     } catch (error) {
       res.status(400).json({ error: "Invalid category data" });
+    }
+  });
+
+  // Category pricing settings routes
+  app.get("/api/pricing-settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const settings = await storage.getCategoryPricingSettings(userId);
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch pricing settings" });
+    }
+  });
+
+  app.put("/api/pricing-settings/:category", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category } = req.params;
+      
+      if (!recipeCategories.includes(category as RecipeCategory)) {
+        return res.status(400).json({ error: "Invalid category" });
+      }
+      
+      const validatedData = insertCategoryPricingSettingsSchema.parse({
+        category,
+        wastePercentage: req.body.wastePercentage,
+        targetMargin: req.body.targetMargin,
+      });
+      
+      const setting = await storage.upsertCategoryPricingSetting(validatedData, userId);
+      res.json(setting);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid pricing settings data" });
+    }
+  });
+
+  app.post("/api/pricing-settings/apply", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category, wastePercentage, targetMargin } = req.body;
+      
+      // Validate inputs
+      if (typeof wastePercentage !== "number" || wastePercentage < 0 || wastePercentage > 99) {
+        return res.status(400).json({ error: "Invalid waste percentage" });
+      }
+      if (typeof targetMargin !== "number" || targetMargin < 1 || targetMargin > 99) {
+        return res.status(400).json({ error: "Invalid target margin" });
+      }
+      
+      // Get all recipes
+      const recipes = await storage.getAllRecipes(userId);
+      
+      // Filter by category if specified (not "global")
+      const recipesToUpdate = category === "global" 
+        ? recipes 
+        : recipes.filter(r => r.category === category);
+      
+      // Update each recipe's pricing
+      const updates = recipesToUpdate.map(recipe => 
+        storage.updateRecipePricing(recipe.id, {
+          wastePercentage,
+          targetMargin,
+          consumablesBuffer: recipe.consumablesBuffer ?? 0,
+        }, userId)
+      );
+      
+      await Promise.all(updates);
+      
+      // Save the category setting for persistence
+      if (category !== "global" && recipeCategories.includes(category as RecipeCategory)) {
+        await storage.upsertCategoryPricingSetting({
+          category,
+          wastePercentage,
+          targetMargin,
+        }, userId);
+      }
+      
+      res.json({ 
+        success: true, 
+        updatedCount: recipesToUpdate.length,
+        category: category === "global" ? "all recipes" : category
+      });
+    } catch (error) {
+      console.error("Apply pricing settings error:", error);
+      res.status(500).json({ error: "Failed to apply pricing settings" });
     }
   });
 
