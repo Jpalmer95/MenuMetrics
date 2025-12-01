@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles, Upload, Download } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles, Upload, Download, Check, X, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,6 +31,8 @@ interface RecipesTableProps {
   onBulkImport: () => void;
   onExport: () => void;
   onViewDetails: (recipe: Recipe) => void;
+  onUpdateMenuPrice?: (recipeId: string, menuPrice: number | null) => void;
+  isUpdatingMenuPrice?: boolean;
 }
 
 export function RecipesTable({
@@ -42,11 +44,15 @@ export function RecipesTable({
   onBulkImport,
   onExport,
   onViewDetails,
+  onUpdateMenuPrice,
+  isUpdatingMenuPrice,
 }: RecipesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortColumn, setSortColumn] = useState<keyof Recipe | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [priceInputValue, setPriceInputValue] = useState("");
 
   const filteredRecipes = recipes.filter((recipe) => {
     const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -74,6 +80,50 @@ export function RecipesTable({
     } else {
       setSortColumn(column);
       setSortDirection("asc");
+    }
+  };
+
+  const handleStartEditPrice = (recipe: Recipe, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPriceId(recipe.id);
+    setPriceInputValue(recipe.menuPrice?.toString() || "");
+  };
+
+  const handleSavePrice = (recipeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onUpdateMenuPrice) return;
+    
+    const value = parseFloat(priceInputValue);
+    if (priceInputValue === "" || priceInputValue.trim() === "") {
+      onUpdateMenuPrice(recipeId, null);
+    } else if (!isNaN(value) && value >= 0) {
+      onUpdateMenuPrice(recipeId, value);
+    }
+    setEditingPriceId(null);
+    setPriceInputValue("");
+  };
+
+  const handleCancelEditPrice = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPriceId(null);
+    setPriceInputValue("");
+  };
+
+  const handlePriceKeyDown = (recipeId: string, e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!onUpdateMenuPrice) return;
+      const value = parseFloat(priceInputValue);
+      if (priceInputValue === "" || priceInputValue.trim() === "") {
+        onUpdateMenuPrice(recipeId, null);
+      } else if (!isNaN(value) && value >= 0) {
+        onUpdateMenuPrice(recipeId, value);
+      }
+      setEditingPriceId(null);
+      setPriceInputValue("");
+    } else if (e.key === "Escape") {
+      setEditingPriceId(null);
+      setPriceInputValue("");
     }
   };
 
@@ -201,13 +251,66 @@ export function RecipesTable({
                     <TableCell className="text-right tabular-nums font-medium">
                       ${recipe.costPerServing.toFixed(2)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {recipe.menuPrice ? (
-                        `$${recipe.menuPrice.toFixed(2)}`
+                    <TableCell 
+                      className="text-right tabular-nums font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {editingPriceId === recipe.id ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <div className="relative w-24">
+                            <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={priceInputValue}
+                              onChange={(e) => setPriceInputValue(e.target.value)}
+                              onKeyDown={(e) => handlePriceKeyDown(recipe.id, e)}
+                              className="h-7 pl-6 pr-1 text-right text-sm"
+                              placeholder="0.00"
+                              autoFocus
+                              data-testid={`input-menu-price-row-${recipe.id}`}
+                            />
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-green-600"
+                            onClick={(e) => handleSavePrice(recipe.id, e)}
+                            disabled={isUpdatingMenuPrice}
+                            data-testid={`button-save-price-row-${recipe.id}`}
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={handleCancelEditPrice}
+                            disabled={isUpdatingMenuPrice}
+                            data-testid={`button-cancel-price-row-${recipe.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
                       ) : (
-                        <Badge variant="secondary" className="text-muted-foreground" data-testid={`badge-no-price-${recipe.id}`}>
-                          Not set
-                        </Badge>
+                        <div 
+                          className="flex items-center justify-end gap-1 group"
+                          onClick={(e) => onUpdateMenuPrice && handleStartEditPrice(recipe, e)}
+                        >
+                          {recipe.menuPrice ? (
+                            <span data-testid={`text-menu-price-row-${recipe.id}`}>
+                              ${recipe.menuPrice.toFixed(2)}
+                            </span>
+                          ) : (
+                            <Badge variant="secondary" className="text-muted-foreground" data-testid={`badge-no-price-${recipe.id}`}>
+                              Not set
+                            </Badge>
+                          )}
+                          {onUpdateMenuPrice && (
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                          )}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-right">

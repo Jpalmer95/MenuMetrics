@@ -110,6 +110,27 @@ export default function RecipesPage() {
     },
   });
 
+  const updateMenuPriceMutation = useMutation<Recipe, Error, { id: string; menuPrice: number | null }>({
+    mutationFn: async ({ id, menuPrice }) => {
+      const response = await apiRequest("PATCH", `/api/recipes/${id}/pricing`, { menuPrice });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "Success",
+        description: "Menu price updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update menu price",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (data: InsertRecipe, recipeIngredients: RecipeIngredientRow[]) => {
     if (editingRecipe) {
       updateMutation.mutate({ id: editingRecipe.id, data });
@@ -165,6 +186,10 @@ export default function RecipesPage() {
     window.location.href = "/api/recipes/export";
   };
 
+  const handleUpdateMenuPrice = (recipeId: string, menuPrice: number | null) => {
+    updateMenuPriceMutation.mutate({ id: recipeId, menuPrice });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -191,6 +216,8 @@ export default function RecipesPage() {
         onBulkImport={handleBulkImport}
         onExport={handleExport}
         onViewDetails={handleViewDetails}
+        onUpdateMenuPrice={handleUpdateMenuPrice}
+        isUpdatingMenuPrice={updateMenuPriceMutation.isPending}
       />
 
       <AddRecipeWithIngredientsDialog
