@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRecipeSchema, type InsertRecipe, type Ingredient, recipeCategories, measurementUnits } from "@shared/schema";
@@ -48,6 +48,7 @@ interface AddRecipeWithIngredientsDialogProps {
   onSubmit: (data: InsertRecipe, ingredients: RecipeIngredientRow[]) => void;
   ingredients: Ingredient[];
   isLoading?: boolean;
+  editingRecipe?: any;
 }
 
 export function AddRecipeWithIngredientsDialog({
@@ -56,6 +57,7 @@ export function AddRecipeWithIngredientsDialog({
   onSubmit,
   ingredients,
   isLoading,
+  editingRecipe,
 }: AddRecipeWithIngredientsDialogProps) {
   const form = useForm<InsertRecipe>({
     resolver: zodResolver(insertRecipeSchema),
@@ -73,6 +75,27 @@ export function AddRecipeWithIngredientsDialog({
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState("units");
+
+  useEffect(() => {
+    if (open && editingRecipe) {
+      form.reset({
+        name: editingRecipe.name,
+        description: editingRecipe.description || "",
+        category: editingRecipe.category,
+        servings: editingRecipe.servings,
+        menuPrice: editingRecipe.menuPrice || undefined,
+      });
+    } else if (open && !editingRecipe) {
+      form.reset({
+        name: "",
+        description: "",
+        category: "other",
+        servings: 1,
+        menuPrice: undefined,
+      });
+      setRecipeIngredients([]);
+    }
+  }, [open, editingRecipe, form]);
 
   // Get available ingredients (not already added)
   const usedIngredientIds = recipeIngredients.map((ri) => ri.ingredientId);
@@ -179,9 +202,9 @@ export function AddRecipeWithIngredientsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Recipe</DialogTitle>
+          <DialogTitle>{editingRecipe ? "Edit Recipe" : "Add New Recipe"}</DialogTitle>
           <DialogDescription>
-            Enter recipe details and add ingredients all in one place
+            {editingRecipe ? "Update recipe details and ingredients" : "Enter recipe details and add ingredients all in one place"}
           </DialogDescription>
         </DialogHeader>
 

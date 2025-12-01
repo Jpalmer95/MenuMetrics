@@ -377,6 +377,7 @@ export default function RecipesPage() {
         onSubmit={handleSubmit}
         ingredients={ingredients}
         isLoading={createMutation.isPending || updateMutation.isPending}
+        editingRecipe={editingRecipe}
       />
 
       <ImportRecipeDialog
