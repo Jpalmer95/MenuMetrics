@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X } from "lucide-react";
+import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X, Layers } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,10 +19,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Recipe } from "@shared/schema";
-import { calculateSuggestedPrice, calculateTrueCost } from "@shared/schema";
+import type { Recipe, CategoryPricingSettings, RecipeCategory } from "@shared/schema";
+import { calculateSuggestedPrice, calculateTrueCost, recipeCategories, recipeCategoryLabels } from "@shared/schema";
+
+type CategorySettings = Record<RecipeCategory, { wastePercentage: number; targetMargin: number }>;
+
+const defaultCategorySettings: CategorySettings = {
+  food: { wastePercentage: 15, targetMargin: 80 },
+  drink: { wastePercentage: 10, targetMargin: 85 },
+  seasonal_food: { wastePercentage: 20, targetMargin: 75 },
+  seasonal_drink: { wastePercentage: 15, targetMargin: 80 },
+  other: { wastePercentage: 15, targetMargin: 80 },
+};
 
 export default function PricingPlaygroundPage() {
   const { toast } = useToast();
@@ -36,10 +47,31 @@ export default function PricingPlaygroundPage() {
   const [globalTargetMargin, setGlobalTargetMargin] = useState<number>(80);
   const [minimumMarginThreshold, setMinimumMarginThreshold] = useState<number>(80);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [categorySettings, setCategorySettings] = useState<CategorySettings>(defaultCategorySettings);
 
   const { data: recipes = [], isLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
   });
+
+  const { data: savedCategorySettings = [] } = useQuery<CategoryPricingSettings[]>({
+    queryKey: ["/api/pricing-settings"],
+  });
+
+  // Update local category settings when saved settings are fetched
+  useEffect(() => {
+    if (savedCategorySettings.length > 0) {
+      const updated = { ...defaultCategorySettings };
+      savedCategorySettings.forEach(setting => {
+        if (setting.category in updated) {
+          updated[setting.category as RecipeCategory] = {
+            wastePercentage: setting.wastePercentage,
+            targetMargin: setting.targetMargin,
+          };
+        }
+      });
+      setCategorySettings(updated);
+    }
+  }, [savedCategorySettings]);
 
   const selectedRecipe = useMemo(() => {
     return recipes.find(r => r.id === selectedRecipeId);
@@ -158,6 +190,53 @@ export default function PricingPlaygroundPage() {
     },
   });
 
+  const applyCategorySettingsMutation = useMutation({
+    mutationFn: async ({ category, wastePercentage, targetMargin }: { 
+      category: RecipeCategory | "global"; 
+      wastePercentage: number; 
+      targetMargin: number 
+    }) => {
+      const response = await apiRequest("POST", "/api/pricing-settings/apply", {
+        category,
+        wastePercentage,
+        targetMargin,
+      });
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-settings"] });
+      const categoryLabel = variables.category === "global" 
+        ? "all recipes" 
+        : recipeCategoryLabels[variables.category as RecipeCategory];
+      toast({
+        title: "Settings Applied",
+        description: `Updated ${data.updatedCount} ${categoryLabel} with ${variables.wastePercentage}% waste and ${variables.targetMargin}% target margin.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to apply category settings.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCategorySettingChange = (category: RecipeCategory, field: "wastePercentage" | "targetMargin", value: number) => {
+    setCategorySettings(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [field]: value,
+      },
+    }));
+  };
+
+  const getRecipeCountByCategory = (category: RecipeCategory): number => {
+    return recipes.filter(r => r.category === category).length;
+  };
+
   const recipesWithMetrics = useMemo(() => {
     return recipes.map(recipe => {
       const recipeTrueCost = calculateTrueCost(
@@ -250,140 +329,222 @@ export default function PricingPlaygroundPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5" />
-            Global Settings
+            Pricing Settings
           </CardTitle>
           <CardDescription>
-            Apply settings across all recipes and set margin thresholds
+            Apply waste and margin settings globally or by category
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help underline decoration-dotted">Global Waste %</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Set a uniform waste percentage for all recipes. Useful when you want to apply the same shrinkage rate across your entire menu.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </Label>
-                  <span className="font-medium tabular-nums" data-testid="text-global-waste">{globalWaste}%</span>
-                </div>
-                <Slider
-                  value={[globalWaste]}
-                  onValueChange={(values) => setGlobalWaste(values[0])}
-                  max={50}
-                  step={1}
-                  data-testid="slider-global-waste"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>0% (No waste)</span>
-                  <span>50% (Heavy waste)</span>
-                </div>
-              </div>
-              <Button
-                onClick={() => applyGlobalWasteMutation.mutate(globalWaste)}
-                disabled={applyGlobalWasteMutation.isPending || recipes.length === 0}
-                className="w-full"
-                data-testid="button-apply-global-waste"
-              >
-                <Wand2 className="h-4 w-4 mr-2" />
-                {applyGlobalWasteMutation.isPending 
-                  ? "Applying..." 
-                  : `Apply ${globalWaste}% Waste to All Recipes`
-                }
-              </Button>
+          <Tabs defaultValue="global" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="global" data-testid="tab-global">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Global
+              </TabsTrigger>
+              <TabsTrigger value="category" data-testid="tab-category">
+                <Layers className="h-4 w-4 mr-2" />
+                By Category
+              </TabsTrigger>
+            </TabsList>
 
-              <div className="space-y-2 pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help underline decoration-dotted">Global Target Margin %</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Set a uniform target profit margin for all recipes. This will recalculate suggested prices across your entire menu based on this target.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </Label>
-                  <span className="font-medium tabular-nums" data-testid="text-global-margin">{globalTargetMargin}%</span>
-                </div>
-                <Slider
-                  value={[globalTargetMargin]}
-                  onValueChange={(values) => setGlobalTargetMargin(values[0])}
-                  max={95}
-                  min={10}
-                  step={1}
-                  data-testid="slider-global-margin"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>10% (Low margin)</span>
-                  <span>95% (High margin)</span>
-                </div>
-              </div>
-              <Button
-                onClick={() => applyGlobalTargetMarginMutation.mutate(globalTargetMargin)}
-                disabled={applyGlobalTargetMarginMutation.isPending || recipes.length === 0}
-                className="w-full"
-                data-testid="button-apply-global-margin"
-              >
-                <Wand2 className="h-4 w-4 mr-2" />
-                {applyGlobalTargetMarginMutation.isPending 
-                  ? "Applying..." 
-                  : `Apply ${globalTargetMargin}% Margin to All Recipes`
-                }
-              </Button>
-            </div>
+            <TabsContent value="global" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help underline decoration-dotted">Global Waste %</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Set a uniform waste percentage for all recipes. Useful when you want to apply the same shrinkage rate across your entire menu.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Label>
+                      <span className="font-medium tabular-nums" data-testid="text-global-waste">{globalWaste}%</span>
+                    </div>
+                    <Slider
+                      value={[globalWaste]}
+                      onValueChange={(values) => setGlobalWaste(values[0])}
+                      max={50}
+                      step={1}
+                      data-testid="slider-global-waste"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>0% (No waste)</span>
+                      <span>50% (Heavy waste)</span>
+                    </div>
+                  </div>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help underline decoration-dotted">Minimum Margin Threshold</span>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>Items with margins below this threshold will be flagged in the overview table. Use this to quickly identify underperforming menu items.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </Label>
-                  <span className="font-medium tabular-nums" data-testid="text-min-margin-threshold">{minimumMarginThreshold}%</span>
+                  <div className="space-y-2 pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help underline decoration-dotted">Global Target Margin %</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Set a uniform target profit margin for all recipes. This will recalculate suggested prices across your entire menu based on this target.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Label>
+                      <span className="font-medium tabular-nums" data-testid="text-global-margin">{globalTargetMargin}%</span>
+                    </div>
+                    <Slider
+                      value={[globalTargetMargin]}
+                      onValueChange={(values) => setGlobalTargetMargin(values[0])}
+                      max={95}
+                      min={10}
+                      step={1}
+                      data-testid="slider-global-margin"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>10% (Low margin)</span>
+                      <span>95% (High margin)</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => applyCategorySettingsMutation.mutate({
+                      category: "global",
+                      wastePercentage: globalWaste,
+                      targetMargin: globalTargetMargin,
+                    })}
+                    disabled={applyCategorySettingsMutation.isPending || recipes.length === 0}
+                    className="w-full"
+                    data-testid="button-apply-global-settings"
+                  >
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    {applyCategorySettingsMutation.isPending 
+                      ? "Applying..." 
+                      : `Apply to All ${recipes.length} Recipes`
+                    }
+                  </Button>
                 </div>
-                <Slider
-                  value={[minimumMarginThreshold]}
-                  onValueChange={(values) => setMinimumMarginThreshold(values[0])}
-                  max={95}
-                  min={10}
-                  step={5}
-                  data-testid="slider-min-margin"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>10% (Low)</span>
-                  <span>95% (High)</span>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help underline decoration-dotted">Minimum Margin Threshold</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Items with margins below this threshold will be flagged in the overview table. Use this to quickly identify underperforming menu items.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Label>
+                      <span className="font-medium tabular-nums" data-testid="text-min-margin-threshold">{minimumMarginThreshold}%</span>
+                    </div>
+                    <Slider
+                      value={[minimumMarginThreshold]}
+                      onValueChange={(values) => setMinimumMarginThreshold(values[0])}
+                      max={95}
+                      min={10}
+                      step={5}
+                      data-testid="slider-min-margin"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>10% (Low)</span>
+                      <span>95% (High)</span>
+                    </div>
+                  </div>
+                  {flaggedRecipesCount > 0 ? (
+                    <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <span className="text-sm text-red-700 dark:text-red-400">
+                        {flaggedRecipesCount} {flaggedRecipesCount === 1 ? "recipe" : "recipes"} below {minimumMarginThreshold}% margin
+                      </span>
+                    </div>
+                  ) : recipes.length > 0 ? (
+                    <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      <Check className="h-4 w-4 text-green-600" />
+                      <span className="text-sm text-green-700 dark:text-green-400">
+                        All priced recipes meet minimum margin threshold
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
-              {flaggedRecipesCount > 0 ? (
-                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                  <span className="text-sm text-red-700">
-                    {flaggedRecipesCount} {flaggedRecipesCount === 1 ? "recipe" : "recipes"} below {minimumMarginThreshold}% margin
-                  </span>
-                </div>
-              ) : recipes.length > 0 ? (
-                <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                  <Check className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-700">
-                    All priced recipes meet minimum margin threshold
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </div>
+            </TabsContent>
+
+            <TabsContent value="category" className="space-y-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Set different waste and margin targets for each recipe category. Changes are applied when you click the button for each category.
+              </p>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {recipeCategories.map((category) => {
+                  const settings = categorySettings[category];
+                  const recipeCount = getRecipeCountByCategory(category);
+                  return (
+                    <Card key={category} className="relative">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center justify-between gap-2">
+                          <span>{recipeCategoryLabels[category]}</span>
+                          <Badge variant="secondary" className="text-xs" data-testid={`badge-count-${category}`}>
+                            {recipeCount} {recipeCount === 1 ? "recipe" : "recipes"}
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm">Waste %</Label>
+                            <span className="text-sm font-medium tabular-nums" data-testid={`text-waste-${category}`}>
+                              {settings.wastePercentage}%
+                            </span>
+                          </div>
+                          <Slider
+                            value={[settings.wastePercentage]}
+                            onValueChange={(values) => handleCategorySettingChange(category, "wastePercentage", values[0])}
+                            max={50}
+                            step={1}
+                            data-testid={`slider-waste-${category}`}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm">Target Margin %</Label>
+                            <span className="text-sm font-medium tabular-nums" data-testid={`text-margin-${category}`}>
+                              {settings.targetMargin}%
+                            </span>
+                          </div>
+                          <Slider
+                            value={[settings.targetMargin]}
+                            onValueChange={(values) => handleCategorySettingChange(category, "targetMargin", values[0])}
+                            max={95}
+                            min={10}
+                            step={1}
+                            data-testid={`slider-margin-${category}`}
+                          />
+                        </div>
+                        <Button
+                          onClick={() => applyCategorySettingsMutation.mutate({
+                            category,
+                            wastePercentage: settings.wastePercentage,
+                            targetMargin: settings.targetMargin,
+                          })}
+                          disabled={applyCategorySettingsMutation.isPending || recipeCount === 0}
+                          size="sm"
+                          className="w-full"
+                          data-testid={`button-apply-${category}`}
+                        >
+                          <Wand2 className="h-3 w-3 mr-2" />
+                          {applyCategorySettingsMutation.isPending 
+                            ? "Applying..." 
+                            : `Apply to ${recipeCategoryLabels[category]}`
+                          }
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
