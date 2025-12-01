@@ -11,13 +11,21 @@ import type {
   Ingredient,
   RecipeIngredient,
   InsertRecipeIngredient,
+  RecipeCategory,
 } from "@shared/schema";
-import { calculateProfitMargin } from "@shared/schema";
+import { calculateProfitMargin, recipeCategories, recipeCategoryLabels } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { calculateIngredientCost } from "@/lib/unit-conversions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function RecipeDetailPage() {
   const { id } = useParams();
@@ -26,6 +34,7 @@ export default function RecipeDetailPage() {
   
   const [isEditingMenuPrice, setIsEditingMenuPrice] = useState(false);
   const [menuPriceInput, setMenuPriceInput] = useState("");
+  const [isEditingCategory, setIsEditingCategory] = useState(false);
 
   const { data: recipe, isLoading: recipeLoading } = useQuery<RecipeWithIngredients>({
     queryKey: ["/api/recipes", id],
@@ -110,6 +119,27 @@ export default function RecipeDetailPage() {
       toast({
         title: "Error",
         description: "Failed to update menu price",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: (category: RecipeCategory) =>
+      apiRequest("PATCH", `/api/recipes/${id}/category`, { category }),
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setIsEditingCategory(false);
+      toast({
+        title: "Success",
+        description: "Category updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update category",
         variant: "destructive",
       });
     },
@@ -206,8 +236,7 @@ export default function RecipeDetailPage() {
   const costPerServing = recipe.servings > 0 ? totalRecipeCost / recipe.servings : 0;
 
   const profitMargin = calculateProfitMargin(recipe.menuPrice, costPerServing);
-  const categoryDisplay = (recipe?.category || "other").toString().trim();
-  const displayCategory = categoryDisplay && categoryDisplay.length > 0 ? categoryDisplay.charAt(0).toUpperCase() + categoryDisplay.slice(1) : "Other";
+  const displayCategory = recipeCategoryLabels[recipe.category as RecipeCategory] || recipe.category;
 
   return (
     <div className="space-y-6">
@@ -223,9 +252,37 @@ export default function RecipeDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-bold tracking-tight">{recipe.name}</h1>
-            <Badge variant="outline" data-testid="badge-recipe-category">
-              {displayCategory}
-            </Badge>
+            {isEditingCategory ? (
+              <Select
+                defaultValue={recipe.category}
+                onValueChange={(value) => updateCategoryMutation.mutate(value as RecipeCategory)}
+                disabled={updateCategoryMutation.isPending}
+              >
+                <SelectTrigger 
+                  className="h-8 w-[160px]"
+                  data-testid="select-recipe-category"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {recipeCategories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {recipeCategoryLabels[cat]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div 
+                className="flex items-center gap-1 group cursor-pointer"
+                onClick={() => setIsEditingCategory(true)}
+              >
+                <Badge variant="outline" data-testid="badge-recipe-category">
+                  {displayCategory}
+                </Badge>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
           </div>
           {recipe.description && (
             <p className="text-muted-foreground mt-2" data-testid="text-recipe-description">

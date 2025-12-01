@@ -43,7 +43,7 @@ export interface IStorage {
   updateRecipe(id: string, recipe: InsertRecipe, userId: string): Promise<Recipe | undefined>;
   updateRecipePricing(id: string, pricing: UpdateRecipePricing, userId: string): Promise<Recipe | undefined>;
   updateRecipeCategory(id: string, category: string, userId: string): Promise<Recipe | undefined>;
-  duplicateRecipe(id: string, newName: string, userId: string): Promise<Recipe | undefined>;
+  duplicateRecipe(id: string, newName: string, userId: string): Promise<RecipeWithIngredients | undefined>;
   deleteRecipe(id: string, userId: string): Promise<boolean>;
   recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined>;
   
@@ -228,7 +228,7 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
-  async duplicateRecipe(id: string, newName: string, userId: string): Promise<Recipe | undefined> {
+  async duplicateRecipe(id: string, newName: string, userId: string): Promise<RecipeWithIngredients | undefined> {
     const original = await this.getRecipeWithIngredients(id, userId);
     if (!original) return undefined;
 
@@ -252,7 +252,7 @@ export class DatabaseStorage implements IStorage {
       }, userId);
     }
 
-    return await this.getRecipe(newRecipe.id, userId);
+    return await this.getRecipeWithIngredients(newRecipe.id, userId);
   }
 
   async deleteRecipe(id: string, userId: string): Promise<boolean> {
