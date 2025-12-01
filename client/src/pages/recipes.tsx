@@ -33,7 +33,6 @@ export default function RecipesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
-  const [editingRecipe, setEditingRecipe] = useState<Recipe | undefined>();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -238,20 +237,10 @@ export default function RecipesPage() {
   });
 
   const handleSubmit = (data: InsertRecipe, recipeIngredients: RecipeIngredientRow[]) => {
-    if (editingRecipe) {
-      updateMutation.mutate({ id: editingRecipe.id, data });
-    } else {
-      createMutation.mutate({ recipe: data, ingredients: recipeIngredients });
-    }
-  };
-
-  const handleEdit = (recipe: Recipe) => {
-    setEditingRecipe(recipe);
-    setIsFormOpen(true);
+    createMutation.mutate({ recipe: data, ingredients: recipeIngredients });
   };
 
   const handleAddNew = () => {
-    setEditingRecipe(undefined);
     setIsFormOpen(true);
   };
 
@@ -353,7 +342,6 @@ export default function RecipesPage() {
 
       <RecipesTable
         recipes={recipes}
-        onEdit={handleEdit}
         onDelete={(id) => deleteMutation.mutate(id)}
         onAddNew={handleAddNew}
         onImportWithAI={handleImportWithAI}
@@ -370,14 +358,10 @@ export default function RecipesPage() {
 
       <AddRecipeWithIngredientsDialog
         open={isFormOpen}
-        onOpenChange={(open) => {
-          setIsFormOpen(open);
-          if (!open) setEditingRecipe(undefined);
-        }}
+        onOpenChange={setIsFormOpen}
         onSubmit={handleSubmit}
         ingredients={ingredients}
-        isLoading={createMutation.isPending || updateMutation.isPending}
-        editingRecipe={editingRecipe}
+        isLoading={createMutation.isPending}
       />
 
       <ImportRecipeDialog

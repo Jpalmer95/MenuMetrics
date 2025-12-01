@@ -48,7 +48,6 @@ interface AddRecipeWithIngredientsDialogProps {
   onSubmit: (data: InsertRecipe, ingredients: RecipeIngredientRow[]) => void;
   ingredients: Ingredient[];
   isLoading?: boolean;
-  editingRecipe?: any;
 }
 
 export function AddRecipeWithIngredientsDialog({
@@ -57,7 +56,6 @@ export function AddRecipeWithIngredientsDialog({
   onSubmit,
   ingredients,
   isLoading,
-  editingRecipe,
 }: AddRecipeWithIngredientsDialogProps) {
   const form = useForm<InsertRecipe>({
     resolver: zodResolver(insertRecipeSchema),
@@ -77,15 +75,7 @@ export function AddRecipeWithIngredientsDialog({
   const [unit, setUnit] = useState("units");
 
   useEffect(() => {
-    if (open && editingRecipe) {
-      form.reset({
-        name: editingRecipe.name,
-        description: editingRecipe.description || "",
-        category: editingRecipe.category,
-        servings: editingRecipe.servings,
-        menuPrice: editingRecipe.menuPrice || undefined,
-      });
-    } else if (open && !editingRecipe) {
+    if (open) {
       form.reset({
         name: "",
         description: "",
@@ -95,7 +85,7 @@ export function AddRecipeWithIngredientsDialog({
       });
       setRecipeIngredients([]);
     }
-  }, [open, editingRecipe, form]);
+  }, [open, form]);
 
   // Get available ingredients (not already added)
   const usedIngredientIds = recipeIngredients.map((ri) => ri.ingredientId);
@@ -202,9 +192,9 @@ export function AddRecipeWithIngredientsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editingRecipe ? "Edit Recipe" : "Add New Recipe"}</DialogTitle>
+          <DialogTitle>Add New Recipe</DialogTitle>
           <DialogDescription>
-            {editingRecipe ? "Update recipe details and ingredients" : "Enter recipe details and add ingredients all in one place"}
+            Enter recipe details and add ingredients all in one place
           </DialogDescription>
         </DialogHeader>
 

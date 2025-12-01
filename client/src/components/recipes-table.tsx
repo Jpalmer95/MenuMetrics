@@ -37,7 +37,6 @@ import { format } from "date-fns";
 
 interface RecipesTableProps {
   recipes: Recipe[];
-  onEdit: (recipe: Recipe) => void;
   onDelete: (id: string) => void;
   onAddNew: () => void;
   onImportWithAI: () => void;
@@ -54,7 +53,6 @@ interface RecipesTableProps {
 
 export function RecipesTable({
   recipes,
-  onEdit,
   onDelete,
   onAddNew,
   onImportWithAI,
@@ -420,19 +418,6 @@ export function RecipesTable({
                             <TooltipContent>Duplicate recipe</TooltipContent>
                           </Tooltip>
                         )}
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onEdit(recipe)}
-                              data-testid={`button-edit-recipe-${recipe.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit recipe</TooltipContent>
-                        </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
