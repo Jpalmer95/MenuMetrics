@@ -35,6 +35,8 @@ export default function RecipeDetailPage() {
   const [isEditingMenuPrice, setIsEditingMenuPrice] = useState(false);
   const [menuPriceInput, setMenuPriceInput] = useState("");
   const [isEditingCategory, setIsEditingCategory] = useState(false);
+  const [isEditingServings, setIsEditingServings] = useState(false);
+  const [servingsInput, setServingsInput] = useState("");
 
   const { data: recipe, isLoading: recipeLoading } = useQuery<RecipeWithIngredients>({
     queryKey: ["/api/recipes", id],
@@ -145,6 +147,27 @@ export default function RecipeDetailPage() {
     },
   });
 
+  const updateServingsMutation = useMutation({
+    mutationFn: (servings: number) =>
+      apiRequest("PATCH", `/api/recipes/${id}/servings`, { servings }),
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setIsEditingServings(false);
+      toast({
+        title: "Success",
+        description: "Servings updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update servings",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddIngredient = (ingredientId: string, quantity: number, unit: string) => {
     addIngredientMutation.mutate({
       recipeId: id!,
@@ -189,6 +212,29 @@ export default function RecipeDetailPage() {
   const handleCancelEditMenuPrice = () => {
     setIsEditingMenuPrice(false);
     setMenuPriceInput("");
+  };
+
+  const handleStartEditServings = () => {
+    setServingsInput(recipe?.servings?.toString() || "1");
+    setIsEditingServings(true);
+  };
+
+  const handleSaveServings = () => {
+    const value = parseFloat(servingsInput);
+    if (!isNaN(value) && value > 0) {
+      updateServingsMutation.mutate(value);
+    } else {
+      toast({
+        title: "Invalid Servings",
+        description: "Please enter a positive number",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEditServings = () => {
+    setIsEditingServings(false);
+    setServingsInput("");
   };
 
   if (recipeLoading || ingredientsLoading) {
@@ -289,10 +335,59 @@ export default function RecipeDetailPage() {
               {recipe.description}
             </p>
           )}
-          <p className="text-muted-foreground mt-1">
-            {recipe.servings} serving{recipe.servings !== 1 ? "s" : ""} • $
-            {costPerServing.toFixed(2)} per serving
-          </p>
+          <div className="flex items-center gap-3 mt-1">
+            {isEditingServings ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={servingsInput}
+                  onChange={(e) => setServingsInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveServings();
+                    if (e.key === "Escape") handleCancelEditServings();
+                  }}
+                  className="h-8 w-20"
+                  placeholder="1"
+                  autoFocus
+                  data-testid="input-servings"
+                />
+                <span className="text-muted-foreground text-sm">serving{parseFloat(servingsInput) !== 1 ? "s" : ""}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-green-600"
+                  onClick={handleSaveServings}
+                  disabled={updateServingsMutation.isPending}
+                  data-testid="button-save-servings"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  onClick={handleCancelEditServings}
+                  disabled={updateServingsMutation.isPending}
+                  data-testid="button-cancel-servings"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center gap-1 group cursor-pointer text-muted-foreground"
+                onClick={handleStartEditServings}
+              >
+                <span data-testid="text-recipe-servings">
+                  {recipe.servings} serving{recipe.servings !== 1 ? "s" : ""}
+                </span>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
+            <span className="text-muted-foreground">• ${costPerServing.toFixed(2)} per serving</span>
+          </div>
         </div>
       </div>
 

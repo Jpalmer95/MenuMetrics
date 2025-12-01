@@ -571,6 +571,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/recipes/:id/servings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { servings } = req.body;
+      if (typeof servings !== "number" || servings <= 0) {
+        return res.status(400).json({ error: "Servings must be a positive number" });
+      }
+      const recipe = await storage.getRecipeWithIngredients(req.params.id, userId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      const updatedRecipe = await storage.updateRecipe(req.params.id, {
+        ...recipe,
+        servings,
+      }, userId);
+      if (!updatedRecipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      const recipeWithIngredients = await storage.getRecipeWithIngredients(req.params.id, userId);
+      res.json(recipeWithIngredients);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid servings data" });
+    }
+  });
+
   // Category pricing settings routes
   app.get("/api/pricing-settings", isAuthenticated, async (req: any, res) => {
     try {
