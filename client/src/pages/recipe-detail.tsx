@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, DollarSign } from "lucide-react";
+import { ArrowLeft, DollarSign, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { RecipeBuilder } from "@/components/recipe-builder";
 import type {
   Recipe,
@@ -21,6 +23,9 @@ export default function RecipeDetailPage() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  const [isEditingMenuPrice, setIsEditingMenuPrice] = useState(false);
+  const [menuPriceInput, setMenuPriceInput] = useState("");
 
   const { data: recipe, isLoading: recipeLoading } = useQuery<RecipeWithIngredients>({
     queryKey: ["/api/recipes", id],
@@ -89,6 +94,27 @@ export default function RecipeDetailPage() {
     },
   });
 
+  const updateMenuPriceMutation = useMutation({
+    mutationFn: (menuPrice: number | null) =>
+      apiRequest("PATCH", `/api/recipes/${id}/pricing`, { menuPrice }),
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setIsEditingMenuPrice(false);
+      toast({
+        title: "Success",
+        description: "Menu price updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update menu price",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddIngredient = (ingredientId: string, quantity: number, unit: string) => {
     addIngredientMutation.mutate({
       recipeId: id!,
@@ -108,6 +134,31 @@ export default function RecipeDetailPage() {
 
   const handleUpdateUnit = (recipeIngredientId: string, unit: string) => {
     updateUnitMutation.mutate({ recipeIngredientId, unit });
+  };
+
+  const handleStartEditMenuPrice = () => {
+    setMenuPriceInput(recipe?.menuPrice?.toString() || "");
+    setIsEditingMenuPrice(true);
+  };
+
+  const handleSaveMenuPrice = () => {
+    const value = parseFloat(menuPriceInput);
+    if (menuPriceInput === "" || menuPriceInput.trim() === "") {
+      updateMenuPriceMutation.mutate(null);
+    } else if (!isNaN(value) && value >= 0) {
+      updateMenuPriceMutation.mutate(value);
+    } else {
+      toast({
+        title: "Invalid Price",
+        description: "Please enter a valid positive number",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEditMenuPrice = () => {
+    setIsEditingMenuPrice(false);
+    setMenuPriceInput("");
   };
 
   if (recipeLoading || ingredientsLoading) {
@@ -216,18 +267,68 @@ export default function RecipeDetailPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Menu Price
             </CardTitle>
+            {!isEditingMenuPrice && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={handleStartEditMenuPrice}
+                data-testid="button-edit-menu-price"
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
-            {recipe.menuPrice ? (
-              <>
-                <div className="text-2xl font-bold tabular-nums" data-testid="text-recipe-menu-price">
-                  ${recipe.menuPrice.toFixed(2)}
+            {isEditingMenuPrice ? (
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={menuPriceInput}
+                    onChange={(e) => setMenuPriceInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveMenuPrice();
+                      if (e.key === "Escape") handleCancelEditMenuPrice();
+                    }}
+                    className="pl-7 h-8"
+                    placeholder="0.00"
+                    autoFocus
+                    data-testid="input-menu-price"
+                  />
                 </div>
-              </>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-green-600"
+                  onClick={handleSaveMenuPrice}
+                  disabled={updateMenuPriceMutation.isPending}
+                  data-testid="button-save-menu-price"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  onClick={handleCancelEditMenuPrice}
+                  disabled={updateMenuPriceMutation.isPending}
+                  data-testid="button-cancel-menu-price"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : recipe.menuPrice ? (
+              <div className="text-2xl font-bold tabular-nums" data-testid="text-recipe-menu-price">
+                ${recipe.menuPrice.toFixed(2)}
+              </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <Badge variant="secondary" className="text-muted-foreground w-fit" data-testid="badge-no-menu-price">
@@ -235,7 +336,7 @@ export default function RecipeDetailPage() {
                 </Badge>
                 <p className="text-xs text-muted-foreground">
                   <DollarSign className="h-3 w-3 inline mr-1" />
-                  Edit recipe to add
+                  Click edit to add
                 </p>
               </div>
             )}
