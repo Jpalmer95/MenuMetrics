@@ -114,6 +114,9 @@ export function calculateCostPerUnit(
  * Calculate all per-unit costs from purchase data
  * This replicates the HEB spreadsheet breakdown structure
  * @param densityGramsPerMl - Optional density for accurate volume↔weight conversions
+ * @param yieldPercentage - Yield % accounting for inedible portions (peels, cores, etc.)
+ *                          Default 97% (3% waste). For bananas use ~65% (35% peel waste).
+ *                          Formula: Effective Cost = Base Cost ÷ (yieldPercentage / 100)
  */
 export interface CalculatedUnitCosts {
   costPerOunce: number | null;
@@ -131,15 +134,29 @@ export interface CalculatedUnitCosts {
   costPerUnit: number | null;
 }
 
+/**
+ * Applies yield percentage to a cost value
+ * Example: $1.00 at 65% yield = $1.54 effective cost
+ */
+function applyYieldToCost(cost: number | null, yieldPercentage: number): number | null {
+  if (cost === null) return null;
+  // Clamp yield between 1% and 100%
+  const clampedYield = Math.min(Math.max(yieldPercentage, 1), 100);
+  // Effective cost = base cost ÷ (yield / 100)
+  return cost / (clampedYield / 100);
+}
+
 export function calculateAllUnitCosts(
   purchaseQuantity: number,
   purchaseUnit: MeasurementUnit,
   purchaseCost: number,
-  densityGramsPerMl?: number
+  densityGramsPerMl?: number,
+  yieldPercentage: number = 97
 ): CalculatedUnitCosts {
   const options = densityGramsPerMl ? { densityGramsPerMl } : undefined;
   
-  return {
+  // Calculate base costs (before yield adjustment)
+  const baseCosts = {
     costPerOunce: calculateCostPerUnit(purchaseQuantity, purchaseUnit, purchaseCost, "ounces", options),
     costPerGram: calculateCostPerUnit(purchaseQuantity, purchaseUnit, purchaseCost, "grams", options),
     costPerCup: calculateCostPerUnit(purchaseQuantity, purchaseUnit, purchaseCost, "cups", options),
@@ -153,5 +170,22 @@ export function calculateAllUnitCosts(
     costPerQuart: calculateCostPerUnit(purchaseQuantity, purchaseUnit, purchaseCost, "quarts", options),
     costPerGallon: calculateCostPerUnit(purchaseQuantity, purchaseUnit, purchaseCost, "gallons", options),
     costPerUnit: calculateCostPerUnit(purchaseQuantity, purchaseUnit, purchaseCost, "units", options),
+  };
+  
+  // Apply yield percentage to get effective costs
+  return {
+    costPerOunce: applyYieldToCost(baseCosts.costPerOunce, yieldPercentage),
+    costPerGram: applyYieldToCost(baseCosts.costPerGram, yieldPercentage),
+    costPerCup: applyYieldToCost(baseCosts.costPerCup, yieldPercentage),
+    costPerTbsp: applyYieldToCost(baseCosts.costPerTbsp, yieldPercentage),
+    costPerTsp: applyYieldToCost(baseCosts.costPerTsp, yieldPercentage),
+    costPerPound: applyYieldToCost(baseCosts.costPerPound, yieldPercentage),
+    costPerKg: applyYieldToCost(baseCosts.costPerKg, yieldPercentage),
+    costPerLiter: applyYieldToCost(baseCosts.costPerLiter, yieldPercentage),
+    costPerMl: applyYieldToCost(baseCosts.costPerMl, yieldPercentage),
+    costPerPint: applyYieldToCost(baseCosts.costPerPint, yieldPercentage),
+    costPerQuart: applyYieldToCost(baseCosts.costPerQuart, yieldPercentage),
+    costPerGallon: applyYieldToCost(baseCosts.costPerGallon, yieldPercentage),
+    costPerUnit: applyYieldToCost(baseCosts.costPerUnit, yieldPercentage),
   };
 }

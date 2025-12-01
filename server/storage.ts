@@ -105,12 +105,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createIngredient(insertIngredient: InsertIngredient, userId: string): Promise<Ingredient> {
-    // Calculate all per-unit costs from purchase data (with density if provided)
+    // Calculate all per-unit costs from purchase data (with density and yield if provided)
     const unitCosts = calculateAllUnitCosts(
       insertIngredient.purchaseQuantity,
       insertIngredient.purchaseUnit as MeasurementUnit,
       insertIngredient.purchaseCost,
-      insertIngredient.gramsPerMilliliter || undefined
+      insertIngredient.gramsPerMilliliter || undefined,
+      insertIngredient.yieldPercentage ?? 97
     );
     
     const [ingredient] = await db
@@ -125,12 +126,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateIngredient(id: string, insertIngredient: InsertIngredient, userId: string): Promise<Ingredient | undefined> {
-    // Recalculate all per-unit costs from updated purchase data (with density if provided)
+    // Recalculate all per-unit costs from updated purchase data (with density and yield if provided)
     const unitCosts = calculateAllUnitCosts(
       insertIngredient.purchaseQuantity,
       insertIngredient.purchaseUnit as MeasurementUnit,
       insertIngredient.purchaseCost,
-      insertIngredient.gramsPerMilliliter || undefined
+      insertIngredient.gramsPerMilliliter || undefined,
+      insertIngredient.yieldPercentage ?? 97
     );
     
     const [updated] = await db

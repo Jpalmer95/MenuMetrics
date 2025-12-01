@@ -78,6 +78,7 @@ export function IngredientFormDialog({
       pricePerUnit: undefined,
       gramsPerMilliliter: undefined,
       densitySource: undefined,
+      yieldPercentage: 97,
     },
   });
 
@@ -138,6 +139,7 @@ export function IngredientFormDialog({
         pricePerUnit: ingredient.pricePerUnit || undefined,
         gramsPerMilliliter: ingredient.gramsPerMilliliter || undefined,
         densitySource: ingredient.densitySource || undefined,
+        yieldPercentage: ingredient.yieldPercentage ?? 97,
       });
       // Set preset if density matches a known value
       const matchingPreset = DENSITY_PRESETS.find(p => p.density === ingredient.gramsPerMilliliter);
@@ -153,6 +155,7 @@ export function IngredientFormDialog({
         pricePerUnit: undefined,
         gramsPerMilliliter: undefined,
         densitySource: undefined,
+        yieldPercentage: 97,
       });
       setSelectedPreset("");
     }
@@ -458,6 +461,62 @@ export function IngredientFormDialog({
                   )}
                 />
               )}
+            </div>
+
+            {/* Yield Percentage Section */}
+            <div className="space-y-4 rounded-md border p-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Yield Percentage</div>
+                  <div className="text-xs text-muted-foreground">
+                    Accounts for inedible portions (peels, cores, brine, etc.). 
+                    For bananas, use ~65% since ~35% is peel. Default is 97% (3% waste).
+                    This is different from Global Waste % (shrinkage) which accounts for operational losses.
+                  </div>
+                </div>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="yieldPercentage"
+                render={({ field }) => {
+                  const yieldValue = field.value ?? 97;
+                  const wasteValue = 100 - yieldValue;
+                  const costMultiplier = yieldValue > 0 ? (100 / yieldValue).toFixed(3) : "N/A";
+                  
+                  return (
+                    <FormItem>
+                      <FormLabel>Yield % (Usable Portion)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="1"
+                          min="1"
+                          max="100"
+                          placeholder="97"
+                          {...field}
+                          value={field.value ?? 97}
+                          onChange={(e) => {
+                            const value = e.target.value ? parseFloat(e.target.value) : 97;
+                            field.onChange(Math.min(100, Math.max(1, value)));
+                          }}
+                          data-testid="input-yield-percentage"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {wasteValue.toFixed(0)}% waste = {costMultiplier}x cost multiplier
+                        {yieldValue < 97 && (
+                          <span className="ml-1 text-amber-600 dark:text-amber-400">
+                            (higher waste than default)
+                          </span>
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
             </div>
 
             <DialogFooter>

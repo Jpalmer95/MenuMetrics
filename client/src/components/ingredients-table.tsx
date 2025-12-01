@@ -104,6 +104,7 @@ export function IngredientsTable({
       pricePerUnit: ingredient.pricePerUnit ?? undefined,
       gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
       densitySource: ingredient.densitySource ?? undefined,
+      yieldPercentage: ingredient.yieldPercentage ?? 97,
     });
   };
 
@@ -289,6 +290,7 @@ export function IngredientsTable({
               <TableHead className="text-right font-semibold">Per Gram</TableHead>
               <TableHead className="text-right font-semibold">Price Per Unit</TableHead>
               <TableHead className="text-right font-semibold">Density (g/mL)</TableHead>
+              <TableHead className="text-right font-semibold">Yield %</TableHead>
               <TableHead className="font-semibold">Last Updated</TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
@@ -424,6 +426,24 @@ export function IngredientsTable({
                     data-testid="input-new-density"
                   />
                 </TableCell>
+                <TableCell className="text-right">
+                  <Input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="100"
+                    placeholder="97"
+                    value={newIngredient.yieldPercentage !== undefined ? newIngredient.yieldPercentage : 97}
+                    onChange={(e) =>
+                      setNewIngredient({
+                        ...newIngredient,
+                        yieldPercentage: e.target.value ? Math.min(100, Math.max(1, parseFloat(e.target.value))) : 97,
+                      })
+                    }
+                    className="h-8 text-right w-16"
+                    data-testid="input-new-yield"
+                  />
+                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   New
                 </TableCell>
@@ -451,7 +471,7 @@ export function IngredientsTable({
             )}
             {sortedIngredients.length === 0 && !isAddingNew ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
                   {searchTerm
                     ? "No ingredients found matching your search."
                     : "No ingredients yet. Add your first ingredient to get started."}
@@ -507,6 +527,7 @@ export function IngredientsTable({
                               pricePerUnit: ingredient.pricePerUnit ?? undefined,
                               gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
                               densitySource: ingredient.densitySource ?? undefined,
+                              yieldPercentage: ingredient.yieldPercentage ?? 97,
                             });
                           }
                         }}
@@ -635,6 +656,30 @@ export function IngredientsTable({
                             </span>
                           )}
                         </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right" data-testid={`text-yield-${ingredient.id}`}>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step="1"
+                          min="1"
+                          max="100"
+                          placeholder="97"
+                          value={editValues.yieldPercentage !== undefined ? editValues.yieldPercentage : 97}
+                          onChange={(e) =>
+                            setEditValues({
+                              ...editValues,
+                              yieldPercentage: e.target.value ? Math.min(100, Math.max(1, parseFloat(e.target.value))) : 97,
+                            })
+                          }
+                          className="h-8 text-right w-16"
+                          data-testid={`input-edit-yield-${ingredient.id}`}
+                        />
+                      ) : (
+                        <span className={`text-sm tabular-nums ${(ingredient.yieldPercentage ?? 97) < 97 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                          {ingredient.yieldPercentage ?? 97}%
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
