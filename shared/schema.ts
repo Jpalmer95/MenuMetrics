@@ -143,18 +143,22 @@ export type InsertRecipeIngredient = z.infer<typeof insertRecipeIngredientSchema
 export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 
 export const recipeCategories = [
-  "beverages",
-  "pastries",
-  "sandwiches",
-  "salads",
-  "breakfast",
-  "lunch",
-  "desserts",
-  "snacks",
+  "food",
+  "drink",
+  "seasonal_food",
+  "seasonal_drink",
   "other",
 ] as const;
 
 export type RecipeCategory = typeof recipeCategories[number];
+
+export const recipeCategoryLabels: Record<RecipeCategory, string> = {
+  food: "Food",
+  drink: "Drink",
+  seasonal_food: "Seasonal Food",
+  seasonal_drink: "Seasonal Drink",
+  other: "Other",
+};
 
 export const recipes = pgTable("recipes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

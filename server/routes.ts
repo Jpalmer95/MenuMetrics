@@ -544,6 +544,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/recipes/:id/category", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category } = req.body;
+      if (!category || typeof category !== "string") {
+        return res.status(400).json({ error: "Category is required" });
+      }
+      const recipe = await storage.updateRecipeCategory(req.params.id, category, userId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid category data" });
+    }
+  });
+
+  app.post("/api/recipes/:id/duplicate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { name } = req.body;
+      if (!name || typeof name !== "string" || name.trim().length === 0) {
+        return res.status(400).json({ error: "New recipe name is required" });
+      }
+      const recipe = await storage.duplicateRecipe(req.params.id, name.trim(), userId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.status(201).json(recipe);
+    } catch (error) {
+      console.error("Duplicate recipe error:", error);
+      res.status(500).json({ error: "Failed to duplicate recipe" });
+    }
+  });
+
   app.delete("/api/recipes/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

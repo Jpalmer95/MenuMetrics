@@ -42,6 +42,8 @@ export interface IStorage {
   createRecipe(recipe: InsertRecipe, userId: string): Promise<Recipe>;
   updateRecipe(id: string, recipe: InsertRecipe, userId: string): Promise<Recipe | undefined>;
   updateRecipePricing(id: string, pricing: UpdateRecipePricing, userId: string): Promise<Recipe | undefined>;
+  updateRecipeCategory(id: string, category: string, userId: string): Promise<Recipe | undefined>;
+  duplicateRecipe(id: string, newName: string, userId: string): Promise<Recipe | undefined>;
   deleteRecipe(id: string, userId: string): Promise<boolean>;
   recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined>;
   
@@ -214,6 +216,43 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updated || undefined;
+  }
+
+  async updateRecipeCategory(id: string, category: string, userId: string): Promise<Recipe | undefined> {
+    const [updated] = await db
+      .update(recipes)
+      .set({ category })
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .returning();
+    
+    return updated || undefined;
+  }
+
+  async duplicateRecipe(id: string, newName: string, userId: string): Promise<Recipe | undefined> {
+    const original = await this.getRecipeWithIngredients(id, userId);
+    if (!original) return undefined;
+
+    const newRecipe = await this.createRecipe({
+      name: newName,
+      description: original.description,
+      category: original.category,
+      servings: original.servings,
+      menuPrice: original.menuPrice,
+      wastePercentage: original.wastePercentage,
+      targetMargin: original.targetMargin,
+      consumablesBuffer: original.consumablesBuffer,
+    }, userId);
+
+    for (const ri of original.ingredients) {
+      await this.createRecipeIngredient({
+        recipeId: newRecipe.id,
+        ingredientId: ri.ingredientId,
+        quantity: ri.quantity,
+        unit: ri.unit,
+      }, userId);
+    }
+
+    return await this.getRecipe(newRecipe.id, userId);
   }
 
   async deleteRecipe(id: string, userId: string): Promise<boolean> {
