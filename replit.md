@@ -218,3 +218,18 @@ All AI providers (except HuggingFace) use Replit AI Integrations - no API keys r
   - Manual edits automatically update source to "Manual" and remove sparkle icon
   - Density values immediately apply to recipe cost calculations for cross-family unit conversions
   - Fixed AI prompt to return exact ingredient names for accurate database matching
+
+### December 2025: Recipe Duplication & Category Management
+- **Recipe Duplication**: Easily duplicate recipes with all ingredients and packaging
+  - Duplicate button (copy icon) in recipe table actions column
+  - Dialog prompts for new recipe name (pre-filled with "Original Name (Copy)")
+  - Copies all recipe settings: servings, menu price, waste%, margin, consumables buffer
+  - Copies all ingredients and packaging items from original recipe
+  - Redirects to new recipe detail page after duplication
+  - API endpoint: `POST /api/recipes/:id/duplicate`
+- **Category Management**: Updated categories with human-readable labels
+  - Categories: Food, Drink, Seasonal Food, Seasonal Drink, Other
+  - Inline editing in recipes table with dropdown selector
+  - Inline editing on recipe detail page next to recipe title
+  - Click category badge to edit, pencil icon appears on hover
+  - API endpoint: `PATCH /api/recipes/:id/category`
