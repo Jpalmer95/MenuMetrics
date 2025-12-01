@@ -1,19 +1,32 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { RecipesTable } from "@/components/recipes-table";
 import { AddRecipeWithIngredientsDialog } from "@/components/add-recipe-with-ingredients-dialog";
 import { ImportRecipeDialog } from "@/components/import-recipe-dialog";
 import { BulkImportRecipeDialog } from "@/components/bulk-import-recipe-dialog";
-import type { Recipe, InsertRecipe, Ingredient, RecipeCategory } from "@shared/schema";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import type { Recipe, InsertRecipe, Ingredient, RecipeCategory, RecipeWithIngredients, MeasurementUnit } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { calculateIngredientCost, checkDensityWarning } from "@/lib/unit-conversions";
+import { AlertTriangle } from "lucide-react";
 
 interface RecipeIngredientRow {
   tempId: string;
   ingredientId: string;
   quantity: number;
   unit: string;
+}
+
+interface RecipeIssue {
+  recipeId: string;
+  recipeName: string;
+  issues: Array<{
+    type: "incompatible_unit" | "zero_cost";
+    ingredientName: string;
+    message: string;
+  }>;
 }
 
 export default function RecipesPage() {
@@ -31,6 +44,52 @@ export default function RecipesPage() {
   const { data: ingredients = [] } = useQuery<Ingredient[]>({
     queryKey: ["/api/ingredients"],
   });
+
+  const { data: recipesWithIngredients = [] } = useQuery<RecipeWithIngredients[]>({
+    queryKey: ["/api/recipes/with-ingredients"],
+  });
+
+  const recipesWithIssues = useMemo(() => {
+    const issues: RecipeIssue[] = [];
+
+    for (const recipe of recipesWithIngredients) {
+      const recipeIssues: RecipeIssue["issues"] = [];
+
+      for (const ri of recipe.ingredients) {
+        const ingredient = ri.ingredientDetails;
+        const recipeUnit = ri.unit as MeasurementUnit;
+
+        const warning = checkDensityWarning(ingredient, recipeUnit);
+        if (warning.needsWarning && warning.warningType === "incompatible") {
+          recipeIssues.push({
+            type: "incompatible_unit",
+            ingredientName: ingredient.name,
+            message: `Incompatible units: ${ingredient.purchaseUnit} cannot convert to ${ri.unit}`,
+          });
+          continue;
+        }
+
+        const cost = calculateIngredientCost(ingredient, ri.quantity, recipeUnit);
+        if (cost === 0) {
+          recipeIssues.push({
+            type: "zero_cost",
+            ingredientName: ingredient.name,
+            message: `Cost is $0.00 - check ingredient pricing or unit compatibility`,
+          });
+        }
+      }
+
+      if (recipeIssues.length > 0) {
+        issues.push({
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          issues: recipeIssues,
+        });
+      }
+    }
+
+    return issues;
+  }, [recipesWithIngredients]);
 
   const createMutation = useMutation<Recipe, Error, { recipe: InsertRecipe; ingredients: RecipeIngredientRow[] }>({
     mutationFn: async ({ recipe, ingredients: recipeIngredients }) => {
@@ -51,6 +110,7 @@ export default function RecipesPage() {
     },
     onSuccess: (newRecipe: Recipe) => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes/with-ingredients"] });
       setIsFormOpen(false);
       setLocation(`/recipes/${newRecipe.id}`);
       toast({
@@ -74,6 +134,7 @@ export default function RecipesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes/with-ingredients"] });
       setIsFormOpen(false);
       setEditingRecipe(undefined);
       toast({
@@ -96,6 +157,7 @@ export default function RecipesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes/with-ingredients"] });
       toast({
         title: "Success",
         description: "Recipe deleted successfully",
@@ -159,6 +221,7 @@ export default function RecipesPage() {
     },
     onSuccess: (newRecipe) => {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes/with-ingredients"] });
       setLocation(`/recipes/${newRecipe.id}`);
       toast({
         title: "Success",
@@ -203,6 +266,7 @@ export default function RecipesPage() {
       const newRecipe = await response.json();
       
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes/with-ingredients"] });
       setLocation(`/recipes/${newRecipe.id}`);
       toast({
         title: "Recipe Imported",
@@ -257,6 +321,35 @@ export default function RecipesPage() {
           Manage your recipes and track costs automatically
         </p>
       </div>
+
+      {recipesWithIssues.length > 0 && (
+        <Alert variant="destructive" data-testid="alert-recipe-issues">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Recipe Issues Detected</AlertTitle>
+          <AlertDescription>
+            <div className="mt-2 space-y-1">
+              {recipesWithIssues.map((recipe) => (
+                <div key={recipe.recipeId} className="text-sm">
+                  <Link
+                    href={`/recipes/${recipe.recipeId}`}
+                    className="font-medium underline hover:no-underline"
+                    data-testid={`link-recipe-issue-${recipe.recipeId}`}
+                  >
+                    {recipe.recipeName}
+                  </Link>
+                  <span className="text-muted-foreground">
+                    : {recipe.issues.map((issue) => (
+                      <span key={issue.ingredientName} className="mr-2">
+                        {issue.ingredientName} ({issue.type === "incompatible_unit" ? "incompatible units" : "$0.00 cost"})
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <RecipesTable
         recipes={recipes}

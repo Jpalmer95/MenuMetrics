@@ -492,6 +492,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/recipes/with-ingredients", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const recipes = await storage.getAllRecipesWithIngredients(userId);
+      res.json(recipes);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch recipes with ingredients" });
+    }
+  });
+
   app.get("/api/recipes/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

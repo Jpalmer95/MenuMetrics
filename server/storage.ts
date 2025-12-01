@@ -43,6 +43,7 @@ export interface IStorage {
   getRecipe(id: string, userId: string): Promise<Recipe | undefined>;
   getRecipeWithIngredients(id: string, userId: string): Promise<RecipeWithIngredients | undefined>;
   getAllRecipes(userId: string): Promise<Recipe[]>;
+  getAllRecipesWithIngredients(userId: string): Promise<RecipeWithIngredients[]>;
   createRecipe(recipe: InsertRecipe, userId: string): Promise<Recipe>;
   updateRecipe(id: string, recipe: InsertRecipe, userId: string): Promise<Recipe | undefined>;
   updateRecipePricing(id: string, pricing: UpdateRecipePricing, userId: string): Promise<Recipe | undefined>;
@@ -186,6 +187,21 @@ export class DatabaseStorage implements IStorage {
 
   async getAllRecipes(userId: string): Promise<Recipe[]> {
     return await db.select().from(recipes).where(eq(recipes.userId, userId));
+  }
+
+  async getAllRecipesWithIngredients(userId: string): Promise<RecipeWithIngredients[]> {
+    const allRecipes = await this.getAllRecipes(userId);
+    const results: RecipeWithIngredients[] = [];
+    
+    for (const recipe of allRecipes) {
+      const recipeIngs = await this.getRecipeIngredients(recipe.id, userId);
+      results.push({
+        ...recipe,
+        ingredients: recipeIngs,
+      });
+    }
+    
+    return results;
   }
 
   async createRecipe(insertRecipe: InsertRecipe, userId: string): Promise<Recipe> {
