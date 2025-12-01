@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles, Upload, Download, Check, X, DollarSign } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles, Upload, Download, Check, X, DollarSign, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,8 +18,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Recipe } from "@shared/schema";
-import { calculateProfitMargin, recipeCategories } from "@shared/schema";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type { Recipe, RecipeCategory } from "@shared/schema";
+import { calculateProfitMargin, recipeCategories, recipeCategoryLabels } from "@shared/schema";
 import { format } from "date-fns";
 
 interface RecipesTableProps {
@@ -33,6 +46,10 @@ interface RecipesTableProps {
   onViewDetails: (recipe: Recipe) => void;
   onUpdateMenuPrice?: (recipeId: string, menuPrice: number | null) => void;
   isUpdatingMenuPrice?: boolean;
+  onUpdateCategory?: (recipeId: string, category: RecipeCategory) => void;
+  isUpdatingCategory?: boolean;
+  onDuplicate?: (recipeId: string, newName: string) => void;
+  isDuplicating?: boolean;
 }
 
 export function RecipesTable({
@@ -46,6 +63,10 @@ export function RecipesTable({
   onViewDetails,
   onUpdateMenuPrice,
   isUpdatingMenuPrice,
+  onUpdateCategory,
+  isUpdatingCategory,
+  onDuplicate,
+  isDuplicating,
 }: RecipesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -53,6 +74,10 @@ export function RecipesTable({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [priceInputValue, setPriceInputValue] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateRecipe, setDuplicateRecipe] = useState<Recipe | null>(null);
+  const [duplicateName, setDuplicateName] = useState("");
 
   const filteredRecipes = recipes.filter((recipe) => {
     const matchesSearch = recipe.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -125,6 +150,27 @@ export function RecipesTable({
       setEditingPriceId(null);
       setPriceInputValue("");
     }
+  };
+
+  const handleCategoryChange = (recipeId: string, category: RecipeCategory) => {
+    if (!onUpdateCategory) return;
+    onUpdateCategory(recipeId, category);
+    setEditingCategoryId(null);
+  };
+
+  const handleOpenDuplicateDialog = (recipe: Recipe, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDuplicateRecipe(recipe);
+    setDuplicateName(`${recipe.name} (Copy)`);
+    setDuplicateDialogOpen(true);
+  };
+
+  const handleDuplicate = () => {
+    if (!onDuplicate || !duplicateRecipe || !duplicateName.trim()) return;
+    onDuplicate(duplicateRecipe.id, duplicateName.trim());
+    setDuplicateDialogOpen(false);
+    setDuplicateRecipe(null);
+    setDuplicateName("");
   };
 
   return (
@@ -243,10 +289,40 @@ export function RecipesTable({
                         {recipe.name}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" data-testid={`badge-category-${recipe.id}`}>
-                        {recipe.category.charAt(0).toUpperCase() + recipe.category.slice(1)}
-                      </Badge>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {editingCategoryId === recipe.id ? (
+                        <Select
+                          defaultValue={recipe.category}
+                          onValueChange={(value) => handleCategoryChange(recipe.id, value as RecipeCategory)}
+                          disabled={isUpdatingCategory}
+                        >
+                          <SelectTrigger 
+                            className="h-7 w-[140px] text-xs"
+                            data-testid={`select-category-${recipe.id}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {recipeCategories.map((cat) => (
+                              <SelectItem key={cat} value={cat}>
+                                {recipeCategoryLabels[cat]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div 
+                          className="flex items-center gap-1 group cursor-pointer"
+                          onClick={() => onUpdateCategory && setEditingCategoryId(recipe.id)}
+                        >
+                          <Badge variant="outline" data-testid={`badge-category-${recipe.id}`}>
+                            {recipeCategoryLabels[recipe.category as RecipeCategory] || recipe.category}
+                          </Badge>
+                          {onUpdateCategory && (
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-medium">
                       ${recipe.costPerServing.toFixed(2)}
@@ -328,23 +404,48 @@ export function RecipesTable({
                       )}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEdit(recipe)}
-                          data-testid={`button-edit-recipe-${recipe.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDelete(recipe.id)}
-                          data-testid={`button-delete-recipe-${recipe.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {onDuplicate && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => handleOpenDuplicateDialog(recipe, e)}
+                                data-testid={`button-duplicate-recipe-${recipe.id}`}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Duplicate recipe</TooltipContent>
+                          </Tooltip>
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEdit(recipe)}
+                              data-testid={`button-edit-recipe-${recipe.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit recipe</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onDelete(recipe.id)}
+                              data-testid={`button-delete-recipe-${recipe.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete recipe</TooltipContent>
+                        </Tooltip>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -358,6 +459,51 @@ export function RecipesTable({
       <div className="text-sm text-muted-foreground">
         Showing {sortedRecipes.length} of {recipes.length} recipes
       </div>
+
+      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicate Recipe</DialogTitle>
+            <DialogDescription>
+              Create a copy of "{duplicateRecipe?.name}" with all its ingredients and settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium" htmlFor="duplicate-name">
+              New Recipe Name
+            </label>
+            <Input
+              id="duplicate-name"
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              placeholder="Enter new recipe name"
+              className="mt-2"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && duplicateName.trim()) {
+                  handleDuplicate();
+                }
+              }}
+              data-testid="input-duplicate-name"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDuplicateDialogOpen(false)}
+              data-testid="button-cancel-duplicate"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDuplicate}
+              disabled={!duplicateName.trim() || isDuplicating}
+              data-testid="button-confirm-duplicate"
+            >
+              {isDuplicating ? "Duplicating..." : "Duplicate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

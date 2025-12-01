@@ -5,7 +5,7 @@ import { RecipesTable } from "@/components/recipes-table";
 import { AddRecipeWithIngredientsDialog } from "@/components/add-recipe-with-ingredients-dialog";
 import { ImportRecipeDialog } from "@/components/import-recipe-dialog";
 import { BulkImportRecipeDialog } from "@/components/bulk-import-recipe-dialog";
-import type { Recipe, InsertRecipe, Ingredient } from "@shared/schema";
+import type { Recipe, InsertRecipe, Ingredient, RecipeCategory } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
@@ -131,6 +131,49 @@ export default function RecipesPage() {
     },
   });
 
+  const updateCategoryMutation = useMutation<Recipe, Error, { id: string; category: RecipeCategory }>({
+    mutationFn: async ({ id, category }) => {
+      const response = await apiRequest("PATCH", `/api/recipes/${id}/category`, { category });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "Success",
+        description: "Category updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update category",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const duplicateMutation = useMutation<Recipe, Error, { id: string; name: string }>({
+    mutationFn: async ({ id, name }) => {
+      const response = await apiRequest("POST", `/api/recipes/${id}/duplicate`, { name });
+      return await response.json();
+    },
+    onSuccess: (newRecipe) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setLocation(`/recipes/${newRecipe.id}`);
+      toast({
+        title: "Success",
+        description: `Recipe duplicated as "${newRecipe.name}"`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to duplicate recipe",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (data: InsertRecipe, recipeIngredients: RecipeIngredientRow[]) => {
     if (editingRecipe) {
       updateMutation.mutate({ id: editingRecipe.id, data });
@@ -190,6 +233,14 @@ export default function RecipesPage() {
     updateMenuPriceMutation.mutate({ id: recipeId, menuPrice });
   };
 
+  const handleUpdateCategory = (recipeId: string, category: RecipeCategory) => {
+    updateCategoryMutation.mutate({ id: recipeId, category });
+  };
+
+  const handleDuplicate = (recipeId: string, newName: string) => {
+    duplicateMutation.mutate({ id: recipeId, name: newName });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -218,6 +269,10 @@ export default function RecipesPage() {
         onViewDetails={handleViewDetails}
         onUpdateMenuPrice={handleUpdateMenuPrice}
         isUpdatingMenuPrice={updateMenuPriceMutation.isPending}
+        onUpdateCategory={handleUpdateCategory}
+        isUpdatingCategory={updateCategoryMutation.isPending}
+        onDuplicate={handleDuplicate}
+        isDuplicating={duplicateMutation.isPending}
       />
 
       <AddRecipeWithIngredientsDialog
