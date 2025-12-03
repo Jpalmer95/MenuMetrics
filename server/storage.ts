@@ -51,6 +51,7 @@ export interface IStorage {
   updateRecipe(id: string, recipe: InsertRecipe, userId: string): Promise<Recipe | undefined>;
   updateRecipePricing(id: string, pricing: UpdateRecipePricing, userId: string): Promise<Recipe | undefined>;
   updateRecipeCategory(id: string, category: string, userId: string): Promise<Recipe | undefined>;
+  updateRecipeName(id: string, name: string, userId: string): Promise<Recipe | undefined>;
   duplicateRecipe(id: string, newName: string, userId: string): Promise<RecipeWithIngredients | undefined>;
   deleteRecipe(id: string, userId: string): Promise<boolean>;
   recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined>;
@@ -262,6 +263,19 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(recipes)
       .set({ category })
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .returning();
+    
+    return updated || undefined;
+  }
+
+  async updateRecipeName(id: string, name: string, userId: string): Promise<Recipe | undefined> {
+    if (!name || !name.trim()) {
+      return undefined;
+    }
+    const [updated] = await db
+      .update(recipes)
+      .set({ name: name.trim() })
       .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
       .returning();
     

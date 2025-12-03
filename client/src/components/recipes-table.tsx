@@ -47,6 +47,8 @@ interface RecipesTableProps {
   isUpdatingMenuPrice?: boolean;
   onUpdateCategory?: (recipeId: string, category: RecipeCategory) => void;
   isUpdatingCategory?: boolean;
+  onUpdateName?: (recipeId: string, name: string) => void;
+  isUpdatingName?: boolean;
   onDuplicate?: (recipeId: string, newName: string) => void;
   isDuplicating?: boolean;
 }
@@ -63,6 +65,8 @@ export function RecipesTable({
   isUpdatingMenuPrice,
   onUpdateCategory,
   isUpdatingCategory,
+  onUpdateName,
+  isUpdatingName,
   onDuplicate,
   isDuplicating,
 }: RecipesTableProps) {
@@ -73,6 +77,8 @@ export function RecipesTable({
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [priceInputValue, setPriceInputValue] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [nameInputValue, setNameInputValue] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateRecipe, setDuplicateRecipe] = useState<Recipe | null>(null);
   const [duplicateName, setDuplicateName] = useState("");
@@ -178,6 +184,43 @@ export function RecipesTable({
     setDuplicateDialogOpen(false);
     setDuplicateRecipe(null);
     setDuplicateName("");
+  };
+
+  const handleStartEditName = (recipe: Recipe, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingNameId(recipe.id);
+    setNameInputValue(recipe.name);
+  };
+
+  const handleSaveName = (recipeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onUpdateName) return;
+    if (nameInputValue.trim() && nameInputValue !== recipes.find(r => r.id === recipeId)?.name) {
+      onUpdateName(recipeId, nameInputValue.trim());
+    }
+    setEditingNameId(null);
+    setNameInputValue("");
+  };
+
+  const handleCancelEditName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingNameId(null);
+    setNameInputValue("");
+  };
+
+  const handleNameKeyDown = (recipeId: string, e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!onUpdateName) return;
+      if (nameInputValue.trim() && nameInputValue !== recipes.find(r => r.id === recipeId)?.name) {
+        onUpdateName(recipeId, nameInputValue.trim());
+      }
+      setEditingNameId(null);
+      setNameInputValue("");
+    } else if (e.key === "Escape") {
+      setEditingNameId(null);
+      setNameInputValue("");
+    }
   };
 
   return (
@@ -298,11 +341,54 @@ export function RecipesTable({
                     className="hover:bg-muted/30 cursor-pointer"
                     onClick={() => onViewDetails(recipe)}
                   >
-                    <TableCell className="font-medium" data-testid={`text-recipe-name-${recipe.id}`}>
-                      <div className="flex items-center gap-2">
-                        <ChefHat className="h-4 w-4 text-muted-foreground" />
-                        {recipe.name}
-                      </div>
+                    <TableCell className="font-medium" onClick={(e) => e.stopPropagation()} data-testid={`text-recipe-name-${recipe.id}`}>
+                      {editingNameId === recipe.id ? (
+                        <div className="flex items-center gap-1">
+                          <ChefHat className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <Input
+                            type="text"
+                            value={nameInputValue}
+                            onChange={(e) => setNameInputValue(e.target.value)}
+                            onKeyDown={(e) => handleNameKeyDown(recipe.id, e)}
+                            className="h-7 px-2 text-sm flex-1"
+                            placeholder="Recipe name"
+                            autoFocus
+                            disabled={isUpdatingName}
+                            data-testid={`input-recipe-name-${recipe.id}`}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-green-600 flex-shrink-0"
+                            onClick={(e) => handleSaveName(recipe.id, e)}
+                            disabled={isUpdatingName}
+                            data-testid={`button-save-name-${recipe.id}`}
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive flex-shrink-0"
+                            onClick={handleCancelEditName}
+                            disabled={isUpdatingName}
+                            data-testid={`button-cancel-name-${recipe.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div 
+                          className="flex items-center gap-2 group"
+                          onClick={(e) => onUpdateName && handleStartEditName(recipe, e)}
+                        >
+                          <ChefHat className="h-4 w-4 text-muted-foreground" />
+                          <span>{recipe.name}</span>
+                          {onUpdateName && (
+                            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       {editingCategoryId === recipe.id ? (

@@ -571,6 +571,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/recipes/:id/name", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { name } = req.body;
+      if (!name || typeof name !== "string" || name.trim().length === 0) {
+        return res.status(400).json({ error: "Recipe name is required" });
+      }
+      const recipe = await storage.updateRecipeName(req.params.id, name.trim(), userId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid recipe name data" });
+    }
+  });
+
   app.patch("/api/recipes/:id/servings", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

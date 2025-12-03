@@ -213,6 +213,27 @@ export default function RecipesPage() {
     },
   });
 
+  const updateNameMutation = useMutation<Recipe, Error, { id: string; name: string }>({
+    mutationFn: async ({ id, name }) => {
+      const response = await apiRequest("PATCH", `/api/recipes/${id}/name`, { name });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "Success",
+        description: "Recipe name updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update recipe name",
+        variant: "destructive",
+      });
+    },
+  });
+
   const duplicateMutation = useMutation<Recipe, Error, { id: string; name: string }>({
     mutationFn: async ({ id, name }) => {
       const response = await apiRequest("POST", `/api/recipes/${id}/duplicate`, { name });
@@ -290,6 +311,10 @@ export default function RecipesPage() {
     updateCategoryMutation.mutate({ id: recipeId, category });
   };
 
+  const handleUpdateName = (recipeId: string, name: string) => {
+    updateNameMutation.mutate({ id: recipeId, name });
+  };
+
   const handleDuplicate = (recipeId: string, newName: string) => {
     duplicateMutation.mutate({ id: recipeId, name: newName });
   };
@@ -352,6 +377,8 @@ export default function RecipesPage() {
         isUpdatingMenuPrice={updateMenuPriceMutation.isPending}
         onUpdateCategory={handleUpdateCategory}
         isUpdatingCategory={updateCategoryMutation.isPending}
+        onUpdateName={handleUpdateName}
+        isUpdatingName={updateNameMutation.isPending}
         onDuplicate={handleDuplicate}
         isDuplicating={duplicateMutation.isPending}
       />
