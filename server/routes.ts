@@ -588,6 +588,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/recipes/:id/packaging-preset", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { isPackagingPreset } = req.body;
+      if (typeof isPackagingPreset !== "boolean") {
+        return res.status(400).json({ error: "isPackagingPreset must be a boolean" });
+      }
+      const recipe = await storage.updateRecipePackagingPreset(req.params.id, isPackagingPreset, userId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update packaging preset status" });
+    }
+  });
+
   app.patch("/api/recipes/:id/servings", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

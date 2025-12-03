@@ -65,6 +65,7 @@ export function AddRecipeWithIngredientsDialog({
       category: "other",
       servings: 1,
       menuPrice: undefined,
+      isPackagingPreset: false,
     },
   });
 
@@ -82,6 +83,7 @@ export function AddRecipeWithIngredientsDialog({
         category: "other",
         servings: 1,
         menuPrice: undefined,
+        isPackagingPreset: false,
       });
       setRecipeIngredients([]);
     }
@@ -312,6 +314,28 @@ export function AddRecipeWithIngredientsDialog({
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="isPackagingPreset"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>Packaging Preset</FormLabel>
+                        <p className="text-sm text-muted-foreground">Mark this recipe as a reusable packaging template</p>
+                      </div>
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="rounded border-primary"
+                          data-testid="checkbox-packaging-preset"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
               </CardContent>
             </Card>
 

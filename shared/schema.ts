@@ -198,6 +198,7 @@ export const recipes = pgTable("recipes", {
   wastePercentage: real("waste_percentage").notNull().default(0),
   targetMargin: real("target_margin").notNull().default(70),
   consumablesBuffer: real("consumables_buffer").notNull().default(0),
+  isPackagingPreset: boolean("is_packaging_preset").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -214,6 +215,7 @@ export const insertRecipeSchema = createInsertSchema(recipes).omit({
   wastePercentage: z.number().min(0).max(99).optional(),
   targetMargin: z.number().min(1).max(99).optional(),
   consumablesBuffer: z.number().nonnegative().optional(),
+  isPackagingPreset: z.boolean().optional().default(false),
 });
 
 export const updateRecipePricingSchema = z.object({

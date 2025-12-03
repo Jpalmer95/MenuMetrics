@@ -234,6 +234,27 @@ export default function RecipesPage() {
     },
   });
 
+  const updatePackagingPresetMutation = useMutation<Recipe, Error, { id: string; isPackagingPreset: boolean }>({
+    mutationFn: async ({ id, isPackagingPreset }) => {
+      const response = await apiRequest("PATCH", `/api/recipes/${id}/packaging-preset`, { isPackagingPreset });
+      return await response.json();
+    },
+    onSuccess: (recipe) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "Success",
+        description: recipe.isPackagingPreset ? "Marked as packaging preset" : "Unmarked as packaging preset",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update packaging preset status",
+        variant: "destructive",
+      });
+    },
+  });
+
   const duplicateMutation = useMutation<Recipe, Error, { id: string; name: string }>({
     mutationFn: async ({ id, name }) => {
       const response = await apiRequest("POST", `/api/recipes/${id}/duplicate`, { name });
@@ -315,6 +336,10 @@ export default function RecipesPage() {
     updateNameMutation.mutate({ id: recipeId, name });
   };
 
+  const handleTogglePackagingPreset = (recipeId: string, currentValue: boolean) => {
+    updatePackagingPresetMutation.mutate({ id: recipeId, isPackagingPreset: !currentValue });
+  };
+
   const handleDuplicate = (recipeId: string, newName: string) => {
     duplicateMutation.mutate({ id: recipeId, name: newName });
   };
@@ -379,6 +404,8 @@ export default function RecipesPage() {
         isUpdatingCategory={updateCategoryMutation.isPending}
         onUpdateName={handleUpdateName}
         isUpdatingName={updateNameMutation.isPending}
+        onTogglePackagingPreset={handleTogglePackagingPreset}
+        isTogglingPackagingPreset={updatePackagingPresetMutation.isPending}
         onDuplicate={handleDuplicate}
         isDuplicating={duplicateMutation.isPending}
       />

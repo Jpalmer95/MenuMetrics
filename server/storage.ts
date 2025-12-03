@@ -52,6 +52,7 @@ export interface IStorage {
   updateRecipePricing(id: string, pricing: UpdateRecipePricing, userId: string): Promise<Recipe | undefined>;
   updateRecipeCategory(id: string, category: string, userId: string): Promise<Recipe | undefined>;
   updateRecipeName(id: string, name: string, userId: string): Promise<Recipe | undefined>;
+  updateRecipePackagingPreset(id: string, isPackagingPreset: boolean, userId: string): Promise<Recipe | undefined>;
   duplicateRecipe(id: string, newName: string, userId: string): Promise<RecipeWithIngredients | undefined>;
   deleteRecipe(id: string, userId: string): Promise<boolean>;
   recalculateRecipeCost(recipeId: string, userId: string): Promise<Recipe | undefined>;
@@ -282,6 +283,16 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async updateRecipePackagingPreset(id: string, isPackagingPreset: boolean, userId: string): Promise<Recipe | undefined> {
+    const [updated] = await db
+      .update(recipes)
+      .set({ isPackagingPreset })
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .returning();
+    
+    return updated || undefined;
+  }
+
   async duplicateRecipe(id: string, newName: string, userId: string): Promise<RecipeWithIngredients | undefined> {
     const original = await this.getRecipeWithIngredients(id, userId);
     if (!original) return undefined;
@@ -295,6 +306,7 @@ export class DatabaseStorage implements IStorage {
       wastePercentage: original.wastePercentage,
       targetMargin: original.targetMargin,
       consumablesBuffer: original.consumablesBuffer,
+      isPackagingPreset: original.isPackagingPreset,
     }, userId);
 
     for (const ri of original.ingredients) {

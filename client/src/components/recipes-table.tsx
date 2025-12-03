@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles, Upload, Download, Check, X, DollarSign, Copy } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles, Upload, Download, Check, X, DollarSign, Copy, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,6 +49,8 @@ interface RecipesTableProps {
   isUpdatingCategory?: boolean;
   onUpdateName?: (recipeId: string, name: string) => void;
   isUpdatingName?: boolean;
+  onTogglePackagingPreset?: (recipeId: string, currentValue: boolean) => void;
+  isTogglingPackagingPreset?: boolean;
   onDuplicate?: (recipeId: string, newName: string) => void;
   isDuplicating?: boolean;
 }
@@ -67,6 +69,8 @@ export function RecipesTable({
   isUpdatingCategory,
   onUpdateName,
   isUpdatingName,
+  onTogglePackagingPreset,
+  isTogglingPackagingPreset,
   onDuplicate,
   isDuplicating,
 }: RecipesTableProps) {
@@ -384,6 +388,11 @@ export function RecipesTable({
                         >
                           <ChefHat className="h-4 w-4 text-muted-foreground" />
                           <span>{recipe.name}</span>
+                          {recipe.isPackagingPreset && (
+                            <Badge variant="outline" className="text-xs ml-1" data-testid={`badge-packaging-preset-${recipe.id}`}>
+                              Packaging
+                            </Badge>
+                          )}
                           {onUpdateName && (
                             <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                           )}
@@ -506,6 +515,25 @@ export function RecipesTable({
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        {onTogglePackagingPreset && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onTogglePackagingPreset(recipe.id, recipe.isPackagingPreset);
+                                }}
+                                disabled={isTogglingPackagingPreset}
+                                data-testid={`button-toggle-packaging-preset-${recipe.id}`}
+                              >
+                                <Package className={`h-4 w-4 ${recipe.isPackagingPreset ? "text-primary" : "text-muted-foreground"}`} />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{recipe.isPackagingPreset ? "Unmark as packaging preset" : "Mark as packaging preset"}</TooltipContent>
+                          </Tooltip>
+                        )}
                         {onDuplicate && (
                           <Tooltip>
                             <TooltipTrigger asChild>
