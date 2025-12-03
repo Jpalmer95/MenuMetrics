@@ -605,6 +605,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/recipes/:id/base-recipe", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { isBaseRecipe } = req.body;
+      if (typeof isBaseRecipe !== "boolean") {
+        return res.status(400).json({ error: "isBaseRecipe must be a boolean" });
+      }
+      const recipe = await storage.updateRecipeBaseRecipe(req.params.id, isBaseRecipe, userId);
+      if (!recipe) {
+        return res.status(404).json({ error: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update base recipe status" });
+    }
+  });
+
   app.patch("/api/recipes/:id/servings", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

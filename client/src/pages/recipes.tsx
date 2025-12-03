@@ -255,6 +255,27 @@ export default function RecipesPage() {
     },
   });
 
+  const updateBaseRecipeMutation = useMutation<Recipe, Error, { id: string; isBaseRecipe: boolean }>({
+    mutationFn: async ({ id, isBaseRecipe }) => {
+      const response = await apiRequest("PATCH", `/api/recipes/${id}/base-recipe`, { isBaseRecipe });
+      return await response.json();
+    },
+    onSuccess: (recipe) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      toast({
+        title: "Success",
+        description: recipe.isBaseRecipe ? "Marked as base recipe" : "Unmarked as base recipe",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update base recipe status",
+        variant: "destructive",
+      });
+    },
+  });
+
   const duplicateMutation = useMutation<Recipe, Error, { id: string; name: string }>({
     mutationFn: async ({ id, name }) => {
       const response = await apiRequest("POST", `/api/recipes/${id}/duplicate`, { name });
@@ -340,6 +361,10 @@ export default function RecipesPage() {
     updatePackagingPresetMutation.mutate({ id: recipeId, isPackagingPreset: !currentValue });
   };
 
+  const handleToggleBaseRecipe = (recipeId: string, currentValue: boolean) => {
+    updateBaseRecipeMutation.mutate({ id: recipeId, isBaseRecipe: !currentValue });
+  };
+
   const handleDuplicate = (recipeId: string, newName: string) => {
     duplicateMutation.mutate({ id: recipeId, name: newName });
   };
@@ -406,6 +431,8 @@ export default function RecipesPage() {
         isUpdatingName={updateNameMutation.isPending}
         onTogglePackagingPreset={handleTogglePackagingPreset}
         isTogglingPackagingPreset={updatePackagingPresetMutation.isPending}
+        onToggleBaseRecipe={handleToggleBaseRecipe}
+        isTogglingBaseRecipe={updateBaseRecipeMutation.isPending}
         onDuplicate={handleDuplicate}
         isDuplicating={duplicateMutation.isPending}
       />

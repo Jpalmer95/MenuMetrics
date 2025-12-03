@@ -51,6 +51,8 @@ interface RecipesTableProps {
   isUpdatingName?: boolean;
   onTogglePackagingPreset?: (recipeId: string, currentValue: boolean) => void;
   isTogglingPackagingPreset?: boolean;
+  onToggleBaseRecipe?: (recipeId: string, currentValue: boolean) => void;
+  isTogglingBaseRecipe?: boolean;
   onDuplicate?: (recipeId: string, newName: string) => void;
   isDuplicating?: boolean;
 }
@@ -71,6 +73,8 @@ export function RecipesTable({
   isUpdatingName,
   onTogglePackagingPreset,
   isTogglingPackagingPreset,
+  onToggleBaseRecipe,
+  isTogglingBaseRecipe,
   onDuplicate,
   isDuplicating,
 }: RecipesTableProps) {
@@ -393,6 +397,11 @@ export function RecipesTable({
                               Packaging
                             </Badge>
                           )}
+                          {recipe.isBaseRecipe && (
+                            <Badge variant="outline" className="text-xs ml-1" data-testid={`badge-base-recipe-${recipe.id}`}>
+                              Base Recipe
+                            </Badge>
+                          )}
                           {onUpdateName && (
                             <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                           )}
@@ -515,6 +524,25 @@ export function RecipesTable({
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        {onToggleBaseRecipe && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onToggleBaseRecipe(recipe.id, recipe.isBaseRecipe);
+                                }}
+                                disabled={isTogglingBaseRecipe}
+                                data-testid={`button-toggle-base-recipe-${recipe.id}`}
+                              >
+                                <ChefHat className={`h-4 w-4 ${recipe.isBaseRecipe ? "text-primary" : "text-muted-foreground"}`} />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{recipe.isBaseRecipe ? "Unmark as base recipe" : "Mark as base recipe"}</TooltipContent>
+                          </Tooltip>
+                        )}
                         {onTogglePackagingPreset && (
                           <Tooltip>
                             <TooltipTrigger asChild>
