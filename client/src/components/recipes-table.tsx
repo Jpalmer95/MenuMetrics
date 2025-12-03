@@ -68,7 +68,7 @@ export function RecipesTable({
 }: RecipesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [sortColumn, setSortColumn] = useState<keyof Recipe | null>(null);
+  const [sortColumn, setSortColumn] = useState<keyof Recipe | "margin" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [priceInputValue, setPriceInputValue] = useState("");
@@ -85,8 +85,17 @@ export function RecipesTable({
 
   const sortedRecipes = [...filteredRecipes].sort((a, b) => {
     if (!sortColumn) return 0;
-    const aVal = a[sortColumn];
-    const bVal = b[sortColumn];
+    
+    let aVal: any;
+    let bVal: any;
+    
+    if (sortColumn === "margin") {
+      aVal = calculateProfitMargin(a.menuPrice, a.costPerServing);
+      bVal = calculateProfitMargin(b.menuPrice, b.costPerServing);
+    } else {
+      aVal = a[sortColumn];
+      bVal = b[sortColumn];
+    }
     
     if (aVal === null && bVal === null) return 0;
     if (aVal === null) return sortDirection === "asc" ? 1 : -1;
@@ -97,7 +106,7 @@ export function RecipesTable({
     return 0;
   });
 
-  const handleSort = (column: keyof Recipe) => {
+  const handleSort = (column: keyof Recipe | "margin") => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
@@ -259,7 +268,15 @@ export function RecipesTable({
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
-              <TableHead className="text-right font-semibold">Margin %</TableHead>
+              <TableHead
+                className="text-right cursor-pointer font-semibold"
+                onClick={() => handleSort("margin")}
+              >
+                Margin %
+                {sortColumn === "margin" && (
+                  <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                )}
+              </TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
           </TableHeader>
