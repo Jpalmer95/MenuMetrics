@@ -1905,7 +1905,7 @@ Be specific and actionable. Provide concrete examples and price points where rel
     }
   });
 
-  // Dashboard Chatbot - Quick questions about menu and metrics
+  // Dashboard Chatbot - Quick questions about menu and metrics with chart suggestions
   app.post("/api/ai/dashboard-chat", isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1921,6 +1921,8 @@ Be specific and actionable. Provide concrete examples and price points where rel
 
       const ingredients = await storage.getAllIngredients(userId);
       const recipes = await storage.getAllRecipes(userId);
+      const userDashboardConfigs = await storage.getAllDashboardConfigs(userId);
+      const activeChartTypes = userDashboardConfigs.filter(c => c.isVisible).map(c => c.chartType);
       
       // Calculate key metrics
       const totalInventoryValue = ingredients.reduce((sum, i) => sum + (i.costPerUnit * i.quantity), 0);
@@ -1959,9 +1961,29 @@ Be specific and actionable. Provide concrete examples and price points where rel
       const ingredientCategories = [...new Set(ingredients.map(i => i.category))];
       const recipeCategories = [...new Set(recipes.map(r => r.category))];
 
+      // Build chart types info for the AI
+      const chartTypesInfo = Object.entries(dashboardChartLabels).map(([type, info]) => ({
+        type,
+        name: info.name,
+        description: info.description,
+        alreadyOnDashboard: activeChartTypes.includes(type),
+      }));
+
       const systemPrompt = `You are a friendly, helpful assistant for MenuMetrics - a recipe cost analysis app for coffee shops and cafes. You help users understand their menu data and answer questions about their ingredients, recipes, costs, and margins.
 
-Keep responses concise and helpful. Use the metrics data provided to answer questions accurately. If asked about specific items, search the data provided. Be conversational and supportive.`;
+Keep responses concise and helpful. Use the metrics data provided to answer questions accurately. If asked about specific items, search the data provided. Be conversational and supportive.
+
+IMPORTANT: You can suggest adding charts to the user's dashboard! When the user asks about visualizing data, seeing charts, creating graphs, or asks questions that would benefit from a visualization, you should suggest relevant chart types.
+
+When suggesting charts, end your response with a special marker:
+[SUGGEST_CHARTS: chart_type_1, chart_type_2]
+
+Available chart types you can suggest:
+${chartTypesInfo.map(c => `- ${c.type}: ${c.name} - ${c.description}${c.alreadyOnDashboard ? ' (ALREADY ON DASHBOARD)' : ''}`).join('\n')}
+
+Only suggest charts that are NOT already on the user's dashboard. If a chart is already there, mention that instead.
+If the user asks for a chart or visualization, suggest the most relevant one(s).
+If answering a data question that doesn't need a chart, just answer normally without suggesting charts.`;
       
       const prompt = `User question: "${message}"
 
@@ -1982,6 +2004,9 @@ ${highestMarginRecipe ? `- Highest margin item: ${highestMarginRecipe.name} (${(
 ${lowestMarginRecipe ? `- Lowest margin item: ${lowestMarginRecipe.name} (${((lowestMarginRecipe.menuPrice! - (lowestMarginRecipe.costPerServing || 0)) / lowestMarginRecipe.menuPrice! * 100).toFixed(1)}%)` : ''}
 ${mostExpensiveRecipe ? `- Most expensive to make: ${mostExpensiveRecipe.name} ($${(mostExpensiveRecipe.totalCost || 0).toFixed(2)})` : ''}
 
+CHARTS ALREADY ON DASHBOARD:
+${activeChartTypes.length > 0 ? activeChartTypes.map(t => `- ${dashboardChartLabels[t as keyof typeof dashboardChartLabels]?.name || t}`).join('\n') : '- None yet'}
+
 INGREDIENTS LIST:
 ${ingredients.slice(0, 20).map(i => `- ${i.name}: $${i.costPerUnit.toFixed(2)}/${i.purchaseUnit} (${i.category})`).join('\n')}
 ${ingredients.length > 20 ? `... and ${ingredients.length - 20} more` : ''}
@@ -1990,16 +2015,43 @@ RECIPES LIST:
 ${recipes.slice(0, 20).map(r => `- ${r.name}: Cost $${(r.costPerServing || 0).toFixed(2)}${r.menuPrice ? `, Price $${r.menuPrice.toFixed(2)}` : ''} (${r.category})`).join('\n')}
 ${recipes.length > 20 ? `... and ${recipes.length - 20} more` : ''}
 
-Answer the user's question based on this data. Be helpful and specific.`;
+Answer the user's question based on this data. Be helpful and specific.
+If suggesting a chart, remember to add the [SUGGEST_CHARTS: ...] marker at the end of your response.`;
 
-      const response = await callAI({
+      const aiResponse = await callAI({
         provider,
         prompt,
         systemPrompt,
         customApiKey,
       });
 
-      res.json({ response });
+      // Parse the response to extract chart suggestions
+      const chartSuggestMatch = aiResponse.match(/\[SUGGEST_CHARTS:\s*([^\]]+)\]/i);
+      let suggestedCharts: { type: string; name: string; description: string }[] = [];
+      let cleanResponse = aiResponse;
+
+      if (chartSuggestMatch) {
+        // Remove the marker from the response
+        cleanResponse = aiResponse.replace(/\[SUGGEST_CHARTS:\s*[^\]]+\]/i, '').trim();
+        
+        // Parse the suggested chart types
+        const chartTypesStr = chartSuggestMatch[1];
+        const suggestedTypes = chartTypesStr.split(',').map(s => s.trim().toLowerCase());
+        
+        // Map to full chart info, filtering out invalid types and ones already on dashboard
+        suggestedCharts = suggestedTypes
+          .filter(type => dashboardChartLabels[type as keyof typeof dashboardChartLabels] && !activeChartTypes.includes(type))
+          .map(type => ({
+            type,
+            name: dashboardChartLabels[type as keyof typeof dashboardChartLabels].name,
+            description: dashboardChartLabels[type as keyof typeof dashboardChartLabels].description,
+          }));
+      }
+
+      res.json({ 
+        response: cleanResponse,
+        suggestedCharts: suggestedCharts.length > 0 ? suggestedCharts : undefined,
+      });
     } catch (error: any) {
       console.error("Dashboard chat error:", error);
       res.status(500).json({ error: error.message || "Failed to process chat message" });

@@ -34,9 +34,16 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 
+interface SuggestedChart {
+  type: string;
+  name: string;
+  description: string;
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  suggestedCharts?: SuggestedChart[];
 }
 
 interface ChartTypeInfo {
@@ -51,7 +58,7 @@ export default function DashboardPage() {
   const [chatInput, setChatInput] = useState("");
   const [addChartOpen, setAddChartOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: "Hi! I'm your MenuMetrics assistant. Ask me anything about your menu, ingredients, costs, or margins. Try asking:\n\n- What's my highest margin item?\n- How many recipes do I have?\n- What's my average profit margin?" }
+    { role: "assistant", content: "Hi! I'm your MenuMetrics assistant. Ask me anything about your menu, ingredients, costs, or margins. I can also suggest charts for your dashboard!\n\nTry asking:\n- What's my highest margin item?\n- Show me a chart of my food costs\n- Add a margin analysis chart\n- What's my average profit margin?" }
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -67,9 +74,17 @@ export default function DashboardPage() {
     queryKey: ["/api/dashboard-configs"],
   });
 
-  const { data: chartTypes = [] } = useQuery<ChartTypeInfo[]>({
+  const { data: chartTypesData } = useQuery<{ types: string[]; labels: Record<string, { name: string; description: string }> }>({
     queryKey: ["/api/dashboard-chart-types"],
   });
+
+  const chartTypes: ChartTypeInfo[] = chartTypesData 
+    ? chartTypesData.types.map(type => ({
+        type,
+        name: chartTypesData.labels[type]?.name || type,
+        description: chartTypesData.labels[type]?.description || "",
+      }))
+    : [];
 
   const { data: wasteLogs = [] } = useQuery<WasteLog[]>({
     queryKey: ["/api/waste-logs"],
@@ -146,10 +161,14 @@ export default function DashboardPage() {
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
       const res = await apiRequest("POST", "/api/ai/dashboard-chat", { message });
-      return await res.json() as { response: string };
+      return await res.json() as { response: string; suggestedCharts?: SuggestedChart[] };
     },
     onSuccess: (data) => {
-      setMessages(prev => [...prev, { role: "assistant", content: data.response || "I couldn't generate a response." }]);
+      setMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: data.response || "I couldn't generate a response.",
+        suggestedCharts: data.suggestedCharts,
+      }]);
     },
     onError: (error: any) => {
       setMessages(prev => [...prev, { role: "assistant", content: `Sorry, I couldn't process that request. ${error.message || "Please try again."}` }]);
@@ -350,14 +369,40 @@ export default function DashboardPage() {
                     className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                         msg.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted"
                       }`}
                       data-testid={`chat-message-${msg.role}-${i}`}
                     >
-                      {msg.content}
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                      {msg.suggestedCharts && msg.suggestedCharts.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs font-medium opacity-80">Suggested charts:</p>
+                          {msg.suggestedCharts.map((chart) => (
+                            <Button
+                              key={chart.type}
+                              variant="secondary"
+                              size="sm"
+                              className="w-full justify-start text-left h-auto py-2"
+                              onClick={() => {
+                                addChartMutation.mutate(chart.type);
+                                setMessages(prev => prev.map((m, idx) => 
+                                  idx === i 
+                                    ? { ...m, suggestedCharts: m.suggestedCharts?.filter(c => c.type !== chart.type) }
+                                    : m
+                                ));
+                              }}
+                              disabled={addChartMutation.isPending}
+                              data-testid={`button-add-suggested-chart-${chart.type}`}
+                            >
+                              <Plus className="h-3 w-3 mr-2 flex-shrink-0" />
+                              <span className="truncate">{chart.name}</span>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
