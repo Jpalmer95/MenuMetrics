@@ -174,6 +174,12 @@ function AppContent() {
       <main className={!isLoading && isAuthenticated ? "container mx-auto px-4 sm:px-6 lg:px-8 py-8" : ""}>
         <Router isAuthenticated={isAuthenticated} isLoading={isLoading} />
       </main>
+
+      <footer className="border-t bg-background/50 mt-8">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground" data-testid="text-footer">
+          Built by Jonathan Korstad in Replit, 2025
+        </div>
+      </footer>
     </div>
   );
 }
