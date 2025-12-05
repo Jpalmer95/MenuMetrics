@@ -516,3 +516,65 @@ export const recipeSubIngredientsRelations = relations(recipeSubIngredients, ({ 
     references: [recipes.id],
   }),
 }));
+
+// Dashboard chart types available
+export const dashboardChartTypes = [
+  "most_expensive_recipes",
+  "cost_efficient_recipes",
+  "ingredients_by_category",
+  "margin_analysis",
+  "food_cost_percentage",
+  "menu_engineering_matrix",
+  "top_revenue_drivers",
+  "waste_impact",
+  "inventory_value",
+  "ingredient_price_trends",
+  "profit_margin_distribution",
+  "category_performance",
+] as const;
+
+export type DashboardChartType = typeof dashboardChartTypes[number];
+
+export const dashboardChartLabels: Record<DashboardChartType, { name: string; description: string }> = {
+  most_expensive_recipes: { name: "Most Expensive Recipes", description: "Recipes with highest cost per serving" },
+  cost_efficient_recipes: { name: "Cost-Efficient Recipes", description: "Recipes with lowest cost per serving" },
+  ingredients_by_category: { name: "Ingredients by Category", description: "Distribution of inventory by category" },
+  margin_analysis: { name: "Margin Analysis", description: "Most profitable items by dollar per unit" },
+  food_cost_percentage: { name: "Food Cost %", description: "Recipes by food cost percentage (target: 28-35%)" },
+  menu_engineering_matrix: { name: "Menu Engineering Matrix", description: "Stars, Puzzles, Plowhorses, Dogs classification" },
+  top_revenue_drivers: { name: "Top Revenue Drivers", description: "Items generating most total profit" },
+  waste_impact: { name: "Waste Impact", description: "Money lost to waste by category" },
+  inventory_value: { name: "Inventory Value", description: "Current stock value by category" },
+  ingredient_price_trends: { name: "Ingredient Trends", description: "Track ingredient cost changes over time" },
+  profit_margin_distribution: { name: "Profit Margin Distribution", description: "Distribution of profit margins across menu" },
+  category_performance: { name: "Category Performance", description: "Compare performance across recipe categories" },
+};
+
+// Dashboard configuration table - stores user's dashboard layout
+export const dashboardConfigs = pgTable("dashboard_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  chartType: text("chart_type").notNull(), // one of dashboardChartTypes
+  position: real("position").notNull().default(0), // Order position on dashboard
+  width: text("width").notNull().default("half"), // "half" or "full"
+  isVisible: boolean("is_visible").notNull().default(true),
+  customConfig: jsonb("custom_config"), // For AI-generated charts, stores chart configuration
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertDashboardConfigSchema = createInsertSchema(dashboardConfigs).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  chartType: z.string(),
+  position: z.number().nonnegative().optional(),
+  width: z.enum(["half", "full"]).optional(),
+  isVisible: z.boolean().optional(),
+  customConfig: z.any().optional(),
+});
+
+export type InsertDashboardConfig = z.infer<typeof insertDashboardConfigSchema>;
+export type DashboardConfig = typeof dashboardConfigs.$inferSelect;
