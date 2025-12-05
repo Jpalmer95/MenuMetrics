@@ -46,7 +46,18 @@ Preferred communication style: Simple, everyday language.
 - **Google Gemini**: Alternative AI provider.
 - **Grok (via OpenRouter)**: Additional AI model access.
 - **HuggingFace**: Custom model support with user-provided API token.
-**AI Features**: Recipe idea generation, menu pricing strategy, recipe import from text/image, AI density estimation, structured JSON output, provider selection, security, and retry logic.
+
+**AI Business Assistant** (Four Specialized Tools):
+1. **Recipe Creator**: Generates recipes using actual inventory, shows ingredient matching (what you have vs. need), estimates costs and suggests pricing. One-click to add approved recipes.
+2. **Seasonal Planner**: Suggests seasonal/holiday menu items based on current inventory, targets specific customer segments, estimates margins.
+3. **Pricing Strategist**: Analyzes menu pricing, identifies underpriced/overpriced items, provides competitive positioning recommendations.
+4. **Business Advisor**: Location-aware strategy advice, premium product opportunities, revenue growth tactics tailored to business type.
+
+**AI Safety Features**:
+- Read-only context: AI receives inventory/recipes/pricing as context but cannot directly modify existing data.
+- Creation-only endpoints: AI routes only support POST for creating new items (no DELETE or UPDATE for existing data).
+- Explicit user approval: All AI-generated recipes require button click to add.
+- Structured JSON validation: All AI outputs validated through Zod schemas before processing.
 
 **Third-Party Libraries**:
 - **XLSX**: Excel file parsing and generation.

@@ -16,12 +16,23 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Settings as SettingsIcon, Key, Sparkles } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-type AIProvider = "openai" | "gemini" | "grok" | "huggingface";
+type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface";
 
 interface AISettings {
   aiProvider?: string | null;
   huggingfaceToken?: string | null;
 }
+
+const providerOptions = [
+  { value: "openai", label: "OpenAI GPT-5", description: "Latest GPT model for general tasks", replit: true },
+  { value: "gemini", label: "Google Gemini 2.5 Flash", description: "Fast and cost-effective", replit: true },
+  { value: "claude", label: "Claude Haiku (Anthropic)", description: "Excellent for detailed analysis", replit: true },
+  { value: "llama", label: "Llama 3.3 70B (Meta)", description: "Open-source, high quality", replit: true },
+  { value: "mistral", label: "Mistral Large", description: "European AI leader", replit: true },
+  { value: "grok", label: "Grok (xAI)", description: "xAI's conversational model", replit: true },
+  { value: "deepseek", label: "DeepSeek V3", description: "Chinese AI powerhouse", replit: true },
+  { value: "huggingface", label: "HuggingFace (Custom)", description: "Bring your own API key", replit: false },
+];
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -106,10 +117,14 @@ export default function SettingsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="openai">OpenAI (GPT-5) - Replit AI Integrations</SelectItem>
-                  <SelectItem value="gemini">Google Gemini (2.5 Flash) - Replit AI Integrations</SelectItem>
-                  <SelectItem value="grok">Grok (xAI) - Replit AI Integrations</SelectItem>
-                  <SelectItem value="huggingface">HuggingFace (Llama 3.3 70B) - Custom API Key</SelectItem>
+                  {providerOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col">
+                        <span>{option.label}</span>
+                        <span className="text-xs text-muted-foreground">{option.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -117,7 +132,7 @@ export default function SettingsPage() {
             {!isHuggingFace && (
               <Alert>
                 <AlertDescription>
-                  <strong>{aiProvider === "openai" ? "OpenAI" : aiProvider === "gemini" ? "Gemini" : "Grok"}</strong> is powered by Replit AI Integrations.
+                  <strong>{providerOptions.find(p => p.value === aiProvider)?.label}</strong> is powered by Replit AI Integrations.
                   No API key required - charges will be billed to your Replit credits.
                 </AlertDescription>
               </Alert>

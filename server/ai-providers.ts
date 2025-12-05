@@ -3,10 +3,30 @@ import { GoogleGenAI } from "@google/genai";
 import pRetry from "p-retry";
 
 // AI Provider Integration using Replit AI Integrations
-// OpenAI, Gemini, and OpenRouter (for Grok) are available via Replit AI Integrations
+// OpenAI, Gemini, and OpenRouter (for various models) are available via Replit AI Integrations
 // No API keys required - charges billed to Replit credits
 
-export type AIProvider = "openai" | "gemini" | "grok" | "huggingface";
+export type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface";
+
+// OpenRouter model mappings for different providers (verified from OpenRouter API)
+export const openRouterModels: Record<string, string> = {
+  "grok": "x-ai/grok-4.1-fast",
+  "claude": "anthropic/claude-haiku-4.5",
+  "llama": "meta-llama/llama-3.3-70b-instruct",
+  "mistral": "mistralai/mistral-large-2512",
+  "deepseek": "deepseek/deepseek-v3.2",
+};
+
+export const providerDisplayNames: Record<string, string> = {
+  "openai": "OpenAI GPT-5",
+  "gemini": "Google Gemini 2.5 Flash",
+  "grok": "Grok (xAI)",
+  "claude": "Claude Haiku (Anthropic)",
+  "llama": "Llama 3.3 70B (Meta)",
+  "mistral": "Mistral Large",
+  "deepseek": "DeepSeek V3",
+  "huggingface": "HuggingFace (Custom)",
+};
 
 interface AIRequest {
   provider: AIProvider;
@@ -36,7 +56,11 @@ export async function callAI(request: AIRequest): Promise<string> {
           case "gemini":
             return await callGemini(request);
           case "grok":
-            return await callGrok(request);
+          case "claude":
+          case "llama":
+          case "mistral":
+          case "deepseek":
+            return await callOpenRouter(request);
           case "huggingface":
             return await callHuggingFace(request);
           default:
@@ -136,8 +160,9 @@ async function callGemini(request: AIRequest): Promise<string> {
   return response.text || "";
 }
 
-async function callGrok(request: AIRequest): Promise<string> {
-  // Using Replit AI Integrations for OpenRouter (Grok) - no API key required
+async function callOpenRouter(request: AIRequest): Promise<string> {
+  // Using Replit AI Integrations for OpenRouter - no API key required
+  // Supports: Grok, Claude, Llama, Mistral, DeepSeek and more
   const client = new OpenAI({
     baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL,
     apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
@@ -149,8 +174,11 @@ async function callGrok(request: AIRequest): Promise<string> {
   }
   messages.push({ role: "user", content: request.prompt });
 
+  // Get the correct model for this provider
+  const model = openRouterModels[request.provider] || "x-ai/grok-2-1212";
+
   const response = await client.chat.completions.create({
-    model: "x-ai/grok-2-1212",
+    model,
     messages,
     max_tokens: 8192,
   });

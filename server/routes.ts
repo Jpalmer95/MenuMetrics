@@ -1342,7 +1342,7 @@ Rules:
   app.post("/api/ai/recipe-ideas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { customPrompt } = req.body;
+      const { customPrompt, includeIngredientMatching } = req.body;
       
       // Get AI provider settings from database
       const settings = await storage.getAISettings(userId);
@@ -1351,6 +1351,7 @@ Rules:
 
       // Get all ingredients for context
       const ingredients = await storage.getAllIngredients(userId);
+      const ingredientNames = ingredients.map(i => i.name.toLowerCase());
       
       const ingredientList = ingredients
         .map(i => `${i.name} (${i.category}) - $${i.purchaseCost.toFixed(2)} for ${i.purchaseQuantity} ${i.purchaseUnit}`)
@@ -1373,16 +1374,24 @@ Respond with a JSON array where each recipe object has:
   "description": "Brief description",
   "category": "one of: espresso_drinks, cold_brew, tea_drinks, blended_drinks, baked_goods, breakfast, lunch, snacks, other",
   "servings": 1,
+  "estimatedCost": 2.50,
+  "suggestedPrice": 5.50,
   "ingredients": [
     {
       "ingredientName": "Exact ingredient name from the list above",
       "quantity": 2,
-      "unit": "one of: cups, ounces, grams, units, teaspoons, tablespoons, pounds, kilograms, milliliters, liters, pints, quarts, gallons"
+      "unit": "one of: cups, ounces, grams, units, teaspoons, tablespoons, pounds, kilograms, milliliters, liters, pints, quarts, gallons",
+      "inInventory": true
     }
-  ]
+  ],
+  "missingIngredients": ["ingredient name if not in available list"]
 }
 
-CRITICAL: Only use ingredients from the available ingredients list above. Match ingredient names exactly. Return ONLY valid JSON, no markdown code blocks or explanations.`;
+For each ingredient, set "inInventory" to true if it's in the available ingredients list, false otherwise.
+List any ingredients NOT in the available list in the "missingIngredients" array.
+Estimate the cost and suggest a profitable menu price (aim for 65-75% margin).
+
+CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
 
       const response = await callAI({
         provider: provider as AIProvider,
@@ -1644,6 +1653,251 @@ Format your response clearly with numbered sections.`;
     } catch (error: any) {
       console.error("AI menu strategy error:", error);
       res.status(500).json({ error: error.message || "Failed to generate menu strategy" });
+    }
+  });
+
+  // AI Seasonal Menu Suggestions
+  app.post("/api/ai/seasonal-suggestions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { season, customPrompt } = req.body;
+      
+      const settings = await storage.getAISettings(userId);
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
+
+      const ingredients = await storage.getAllIngredients(userId);
+      const recipes = await storage.getAllRecipes(userId);
+      
+      const ingredientList = ingredients
+        .map(i => i.name)
+        .join(", ");
+
+      const recipeCategories = [...new Set(recipes.map(r => r.category))].join(", ");
+
+      const systemPrompt = `You are a creative menu consultant specializing in seasonal offerings for cafes and coffee shops. You understand customer preferences, seasonal trends, and how to create buzz with limited-time offerings.`;
+      
+      const seasonDescriptions: Record<string, string> = {
+        winter: "winter holidays, Christmas, New Year's, cozy warming drinks, comfort food",
+        spring: "Easter, Mother's Day, fresh flavors, lighter options, floral notes",
+        summer: "refreshing cold drinks, iced beverages, fruity flavors, outdoor dining",
+        fall: "pumpkin spice, apple, maple, Halloween, Thanksgiving, cozy autumn flavors"
+      };
+      
+      const userRequest = customPrompt ? `Additional focus: ${customPrompt}\n\n` : '';
+      
+      const prompt = `${userRequest}Create 5 seasonal menu suggestions for ${season} (${seasonDescriptions[season] || season}).
+
+Available ingredients in inventory: ${ingredientList || "Various standard cafe ingredients"}
+Current menu categories: ${recipeCategories || "beverages, food items"}
+
+For each suggestion, provide:
+1. A creative name that evokes the season
+2. Brief description highlighting seasonal appeal
+3. Target customer (families, professionals, students, etc.)
+4. Estimated profit margin potential (low/medium/high)
+5. List of ingredients with quantities
+
+Return ONLY valid JSON array:
+[
+  {
+    "name": "Seasonal Item Name",
+    "description": "Appealing description",
+    "category": "espresso_drinks|cold_brew|tea_drinks|blended_drinks|baked_goods|breakfast|lunch|snacks|other",
+    "season": "${season}",
+    "targetAudience": "target customer type",
+    "estimatedMargin": "high|medium|low",
+    "ingredients": [
+      {"ingredientName": "ingredient name", "quantity": 2, "unit": "oz", "inInventory": true}
+    ]
+  }
+]
+
+Mark inInventory as true if the ingredient exists in the available inventory list, false otherwise.`;
+
+      const response = await callAI({
+        provider,
+        prompt,
+        systemPrompt,
+        customApiKey,
+      });
+
+      let suggestions;
+      try {
+        let cleanResponse = response.trim();
+        if (cleanResponse.startsWith('```json')) {
+          cleanResponse = cleanResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        } else if (cleanResponse.startsWith('```')) {
+          cleanResponse = cleanResponse.replace(/```\n?/g, '').trim();
+        }
+        suggestions = JSON.parse(cleanResponse);
+      } catch (parseError) {
+        console.error("Failed to parse seasonal suggestions:", parseError);
+        return res.status(500).json({ error: "AI returned invalid response format" });
+      }
+
+      res.json({ suggestions });
+    } catch (error: any) {
+      console.error("AI seasonal suggestions error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate seasonal suggestions" });
+    }
+  });
+
+  // AI Pricing Analysis with detailed recommendations
+  app.post("/api/ai/pricing-analysis", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { customPrompt } = req.body;
+      
+      const settings = await storage.getAISettings(userId);
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
+
+      const recipes = await storage.getAllRecipes(userId);
+      
+      const recipeData = recipes.map(r => {
+        const cost = r.totalCost || 0;
+        const price = r.menuPrice || 0;
+        const margin = price > 0 ? ((price - cost) / price * 100) : 0;
+        return {
+          name: r.name,
+          category: r.category,
+          cost: cost.toFixed(2),
+          price: price.toFixed(2),
+          margin: margin.toFixed(1),
+          hasPrice: price > 0
+        };
+      });
+
+      const pricedItems = recipeData.filter(r => r.hasPrice);
+      const unpricedItems = recipeData.filter(r => !r.hasPrice);
+      
+      const avgMargin = pricedItems.length > 0 
+        ? pricedItems.reduce((sum, r) => sum + parseFloat(r.margin), 0) / pricedItems.length 
+        : 0;
+
+      const systemPrompt = `You are an expert restaurant pricing strategist with deep knowledge of food service economics, competitive positioning, and consumer psychology. Focus on actionable, specific recommendations.`;
+      
+      const userRequest = customPrompt ? `Focus area: ${customPrompt}\n\n` : '';
+      
+      const prompt = `${userRequest}Analyze this menu's pricing strategy and provide specific recommendations.
+
+MENU DATA:
+Items with prices (${pricedItems.length}):
+${pricedItems.map(r => `- ${r.name} (${r.category}): Cost $${r.cost}, Price $${r.price}, Margin ${r.margin}%`).join('\n')}
+
+${unpricedItems.length > 0 ? `Items needing prices (${unpricedItems.length}):\n${unpricedItems.map(r => `- ${r.name} (${r.category}): Cost $${r.cost}`).join('\n')}` : ''}
+
+Current average margin: ${avgMargin.toFixed(1)}%
+
+Provide:
+1. OVERALL ASSESSMENT: Brief analysis of current pricing health
+2. IMMEDIATE OPPORTUNITIES: Quick wins for margin improvement
+3. ITEMS TO REPRICE: Specific items that are underpriced or overpriced
+4. COMPETITIVE POSITIONING: How to position against competitors
+5. PROMOTIONAL STRATEGY: Which items to feature/promote
+
+Format your response clearly with headers and bullet points for easy reading.`;
+
+      const response = await callAI({
+        provider,
+        prompt,
+        systemPrompt,
+        customApiKey,
+      });
+
+      res.json({ analysis: response, recommendations: [] });
+    } catch (error: any) {
+      console.error("AI pricing analysis error:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze pricing" });
+    }
+  });
+
+  // AI Business Strategy Advisor
+  app.post("/api/ai/business-advice", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { businessType, location, customPrompt } = req.body;
+      
+      const settings = await storage.getAISettings(userId);
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
+
+      const ingredients = await storage.getAllIngredients(userId);
+      const recipes = await storage.getAllRecipes(userId);
+      
+      const ingredientCategories = [...new Set(ingredients.map(i => i.category))];
+      const recipeCategories = [...new Set(recipes.map(r => r.category))];
+      
+      const avgCost = recipes.length > 0 
+        ? recipes.reduce((sum, r) => sum + (r.totalCost || 0), 0) / recipes.length 
+        : 0;
+      const avgPrice = recipes.filter(r => r.menuPrice).length > 0
+        ? recipes.filter(r => r.menuPrice).reduce((sum, r) => sum + (r.menuPrice || 0), 0) / recipes.filter(r => r.menuPrice).length
+        : 0;
+
+      const businessTypeLabels: Record<string, string> = {
+        coffee_shop: "Coffee Shop / Cafe",
+        bakery: "Bakery",
+        restaurant: "Restaurant",
+        food_truck: "Food Truck",
+        catering: "Catering Service"
+      };
+
+      const systemPrompt = `You are a seasoned food service business consultant with expertise in market positioning, customer acquisition, premium offerings, and revenue optimization. Provide strategic, actionable advice tailored to the specific business context.`;
+      
+      const userRequest = customPrompt ? `Specific question: ${customPrompt}\n\n` : '';
+      const locationContext = location ? `Location/Market: ${location}\n` : '';
+      
+      const prompt = `${userRequest}Provide strategic business advice for this ${businessTypeLabels[businessType] || businessType}.
+
+BUSINESS CONTEXT:
+${locationContext}Business Type: ${businessTypeLabels[businessType] || businessType}
+Inventory Categories: ${ingredientCategories.join(", ") || "Not specified"}
+Menu Categories: ${recipeCategories.join(", ") || "Not specified"}
+Menu Size: ${recipes.length} items
+Average Item Cost: $${avgCost.toFixed(2)}
+Average Menu Price: $${avgPrice.toFixed(2)}
+
+Provide comprehensive advice on:
+
+1. MARKET POSITIONING
+   - How to differentiate in this market
+   - Target customer segments to focus on
+
+2. PREMIUM OPPORTUNITIES
+   - Higher-end products/services to introduce
+   - Premium pricing strategies that work for this market
+   - Signature items that command premium prices
+
+3. REVENUE GROWTH
+   - Upselling and cross-selling strategies
+   - Add-on services or products
+   - Customer retention tactics
+
+4. COMPETITIVE ADVANTAGES
+   - How to compete with chains and competitors
+   - Unique selling propositions to develop
+
+5. OPERATIONAL IMPROVEMENTS
+   - Efficiency gains to improve margins
+   - Menu optimization suggestions
+
+${location ? `6. LOCATION-SPECIFIC ADVICE\n   - Strategies specific to ${location}\n   - Local market opportunities` : ''}
+
+Be specific and actionable. Provide concrete examples and price points where relevant.`;
+
+      const response = await callAI({
+        provider,
+        prompt,
+        systemPrompt,
+        customApiKey,
+      });
+
+      res.json({ advice: response });
+    } catch (error: any) {
+      console.error("AI business advice error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate business advice" });
     }
   });
 
