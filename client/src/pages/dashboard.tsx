@@ -135,181 +135,183 @@ export default function DashboardPage() {
     }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Overview of your ingredients, recipes, and cost analysis
-        </p>
+    <>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Overview of your ingredients, recipes, and cost analysis
+          </p>
+        </div>
+
+        <DashboardStats ingredients={ingredients} recipes={recipes} />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Most Expensive Recipes</CardTitle>
+              <CardDescription>Highest cost per serving</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {topRecipesByPerUnitCost.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No recipes yet. Create your first recipe to see cost analysis.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={topRecipesByPerUnitCost}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="name"
+                      className="text-xs fill-muted-foreground"
+                      tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    />
+                    <YAxis
+                      className="text-xs fill-muted-foreground"
+                      tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                      }}
+                      formatter={(value: number) => `$${value.toFixed(2)}`}
+                    />
+                    <Bar dataKey="cost" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Most Cost-Efficient Recipes</CardTitle>
+              <CardDescription>Lowest cost per serving</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {leastExpensiveRecipes.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No recipes yet. Create your first recipe to see cost analysis.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={leastExpensiveRecipes}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="name"
+                      className="text-xs fill-muted-foreground"
+                      tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    />
+                    <YAxis
+                      className="text-xs fill-muted-foreground"
+                      tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                      }}
+                      formatter={(value: number) => `$${value.toFixed(2)}`}
+                    />
+                    <Bar dataKey="cost" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Ingredients by Category</CardTitle>
+              <CardDescription>Distribution of your inventory</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {categoryData.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No ingredients yet. Add ingredients to see category breakdown.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) =>
+                        `${name} ${(percent * 100).toFixed(0)}%`
+                      }
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="count"
+                    >
+                      {categoryData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Margin Analysis</CardTitle>
+              <CardDescription>Most profitable by dollar per unit</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {mostProfitableByDollarAmount.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No recipes with menu prices yet. Set menu prices to see margin analysis.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={mostProfitableByDollarAmount}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="name"
+                      className="text-xs fill-muted-foreground"
+                      tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    />
+                    <YAxis
+                      className="text-xs fill-muted-foreground"
+                      tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "var(--radius)",
+                      }}
+                      formatter={(value: number) => `$${value.toFixed(2)}`}
+                    />
+                    <Bar dataKey="profit" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      <DashboardStats ingredients={ingredients} recipes={recipes} />
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Most Expensive Recipes</CardTitle>
-            <CardDescription>Highest cost per serving</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {topRecipesByPerUnitCost.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No recipes yet. Create your first recipe to see cost analysis.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topRecipesByPerUnitCost}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="name"
-                    className="text-xs fill-muted-foreground"
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                  />
-                  <YAxis
-                    className="text-xs fill-muted-foreground"
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "var(--radius)",
-                    }}
-                    formatter={(value: number) => `$${value.toFixed(2)}`}
-                  />
-                  <Bar dataKey="cost" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Most Cost-Efficient Recipes</CardTitle>
-            <CardDescription>Lowest cost per serving</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {leastExpensiveRecipes.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No recipes yet. Create your first recipe to see cost analysis.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={leastExpensiveRecipes}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="name"
-                    className="text-xs fill-muted-foreground"
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                  />
-                  <YAxis
-                    className="text-xs fill-muted-foreground"
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "var(--radius)",
-                    }}
-                    formatter={(value: number) => `$${value.toFixed(2)}`}
-                  />
-                  <Bar dataKey="cost" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Ingredients by Category</CardTitle>
-            <CardDescription>Distribution of your inventory</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {categoryData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No ingredients yet. Add ingredients to see category breakdown.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
-                    {categoryData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "var(--radius)",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Margin Analysis</CardTitle>
-            <CardDescription>Most profitable by dollar per unit</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {mostProfitableByDollarAmount.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No recipes with menu prices yet. Set menu prices to see margin analysis.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={mostProfitableByDollarAmount}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis
-                    dataKey="name"
-                    className="text-xs fill-muted-foreground"
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                  />
-                  <YAxis
-                    className="text-xs fill-muted-foreground"
-                    tick={{ fill: "hsl(var(--muted-foreground))" }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "var(--radius)",
-                    }}
-                    formatter={(value: number) => `$${value.toFixed(2)}`}
-                  />
-                  <Bar dataKey="profit" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Floating Chat Button */}
+      {/* Floating Chat Button - Rendered at root level for proper fixed positioning */}
       {!chatOpen && (
         <Button
           onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-14 w-14 rounded-full shadow-lg z-[999]"
           size="icon"
           data-testid="button-open-chat"
         >
@@ -317,12 +319,12 @@ export default function DashboardPage() {
         </Button>
       )}
 
-      {/* Chat Window */}
+      {/* Chat Window - Rendered at root level for proper fixed positioning */}
       {chatOpen && (
-        <Card className={`fixed z-50 shadow-2xl transition-all duration-200 ${
+        <Card className={`fixed z-[999] shadow-2xl transition-all duration-200 ${
           chatExpanded 
-            ? "bottom-4 right-4 left-4 top-20 md:left-auto md:w-[500px] md:top-20" 
-            : "bottom-6 right-6 w-[380px] h-[500px]"
+            ? "bottom-2 right-2 left-2 top-20 sm:bottom-4 sm:right-4 md:left-auto md:w-[500px] md:top-20" 
+            : "bottom-4 right-4 w-full sm:w-[380px] h-[500px] mx-2 sm:mx-0"
         }`}>
           <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
             <div className="flex items-center gap-2">
@@ -407,6 +409,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </>
   );
 }
