@@ -27,6 +27,8 @@ import {
   type StorageType,
   type AiUsage,
   type SubscriptionTier,
+  type DashboardConfig,
+  type InsertDashboardConfig,
   subscriptionTiers,
   ingredients,
   recipes,
@@ -39,6 +41,7 @@ import {
   wasteLogs,
   inventoryCounts,
   aiUsage,
+  dashboardConfigs,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -125,6 +128,15 @@ export interface IStorage {
   getAiUsageRemaining(userId: string): Promise<{ used: number; limit: number; remaining: number }>;
   canUseAi(userId: string): Promise<boolean>;
   resetAiUsageForNewPeriod(userId: string, periodStart: Date, periodEnd: Date): Promise<AiUsage>;
+  
+  // Dashboard configuration operations
+  getDashboardConfigs(userId: string): Promise<DashboardConfig[]>;
+  getDashboardConfig(id: string, userId: string): Promise<DashboardConfig | undefined>;
+  createDashboardConfig(config: InsertDashboardConfig, userId: string): Promise<DashboardConfig>;
+  updateDashboardConfig(id: string, config: Partial<InsertDashboardConfig>, userId: string): Promise<DashboardConfig | undefined>;
+  deleteDashboardConfig(id: string, userId: string): Promise<boolean>;
+  reorderDashboardConfigs(userId: string, orderedIds: string[]): Promise<DashboardConfig[]>;
+  createDefaultDashboardConfigs(userId: string): Promise<DashboardConfig[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1082,6 +1094,81 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     
+    return created;
+  }
+
+  // Dashboard configuration methods
+  async getDashboardConfigs(userId: string): Promise<DashboardConfig[]> {
+    const configs = await db
+      .select()
+      .from(dashboardConfigs)
+      .where(eq(dashboardConfigs.userId, userId));
+    return configs.sort((a, b) => a.position - b.position);
+  }
+
+  async getDashboardConfig(id: string, userId: string): Promise<DashboardConfig | undefined> {
+    const [config] = await db
+      .select()
+      .from(dashboardConfigs)
+      .where(and(eq(dashboardConfigs.id, id), eq(dashboardConfigs.userId, userId)));
+    return config || undefined;
+  }
+
+  async createDashboardConfig(config: InsertDashboardConfig, userId: string): Promise<DashboardConfig> {
+    // Get next position
+    const existing = await this.getDashboardConfigs(userId);
+    const nextPosition = existing.length > 0 ? Math.max(...existing.map(c => c.position)) + 1 : 0;
+    
+    const [created] = await db
+      .insert(dashboardConfigs)
+      .values({
+        ...config,
+        position: config.position ?? nextPosition,
+        userId,
+      })
+      .returning();
+    return created;
+  }
+
+  async updateDashboardConfig(id: string, config: Partial<InsertDashboardConfig>, userId: string): Promise<DashboardConfig | undefined> {
+    const [updated] = await db
+      .update(dashboardConfigs)
+      .set({ ...config, updatedAt: new Date() })
+      .where(and(eq(dashboardConfigs.id, id), eq(dashboardConfigs.userId, userId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteDashboardConfig(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(dashboardConfigs)
+      .where(and(eq(dashboardConfigs.id, id), eq(dashboardConfigs.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async reorderDashboardConfigs(userId: string, orderedIds: string[]): Promise<DashboardConfig[]> {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db
+        .update(dashboardConfigs)
+        .set({ position: i, updatedAt: new Date() })
+        .where(and(eq(dashboardConfigs.id, orderedIds[i]), eq(dashboardConfigs.userId, userId)));
+    }
+    return this.getDashboardConfigs(userId);
+  }
+
+  async createDefaultDashboardConfigs(userId: string): Promise<DashboardConfig[]> {
+    const defaultCharts = [
+      { chartType: "most_expensive_recipes", position: 0, width: "half" as const },
+      { chartType: "cost_efficient_recipes", position: 1, width: "half" as const },
+      { chartType: "ingredients_by_category", position: 2, width: "half" as const },
+      { chartType: "margin_analysis", position: 3, width: "half" as const },
+    ];
+    
+    const created: DashboardConfig[] = [];
+    for (const chart of defaultCharts) {
+      const config = await this.createDashboardConfig(chart, userId);
+      created.push(config);
+    }
     return created;
   }
 }

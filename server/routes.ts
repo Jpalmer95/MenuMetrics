@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, type RecipeCategory, subscriptionTiers, type SubscriptionTier } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -2593,6 +2593,90 @@ Return the JSON array now:`;
     } catch (error: any) {
       console.error("Get order suggestions error:", error);
       res.status(500).json({ error: "Failed to get order suggestions" });
+    }
+  });
+
+  // Dashboard configuration routes
+  app.get("/api/dashboard-configs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      let configs = await storage.getDashboardConfigs(userId);
+      
+      // Create default configs if user has none
+      if (configs.length === 0) {
+        configs = await storage.createDefaultDashboardConfigs(userId);
+      }
+      
+      res.json(configs);
+    } catch (error) {
+      console.error("Get dashboard configs error:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard configurations" });
+    }
+  });
+
+  app.get("/api/dashboard-chart-types", isAuthenticated, async (req: any, res) => {
+    try {
+      res.json({
+        types: dashboardChartTypes,
+        labels: dashboardChartLabels,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch chart types" });
+    }
+  });
+
+  app.post("/api/dashboard-configs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = insertDashboardConfigSchema.parse(req.body);
+      const config = await storage.createDashboardConfig(validatedData, userId);
+      res.status(201).json(config);
+    } catch (error) {
+      console.error("Create dashboard config error:", error);
+      res.status(400).json({ error: "Invalid dashboard configuration data" });
+    }
+  });
+
+  app.patch("/api/dashboard-configs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const config = await storage.updateDashboardConfig(req.params.id, req.body, userId);
+      if (!config) {
+        return res.status(404).json({ error: "Dashboard configuration not found" });
+      }
+      res.json(config);
+    } catch (error) {
+      console.error("Update dashboard config error:", error);
+      res.status(400).json({ error: "Invalid dashboard configuration data" });
+    }
+  });
+
+  app.delete("/api/dashboard-configs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteDashboardConfig(req.params.id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Dashboard configuration not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete dashboard config error:", error);
+      res.status(500).json({ error: "Failed to delete dashboard configuration" });
+    }
+  });
+
+  app.patch("/api/dashboard-configs/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { orderedIds } = req.body;
+      if (!Array.isArray(orderedIds)) {
+        return res.status(400).json({ error: "orderedIds must be an array" });
+      }
+      const configs = await storage.reorderDashboardConfigs(userId, orderedIds);
+      res.json(configs);
+    } catch (error) {
+      console.error("Reorder dashboard configs error:", error);
+      res.status(500).json({ error: "Failed to reorder dashboard configurations" });
     }
   });
 

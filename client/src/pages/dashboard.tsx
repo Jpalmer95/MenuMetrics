@@ -1,37 +1,40 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardStats } from "@/components/dashboard-stats";
+import { ChartWidget } from "@/components/dashboard-charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageCircle, Send, Loader2, Sparkles, X, Minimize2, Maximize2 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import type { Ingredient, Recipe } from "@shared/schema";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { MessageCircle, Send, Loader2, Sparkles, X, Minimize2, Maximize2, Plus, LayoutGrid } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Ingredient, Recipe, DashboardConfig, DashboardChartType, WasteLog } from "@shared/schema";
+import { dashboardChartLabels, dashboardChartTypes } from "@shared/schema";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
 
-const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+interface ChartTypeInfo {
+  type: string;
+  name: string;
+  description: string;
+}
 
 export default function DashboardPage() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatExpanded, setChatExpanded] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [addChartOpen, setAddChartOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", content: "Hi! I'm your MenuMetrics assistant. Ask me anything about your menu, ingredients, costs, or margins. Try asking:\n\n- What's my highest margin item?\n- How many recipes do I have?\n- What's my average profit margin?" }
   ]);
@@ -43,6 +46,51 @@ export default function DashboardPage() {
 
   const { data: recipes = [], isLoading: recipesLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
+  });
+
+  const { data: dashboardConfigs = [], isLoading: configsLoading } = useQuery<DashboardConfig[]>({
+    queryKey: ["/api/dashboard-configs"],
+  });
+
+  const { data: chartTypes = [] } = useQuery<ChartTypeInfo[]>({
+    queryKey: ["/api/dashboard-chart-types"],
+  });
+
+  const { data: wasteLogs = [] } = useQuery<WasteLog[]>({
+    queryKey: ["/api/waste-logs"],
+  });
+
+  const addChartMutation = useMutation({
+    mutationFn: async (chartType: string) => {
+      const res = await apiRequest("POST", "/api/dashboard-configs", { chartType });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-configs"] });
+      setAddChartOpen(false);
+    },
+  });
+
+  const removeChartMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/dashboard-configs/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-configs"] });
+    },
+  });
+
+  const toggleWidthMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const config = dashboardConfigs.find((c) => c.id === id);
+      if (!config) return;
+      const newWidth = config.width === "half" ? "full" : "half";
+      const res = await apiRequest("PATCH", `/api/dashboard-configs/${id}`, { width: newWidth });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-configs"] });
+    },
   });
 
   const chatMutation = useMutation({
@@ -73,241 +121,110 @@ export default function DashboardPage() {
     }
   }, [messages]);
 
-  if (ingredientsLoading || recipesLoading) {
+  if (ingredientsLoading || recipesLoading || configsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading dashboard...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  const categoryData = ingredients.reduce((acc, ing) => {
-    const existing = acc.find((item) => item.name === ing.category);
-    if (existing) {
-      existing.count += 1;
-      existing.value += ing.costPerUnit * ing.quantity;
-    } else {
-      acc.push({
-        name: ing.category,
-        count: 1,
-        value: ing.costPerUnit * ing.quantity,
-      });
-    }
-    return acc;
-  }, [] as Array<{ name: string; count: number; value: number }>);
+  const visibleConfigs = dashboardConfigs
+    .filter((c) => c.isVisible)
+    .sort((a, b) => a.position - b.position);
 
-  const topRecipesByPerUnitCost = [...recipes]
-    .map((r) => ({
-      ...r,
-      costPerServing: r.servings > 0 ? r.totalCost / r.servings : 0,
-    }))
-    .sort((a, b) => b.costPerServing - a.costPerServing)
-    .slice(0, 5)
-    .map((r) => ({
-      name: r.name.length > 15 ? r.name.substring(0, 15) + "..." : r.name,
-      cost: r.costPerServing,
-    }));
-
-  const leastExpensiveRecipes = [...recipes]
-    .map((r) => ({
-      ...r,
-      costPerServing: r.servings > 0 ? r.totalCost / r.servings : 0,
-    }))
-    .sort((a, b) => a.costPerServing - b.costPerServing)
-    .slice(0, 5)
-    .map((r) => ({
-      name: r.name.length > 15 ? r.name.substring(0, 15) + "..." : r.name,
-      cost: r.costPerServing,
-    }));
-
-  const mostProfitableByDollarAmount = [...recipes]
-    .filter((r) => r.menuPrice && r.menuPrice > 0)
-    .map((r) => ({
-      ...r,
-      costPerServing: r.servings > 0 ? r.totalCost / r.servings : 0,
-      profitPerUnit: (r.menuPrice || 0) - (r.servings > 0 ? r.totalCost / r.servings : 0),
-    }))
-    .sort((a, b) => b.profitPerUnit - a.profitPerUnit)
-    .slice(0, 5)
-    .map((r) => ({
-      name: r.name.length > 15 ? r.name.substring(0, 15) + "..." : r.name,
-      profit: r.profitPerUnit,
-    }));
+  const activeChartTypes = new Set(visibleConfigs.map((c) => c.chartType));
+  const availableChartTypes = chartTypes.filter((ct) => !activeChartTypes.has(ct.type));
 
   return (
     <>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Overview of your ingredients, recipes, and cost analysis
-          </p>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground mt-1">
+              Overview of your ingredients, recipes, and cost analysis
+            </p>
+          </div>
+          <Dialog open={addChartOpen} onOpenChange={setAddChartOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" data-testid="button-add-chart">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Chart
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <LayoutGrid className="h-5 w-5" />
+                  Add Chart to Dashboard
+                </DialogTitle>
+                <DialogDescription>
+                  Choose a chart to add to your dashboard. You can rearrange and resize charts later.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-4">
+                {availableChartTypes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    All available charts are already on your dashboard.
+                  </p>
+                ) : (
+                  availableChartTypes.map((chartType) => (
+                    <Card
+                      key={chartType.type}
+                      className="hover-elevate cursor-pointer"
+                      onClick={() => addChartMutation.mutate(chartType.type)}
+                      data-testid={`add-chart-option-${chartType.type}`}
+                    >
+                      <CardHeader className="py-3">
+                        <CardTitle className="text-base">{chartType.name}</CardTitle>
+                        <CardDescription className="text-xs">{chartType.description}</CardDescription>
+                      </CardHeader>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <DashboardStats ingredients={ingredients} recipes={recipes} />
 
-        <div className="grid gap-6 md:grid-cols-2">
+        {visibleConfigs.length === 0 ? (
           <Card>
-            <CardHeader>
-              <CardTitle>Most Expensive Recipes</CardTitle>
-              <CardDescription>Highest cost per serving</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {topRecipesByPerUnitCost.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No recipes yet. Create your first recipe to see cost analysis.
-                </p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={topRecipesByPerUnitCost}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="name"
-                      className="text-xs fill-muted-foreground"
-                      tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <YAxis
-                      className="text-xs fill-muted-foreground"
-                      tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "var(--radius)",
-                      }}
-                      formatter={(value: number) => `$${value.toFixed(2)}`}
-                    />
-                    <Bar dataKey="cost" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <LayoutGrid className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Charts Yet</h3>
+              <p className="text-muted-foreground text-center mb-4 max-w-md">
+                Add charts to your dashboard to visualize your menu data. Click the "Add Chart" button above to get started.
+              </p>
+              <Button onClick={() => setAddChartOpen(true)} data-testid="button-add-first-chart">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Your First Chart
+              </Button>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Most Cost-Efficient Recipes</CardTitle>
-              <CardDescription>Lowest cost per serving</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {leastExpensiveRecipes.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No recipes yet. Create your first recipe to see cost analysis.
-                </p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={leastExpensiveRecipes}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="name"
-                      className="text-xs fill-muted-foreground"
-                      tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <YAxis
-                      className="text-xs fill-muted-foreground"
-                      tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "var(--radius)",
-                      }}
-                      formatter={(value: number) => `$${value.toFixed(2)}`}
-                    />
-                    <Bar dataKey="cost" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ingredients by Category</CardTitle>
-              <CardDescription>Distribution of your inventory</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {categoryData.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No ingredients yet. Add ingredients to see category breakdown.
-                </p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) =>
-                        `${name} ${(percent * 100).toFixed(0)}%`
-                      }
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                    >
-                      {categoryData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "var(--radius)",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Margin Analysis</CardTitle>
-              <CardDescription>Most profitable by dollar per unit</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {mostProfitableByDollarAmount.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No recipes with menu prices yet. Set menu prices to see margin analysis.
-                </p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={mostProfitableByDollarAmount}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis
-                      dataKey="name"
-                      className="text-xs fill-muted-foreground"
-                      tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <YAxis
-                      className="text-xs fill-muted-foreground"
-                      tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "var(--radius)",
-                      }}
-                      formatter={(value: number) => `$${value.toFixed(2)}`}
-                    />
-                    <Bar dataKey="profit" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+            {visibleConfigs.map((config) => (
+              <div
+                key={config.id}
+                className={config.width === "full" ? "md:col-span-2" : ""}
+              >
+                <ChartWidget
+                  config={config}
+                  ingredients={ingredients}
+                  recipes={recipes}
+                  wasteLogs={wasteLogs}
+                  onRemove={(id) => removeChartMutation.mutate(id)}
+                  onToggleWidth={(id) => toggleWidthMutation.mutate(id)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Floating Chat Button - Rendered at root level for proper fixed positioning */}
       {!chatOpen && (
         <Button
           onClick={() => setChatOpen(true)}
@@ -325,7 +242,6 @@ export default function DashboardPage() {
         </Button>
       )}
 
-      {/* Chat Window - Rendered at root level for proper fixed positioning */}
       {chatOpen && (
         <Card style={{
           position: 'fixed',
@@ -342,7 +258,7 @@ export default function DashboardPage() {
             ? "md:w-[500px]" 
             : "w-[380px]"
         }`}>
-          <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 py-3 px-4 border-b">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
               <CardTitle className="text-base">Menu Assistant</CardTitle>
