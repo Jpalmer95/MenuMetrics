@@ -1,0 +1,119 @@
+MenuMetrics Terms of Service
+
+Last Updated: December 5, 2025
+
+Welcome to MenuMetrics! Please read these Terms of Service ("Terms", "Terms of Service") carefully before using the MenuMetrics application (the "Service") operated by MenuMetrics ("us", "we", or "our"), located in Austin, Texas.
+
+By accessing or using the Service, you agree to be bound by these Terms. If you disagree with any part of the terms, then you may not access the Service.
+
+1. Accounts and Registration
+
+To access the features of MenuMetrics, you must register for an account. You agree to:
+
+Provide accurate, current, and complete information during the registration process.
+
+Maintain the security of your password and accept all risks of unauthorized access to your account.
+
+Notify us immediately if you discover or suspect any security breaches related to the Service.
+
+2. Subscription and Payment Terms
+
+2.1 Subscription Plans
+
+MenuMetrics offers three subscription tiers for access to our robust menu costing and inventory tools. By selecting a plan, you agree to pay the recurring monthly fees associated with that plan:
+
+Starter: $19.00 / month
+
+Professional: $49.00 / month
+
+Business: $99.00 / month
+
+2.2 Payment Processing
+
+We use Stripe as our third-party payment processor.
+
+By subscribing, you authorize us to charge your payment method on a recurring monthly basis via Stripe.
+
+Your payment information is processed and stored securely by Stripe, not by MenuMetrics. We do not store your full credit card details on our servers.
+
+2.3 Cancellation and Renewal
+
+Automatic Renewal: Your subscription will automatically renew at the end of each billing cycle unless you cancel it.
+
+Cancellation: You may cancel your subscription at any time through your account settings. Cancellation will take effect at the end of the current paid billing period.
+
+Refunds: Payments are non-refundable. There are no refunds or credits for partially used periods.
+
+3. Intellectual Property and License Restrictions
+
+This section is critical to protecting our business.
+
+3.1 License Grant
+
+Subject to your compliance with these Terms, MenuMetrics grants you a limited, non-exclusive, non-transferable, non-sublicensable license to access and use the Service solely for your internal business operations (e.g., managing your restaurant's inventory and costs).
+
+3.2 Restrictions on Use
+
+You explicitly agree NOT to:
+
+Copy or Duplicate: License, sell, rent, lease, transfer, assign, distribute, display, disclose, or otherwise commercially exploit the Service or make the Service available to any third party.
+
+Reverse Engineer: Modify, make derivative works of, disassemble, reverse compile, or reverse engineer any part of the Service.
+
+Competitive Research: Access the Service in order to build a similar or competitive product or service.
+
+Copy Features: Copy any features, functions, logic, algorithms, or graphics of the Service.
+
+Violation of this section will result in immediate termination of your account and may result in legal action.
+
+3.3 Ownership
+
+MenuMetrics and its licensors own all right, title, and interest in and to the Service, including all related intellectual property rights. The MenuMetrics name, logo, and product names are trademarks of MenuMetrics.
+
+3.4 Your Data
+
+You retain all rights to the data, recipes, and inventory information you input into the Service ("User Data"). You grant MenuMetrics a license to store, process, and backup this data solely to provide the Service to you.
+
+4. Acceptable Use Policy
+
+You agree not to use the Service:
+
+In any way that violates any applicable national or international law or regulation.
+
+To transmit any viruses, malware, or other malicious code.
+
+To attempt to gain unauthorized access to, interfere with, damage, or disrupt any parts of the Service or the server on which the Service is stored.
+
+5. Disclaimers
+
+5.1 "As Is" Basis
+
+The Service is provided on an "AS IS" and "AS AVAILABLE" basis. MenuMetrics makes no representations or warranties of any kind, express or implied, regarding the operation of the Service or the information, content, or materials included therein.
+
+5.2 No Financial Advice
+
+MenuMetrics is a calculation and organizational tool. While we strive for accuracy, we do not guarantee the profitability of your business. You are solely responsible for your pricing decisions, business strategy, and financial compliance.
+
+6. Limitation of Liability
+
+To the fullest extent permitted by applicable law, in no event shall MenuMetrics, its affiliates, directors, or employees be liable for any indirect, punitive, incidental, special, consequential, or exemplary damages, including without limitation damages for loss of profits, goodwill, use, data, or other intangible losses, arising out of or relating to the use of, or inability to use, the Service.
+
+Liability Cap: In no event shall MenuMetrics' total liability to you for all claims exceed the amount you have paid us during the three (3) months prior to the claim.
+
+7. Governing Law and Jurisdiction
+
+These Terms shall be governed and construed in accordance with the laws of the State of Texas, United States, without regard to its conflict of law provisions.
+
+Any legal suit, action, or proceeding arising out of, or related to, these Terms or the Service shall be instituted exclusively in the federal courts of the United States or the courts of the State of Texas, in each case located in Travis County (Austin). You waive any and all objections to the exercise of jurisdiction over you by such courts and to venue in such courts.
+
+8. Changes to Terms
+
+We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material, we will try to provide at least 30 days' notice prior to any new terms taking effect. By continuing to access or use our Service after those revisions become effective, you agree to be bound by the revised terms.
+
+9. Contact Us
+
+If you have any questions about these Terms, please contact us at:
+
+MenuMetrics Support
+Austin, TX
+Email: [Insert Support Email]
