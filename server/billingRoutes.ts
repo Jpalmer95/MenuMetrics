@@ -1,21 +1,21 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
-import { getUncachableStripeClient, getStripePublishableKey, getStripeSync } from "./stripeClient";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { subscriptionTiers, type SubscriptionTier } from "@shared/schema";
 import { isAuthenticated } from "./replitAuth";
+import { pool } from "./db";
 
 const STRIPE_PRICE_IDS: Record<string, string> = {};
 
 async function loadStripePrices() {
   try {
-    const stripeSync = await getStripeSync();
-    const prices = await stripeSync.sql`
+    const result = await pool.query(`
       SELECT id, nickname 
       FROM stripe.prices 
       WHERE active = true AND type = 'recurring'
-    `;
+    `);
     
-    for (const price of prices) {
+    for (const price of result.rows) {
       if (price.nickname) {
         const tier = price.nickname.toLowerCase().replace(' plan', '');
         STRIPE_PRICE_IDS[tier] = price.id;
@@ -23,11 +23,11 @@ async function loadStripePrices() {
     }
     console.log('Loaded Stripe price IDs:', STRIPE_PRICE_IDS);
   } catch (error) {
-    console.error('Failed to load Stripe prices:', error);
+    console.log('Stripe prices not yet available (will load after products are seeded)');
   }
 }
 
-loadStripePrices();
+setTimeout(loadStripePrices, 5000);
 
 export function registerBillingRoutes(app: Express) {
   app.get('/api/billing/config', async (req: Request, res: Response) => {
@@ -236,13 +236,13 @@ export function registerBillingRoutes(app: Express) {
           const status = subscription.status;
           const periodEnd = new Date(subscription.current_period_end * 1000);
           
-          const stripeSync = await getStripeSync();
-          const customers = await stripeSync.sql`
-            SELECT metadata FROM stripe.customers WHERE id = ${customerId}
-          `;
+          const result = await pool.query(
+            'SELECT metadata FROM stripe.customers WHERE id = $1',
+            [customerId]
+          );
           
-          if (customers.length > 0 && customers[0].metadata?.userId) {
-            const userId = customers[0].metadata.userId;
+          if (result.rows.length > 0 && result.rows[0].metadata?.userId) {
+            const userId = result.rows[0].metadata.userId;
             
             await storage.updateUserStripeInfo(userId, {
               stripeSubscriptionId: subscription.id,
@@ -262,13 +262,13 @@ export function registerBillingRoutes(app: Express) {
           const subscription = event.data.object;
           const customerId = subscription.customer;
           
-          const stripeSync = await getStripeSync();
-          const customers = await stripeSync.sql`
-            SELECT metadata FROM stripe.customers WHERE id = ${customerId}
-          `;
+          const result = await pool.query(
+            'SELECT metadata FROM stripe.customers WHERE id = $1',
+            [customerId]
+          );
           
-          if (customers.length > 0 && customers[0].metadata?.userId) {
-            const userId = customers[0].metadata.userId;
+          if (result.rows.length > 0 && result.rows[0].metadata?.userId) {
+            const userId = result.rows[0].metadata.userId;
             
             await storage.updateUserStripeInfo(userId, {
               stripeSubscriptionId: null,
@@ -284,13 +284,13 @@ export function registerBillingRoutes(app: Express) {
           const invoice = event.data.object;
           const customerId = invoice.customer;
           
-          const stripeSync = await getStripeSync();
-          const customers = await stripeSync.sql`
-            SELECT metadata FROM stripe.customers WHERE id = ${customerId}
-          `;
+          const result = await pool.query(
+            'SELECT metadata FROM stripe.customers WHERE id = $1',
+            [customerId]
+          );
           
-          if (customers.length > 0 && customers[0].metadata?.userId) {
-            const userId = customers[0].metadata.userId;
+          if (result.rows.length > 0 && result.rows[0].metadata?.userId) {
+            const userId = result.rows[0].metadata.userId;
             await storage.updateUserStripeInfo(userId, {
               subscriptionStatus: 'past_due',
             });

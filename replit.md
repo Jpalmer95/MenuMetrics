@@ -76,6 +76,27 @@ Preferred communication style: Simple, everyday language.
 - Explicit user approval: All AI-generated recipes require button click to add.
 - Structured JSON validation: All AI outputs validated through Zod schemas before processing.
 
+### Subscription & Billing System
+
+**Pricing Tiers**:
+- **Free**: No AI access, basic features only.
+- **Trial**: 7-day free trial with 10 AI queries.
+- **Starter ($19/mo)**: 50 AI queries/month.
+- **Professional ($49/mo)**: 200 AI queries/month.
+- **Business ($99/mo)**: 500 AI queries/month.
+
+**Implementation**:
+- **Stripe Integration**: Uses Replit's Stripe connector for payment processing.
+- **AI Usage Tracking**: `ai_usage` table tracks monthly query usage per user.
+- **Usage Enforcement**: `aiUsageMiddleware.ts` enforces limits on all AI endpoints.
+- **Billing Routes**: `/api/billing/*` handles checkout, portal sessions, usage tracking.
+- **Webhook Handling**: Processes subscription created/updated/deleted and payment failure events.
+
+**UI Components**:
+- Settings page Billing tab shows current plan, usage progress, and plan comparison.
+- AI Agent page shows usage indicator with remaining queries.
+- Upgrade prompts appear when users have no subscription or low remaining queries.
+
 **Third-Party Libraries**:
 - **XLSX**: Excel file parsing and generation.
 - **date-fns**: Date formatting.

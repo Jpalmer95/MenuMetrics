@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { 
   Sparkles, Loader2, DollarSign, Lightbulb, Plus, Check, 
   Calendar, TrendingUp, ChefHat, MapPin, ShoppingCart,
-  AlertCircle, Info
+  AlertCircle, Info, Zap, Crown
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -81,6 +83,81 @@ interface BusinessAdvice {
   competitiveAnalysis: string;
 }
 
+interface SubscriptionStatus {
+  tier: string;
+  tierName: string;
+  status: string;
+  aiUsage: {
+    used: number;
+    limit: number;
+    remaining: number;
+  };
+}
+
+function AIUsageIndicator() {
+  const { data: subscription, isLoading } = useQuery<SubscriptionStatus>({
+    queryKey: ["/api/billing/subscription"],
+  });
+
+  if (isLoading) return null;
+
+  const isFree = subscription?.tier === 'free';
+  const isTrialing = subscription?.status === 'trialing';
+  const isActive = subscription?.status === 'active';
+  const hasAccess = isTrialing || isActive || (subscription?.aiUsage?.limit || 0) > 0;
+  const usagePercent = subscription?.aiUsage?.limit ? (subscription.aiUsage.used / subscription.aiUsage.limit) * 100 : 0;
+  const isLowUsage = subscription?.aiUsage?.remaining !== undefined && subscription.aiUsage.remaining <= 5;
+
+  if (isFree && !hasAccess) {
+    return (
+      <Alert className="border-primary/50 bg-primary/5">
+        <Zap className="h-4 w-4 text-primary" />
+        <AlertTitle>Unlock AI Features</AlertTitle>
+        <AlertDescription className="flex flex-col gap-2">
+          <span>Start a free trial or subscribe to use Mise AI features.</span>
+          <Link href="/settings?tab=billing">
+            <Button size="sm" data-testid="button-upgrade-ai">
+              <Crown className="mr-2 h-4 w-4" />
+              View Plans
+            </Button>
+          </Link>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <Card className="border-muted">
+      <CardContent className="py-3 px-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Badge variant={isLowUsage ? "destructive" : "secondary"} className="text-xs">
+              {subscription?.tierName || 'Free'}
+            </Badge>
+            <span className="text-sm text-muted-foreground">
+              {subscription?.aiUsage?.remaining || 0} queries remaining
+            </span>
+          </div>
+          <div className="flex items-center gap-3 flex-1 max-w-xs">
+            <Progress value={usagePercent} className="h-2" />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {subscription?.aiUsage?.used || 0}/{subscription?.aiUsage?.limit || 0}
+            </span>
+          </div>
+          {isLowUsage && (
+            <Link href="/settings?tab=billing">
+              <Button size="sm" variant="outline" data-testid="button-upgrade-low-usage">
+                <Crown className="mr-2 h-3 w-3" />
+                Upgrade
+              </Button>
+            </Link>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AIAgentPage() {
   const [activeTab, setActiveTab] = useState("recipe-creator");
   const { toast } = useToast();
@@ -106,6 +183,8 @@ export default function AIAgentPage() {
           optimize pricing, and develop business strategy — all using your actual inventory for accurate recommendations.
         </p>
       </div>
+
+      <AIUsageIndicator />
 
       <Alert>
         <Info className="h-4 w-4" />

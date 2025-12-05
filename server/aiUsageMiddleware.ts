@@ -78,16 +78,23 @@ export async function checkAiUsage(req: any, res: Response, next: NextFunction) 
     next();
   } catch (error) {
     console.error("AI usage check error:", error);
-    next();
+    return res.status(503).json({
+      message: "Unable to verify subscription status. Please try again.",
+      error: "service_unavailable"
+    });
   }
 }
 
 export async function recordAiUsage(req: any, res: Response, next: NextFunction) {
-  const originalSend = res.send;
+  const originalJson = res.json.bind(res);
+  const originalSend = res.send.bind(res);
+  let usageRecorded = false;
   
-  res.send = function(data: any) {
-    const statusCode = res.statusCode;
+  const recordUsage = () => {
+    if (usageRecorded) return;
+    usageRecorded = true;
     
+    const statusCode = res.statusCode;
     if (statusCode >= 200 && statusCode < 300) {
       const userId = req.user?.claims?.sub;
       if (userId) {
@@ -96,8 +103,16 @@ export async function recordAiUsage(req: any, res: Response, next: NextFunction)
         });
       }
     }
-    
-    return originalSend.call(this, data);
+  };
+  
+  res.json = function(data: any) {
+    recordUsage();
+    return originalJson(data);
+  };
+  
+  res.send = function(data: any) {
+    recordUsage();
+    return originalSend(data);
   };
   
   next();
