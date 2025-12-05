@@ -19,6 +19,12 @@ import {
   type CategoryPricingSettings,
   type InsertCategoryPricingSettings,
   type RecipeCategory,
+  type WasteLog,
+  type InsertWasteLog,
+  type WasteLogWithIngredient,
+  type InventoryCount,
+  type InsertInventoryCount,
+  type StorageType,
   ingredients,
   recipes,
   recipeIngredients,
@@ -27,6 +33,8 @@ import {
   users,
   densityHeuristics,
   categoryPricingSettings,
+  wasteLogs,
+  inventoryCounts,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -82,6 +90,19 @@ export interface IStorage {
   getCategoryPricingSettings(userId: string): Promise<CategoryPricingSettings[]>;
   getCategoryPricingSetting(userId: string, category: RecipeCategory): Promise<CategoryPricingSettings | undefined>;
   upsertCategoryPricingSetting(settings: InsertCategoryPricingSettings, userId: string): Promise<CategoryPricingSettings>;
+  
+  // Waste log operations
+  createWasteLog(wasteLog: InsertWasteLog, userId: string): Promise<WasteLog>;
+  getWasteLogs(userId: string, limit?: number): Promise<WasteLogWithIngredient[]>;
+  getWasteLogsByDateRange(userId: string, startDate: Date, endDate: Date): Promise<WasteLogWithIngredient[]>;
+  deleteWasteLog(id: string, userId: string): Promise<boolean>;
+  
+  // Inventory operations
+  updateIngredientStock(ingredientId: string, currentStock: number, userId: string): Promise<Ingredient | undefined>;
+  updateIngredientInventorySettings(ingredientId: string, settings: { parValue?: number; storageType?: string; countFrequency?: string }, userId: string): Promise<Ingredient | undefined>;
+  getIngredientsByStorageType(userId: string, storageType: StorageType): Promise<Ingredient[]>;
+  recordInventoryCount(count: InsertInventoryCount, userId: string): Promise<InventoryCount>;
+  getInventoryCounts(userId: string, limit?: number): Promise<InventoryCount[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -746,6 +767,129 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  // Waste log operations
+  async createWasteLog(wasteLog: InsertWasteLog, userId: string): Promise<WasteLog> {
+    const [created] = await db
+      .insert(wasteLogs)
+      .values({
+        ...wasteLog,
+        userId,
+      })
+      .returning();
+    return created;
+  }
+
+  async getWasteLogs(userId: string, limit = 100): Promise<WasteLogWithIngredient[]> {
+    const logs = await db
+      .select()
+      .from(wasteLogs)
+      .where(eq(wasteLogs.userId, userId))
+      .orderBy(wasteLogs.wastedAt)
+      .limit(limit);
+    
+    const result: WasteLogWithIngredient[] = [];
+    for (const log of logs) {
+      const ingredient = await this.getIngredient(log.ingredientId, userId);
+      if (ingredient) {
+        result.push({
+          ...log,
+          ingredient,
+        });
+      }
+    }
+    return result;
+  }
+
+  async getWasteLogsByDateRange(userId: string, startDate: Date, endDate: Date): Promise<WasteLogWithIngredient[]> {
+    const logs = await db
+      .select()
+      .from(wasteLogs)
+      .where(eq(wasteLogs.userId, userId))
+      .orderBy(wasteLogs.wastedAt);
+    
+    // Filter by date range
+    const filtered = logs.filter(log => {
+      const wastedAt = new Date(log.wastedAt);
+      return wastedAt >= startDate && wastedAt <= endDate;
+    });
+    
+    const result: WasteLogWithIngredient[] = [];
+    for (const log of filtered) {
+      const ingredient = await this.getIngredient(log.ingredientId, userId);
+      if (ingredient) {
+        result.push({
+          ...log,
+          ingredient,
+        });
+      }
+    }
+    return result;
+  }
+
+  async deleteWasteLog(id: string, userId: string): Promise<boolean> {
+    const result = await db.delete(wasteLogs).where(and(eq(wasteLogs.id, id), eq(wasteLogs.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Inventory operations
+  async updateIngredientStock(ingredientId: string, currentStock: number, userId: string): Promise<Ingredient | undefined> {
+    const [updated] = await db
+      .update(ingredients)
+      .set({ 
+        currentStock,
+        lastCountDate: new Date(),
+        lastUpdated: new Date(),
+      })
+      .where(and(eq(ingredients.id, ingredientId), eq(ingredients.userId, userId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateIngredientInventorySettings(
+    ingredientId: string, 
+    settings: { parValue?: number; storageType?: string; countFrequency?: string }, 
+    userId: string
+  ): Promise<Ingredient | undefined> {
+    const updateData: any = { lastUpdated: new Date() };
+    if (settings.parValue !== undefined) updateData.parValue = settings.parValue;
+    if (settings.storageType !== undefined) updateData.storageType = settings.storageType;
+    if (settings.countFrequency !== undefined) updateData.countFrequency = settings.countFrequency;
+
+    const [updated] = await db
+      .update(ingredients)
+      .set(updateData)
+      .where(and(eq(ingredients.id, ingredientId), eq(ingredients.userId, userId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getIngredientsByStorageType(userId: string, storageType: StorageType): Promise<Ingredient[]> {
+    return await db
+      .select()
+      .from(ingredients)
+      .where(and(eq(ingredients.userId, userId), eq(ingredients.storageType, storageType)));
+  }
+
+  async recordInventoryCount(count: InsertInventoryCount, userId: string): Promise<InventoryCount> {
+    const [created] = await db
+      .insert(inventoryCounts)
+      .values({
+        ...count,
+        userId,
+      })
+      .returning();
+    return created;
+  }
+
+  async getInventoryCounts(userId: string, limit = 50): Promise<InventoryCount[]> {
+    return await db
+      .select()
+      .from(inventoryCounts)
+      .where(eq(inventoryCounts.userId, userId))
+      .orderBy(inventoryCounts.countedAt)
+      .limit(limit);
   }
 }
 

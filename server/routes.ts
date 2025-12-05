@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, type RecipeCategory } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, type RecipeCategory } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -2321,6 +2321,274 @@ Return the JSON array now:`;
     } catch (error: any) {
       console.error("Refresh densities error:", error);
       res.status(500).json({ error: "Failed to refresh densities" });
+    }
+  });
+
+  // =====================
+  // WASTE LOG ENDPOINTS
+  // =====================
+  
+  app.get("/api/waste-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = req.query.limit ? parseInt(req.query.limit) : 100;
+      const wasteLogs = await storage.getWasteLogs(userId, limit);
+      res.json(wasteLogs);
+    } catch (error: any) {
+      console.error("Get waste logs error:", error);
+      res.status(500).json({ error: "Failed to fetch waste logs" });
+    }
+  });
+
+  app.get("/api/waste-logs/date-range", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate and endDate are required" });
+      }
+      
+      const wasteLogs = await storage.getWasteLogsByDateRange(
+        userId, 
+        new Date(startDate as string), 
+        new Date(endDate as string)
+      );
+      res.json(wasteLogs);
+    } catch (error: any) {
+      console.error("Get waste logs by date error:", error);
+      res.status(500).json({ error: "Failed to fetch waste logs" });
+    }
+  });
+
+  app.post("/api/waste-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod schema
+      const validatedData = insertWasteLogSchema.parse(req.body);
+      
+      // Verify ingredient exists and belongs to user
+      const ingredient = await storage.getIngredient(validatedData.ingredientId, userId);
+      if (!ingredient) {
+        return res.status(404).json({ error: "Ingredient not found" });
+      }
+      
+      const wasteLog = await storage.createWasteLog({
+        ...validatedData,
+        wastedAt: validatedData.wastedAt ? new Date(validatedData.wastedAt) : new Date(),
+      }, userId);
+      
+      res.status(201).json(wasteLog);
+    } catch (error: any) {
+      console.error("Create waste log error:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      res.status(400).json({ error: error.message || "Failed to create waste log" });
+    }
+  });
+
+  app.delete("/api/waste-logs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteWasteLog(req.params.id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Waste log not found" });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Delete waste log error:", error);
+      res.status(500).json({ error: "Failed to delete waste log" });
+    }
+  });
+
+  // =====================
+  // INVENTORY ENDPOINTS  
+  // =====================
+  
+  app.patch("/api/ingredients/:id/stock", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { currentStock } = req.body;
+      
+      if (typeof currentStock !== "number" || currentStock < 0) {
+        return res.status(400).json({ error: "currentStock must be a non-negative number" });
+      }
+      
+      const updated = await storage.updateIngredientStock(req.params.id, currentStock, userId);
+      if (!updated) {
+        return res.status(404).json({ error: "Ingredient not found" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update stock error:", error);
+      res.status(500).json({ error: "Failed to update stock" });
+    }
+  });
+
+  app.patch("/api/ingredients/:id/inventory-settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { parValue, storageType, countFrequency } = req.body;
+      
+      const settings: { parValue?: number; storageType?: string; countFrequency?: string } = {};
+      
+      if (parValue !== undefined) {
+        if (typeof parValue !== "number" || parValue < 0) {
+          return res.status(400).json({ error: "parValue must be a non-negative number" });
+        }
+        settings.parValue = parValue;
+      }
+      
+      if (storageType !== undefined) {
+        if (!["dry", "cold", "frozen", "supplies"].includes(storageType)) {
+          return res.status(400).json({ error: "storageType must be one of: dry, cold, frozen, supplies" });
+        }
+        settings.storageType = storageType;
+      }
+      
+      if (countFrequency !== undefined) {
+        if (!["weekly", "monthly", "as_needed"].includes(countFrequency)) {
+          return res.status(400).json({ error: "countFrequency must be one of: weekly, monthly, as_needed" });
+        }
+        settings.countFrequency = countFrequency;
+      }
+      
+      if (Object.keys(settings).length === 0) {
+        return res.status(400).json({ error: "At least one setting must be provided" });
+      }
+      
+      const updated = await storage.updateIngredientInventorySettings(req.params.id, settings, userId);
+      if (!updated) {
+        return res.status(404).json({ error: "Ingredient not found" });
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Update inventory settings error:", error);
+      res.status(500).json({ error: "Failed to update inventory settings" });
+    }
+  });
+
+  app.post("/api/inventory/bulk-update", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { updates } = req.body;
+      
+      if (!Array.isArray(updates)) {
+        return res.status(400).json({ error: "updates must be an array" });
+      }
+      
+      const results = [];
+      for (const update of updates) {
+        const { ingredientId, currentStock } = update;
+        if (!ingredientId || typeof currentStock !== "number" || currentStock < 0) {
+          continue;
+        }
+        const updated = await storage.updateIngredientStock(ingredientId, currentStock, userId);
+        if (updated) {
+          results.push(updated);
+        }
+      }
+      
+      res.json({ 
+        updated: results.length, 
+        total: updates.length,
+        message: `Updated ${results.length} of ${updates.length} items` 
+      });
+    } catch (error: any) {
+      console.error("Bulk update stock error:", error);
+      res.status(500).json({ error: "Failed to bulk update stock" });
+    }
+  });
+
+  app.post("/api/inventory/count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod schema
+      const validatedData = insertInventoryCountSchema.parse(req.body);
+      
+      const count = await storage.recordInventoryCount({
+        ...validatedData,
+        countedAt: validatedData.countedAt ? new Date(validatedData.countedAt) : new Date(),
+      }, userId);
+      
+      res.status(201).json(count);
+    } catch (error: any) {
+      console.error("Record inventory count error:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to record inventory count" });
+    }
+  });
+
+  app.get("/api/inventory/counts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+      const counts = await storage.getInventoryCounts(userId, limit);
+      res.json(counts);
+    } catch (error: any) {
+      console.error("Get inventory counts error:", error);
+      res.status(500).json({ error: "Failed to fetch inventory counts" });
+    }
+  });
+
+  // Get order suggestions based on par values and current stock
+  app.get("/api/inventory/order-suggestions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ingredients = await storage.getAllIngredients(userId);
+      
+      // Filter ingredients that need ordering (current stock < par value)
+      const needsOrder = ingredients
+        .filter(ing => 
+          ing.parValue !== null && 
+          ing.currentStock !== null && 
+          ing.currentStock < ing.parValue
+        )
+        .map(ing => ({
+          id: ing.id,
+          name: ing.name,
+          category: ing.category,
+          store: ing.store,
+          currentStock: ing.currentStock,
+          parValue: ing.parValue,
+          orderQuantity: (ing.parValue || 0) - (ing.currentStock || 0),
+          purchaseUnit: ing.purchaseUnit,
+          purchaseCost: ing.purchaseCost,
+          purchaseQuantity: ing.purchaseQuantity,
+          storageType: ing.storageType,
+        }));
+      
+      // Group by store
+      const byStore: Record<string, typeof needsOrder> = {};
+      for (const item of needsOrder) {
+        const store = item.store || "Unspecified";
+        if (!byStore[store]) {
+          byStore[store] = [];
+        }
+        byStore[store].push(item);
+      }
+      
+      res.json({
+        items: needsOrder,
+        byStore,
+        totalItems: needsOrder.length,
+        summary: Object.entries(byStore).map(([store, items]) => ({
+          store,
+          itemCount: items.length,
+          estimatedCost: items.reduce((sum, item) => {
+            const unitsNeeded = item.orderQuantity / item.purchaseQuantity;
+            return sum + (unitsNeeded * item.purchaseCost);
+          }, 0),
+        })),
+      });
+    } catch (error: any) {
+      console.error("Get order suggestions error:", error);
+      res.status(500).json({ error: "Failed to get order suggestions" });
     }
   });
 

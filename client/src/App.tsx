@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -21,6 +21,10 @@ import SettingsPage from "@/pages/settings";
 import LandingPage from "@/pages/landing";
 import DensitiesPage from "@/pages/densities";
 import PricingPlaygroundPage from "@/pages/pricing-playground";
+import InventoryCountPage from "@/pages/inventory-count";
+import OrdersPage from "@/pages/orders";
+import WasteLogPage from "@/pages/waste-log";
+import WasteAnalyticsPage from "@/pages/waste-analytics";
 
 function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
   // Show landing page while loading or when not authenticated
@@ -42,6 +46,10 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
       <Route path="/recipes/:id" component={RecipeDetailPage} />
       <Route path="/pricing" component={PricingPlaygroundPage} />
       <Route path="/densities" component={DensitiesPage} />
+      <Route path="/inventory" component={InventoryCountPage} />
+      <Route path="/orders" component={OrdersPage} />
+      <Route path="/waste-log" component={WasteLogPage} />
+      <Route path="/waste-analytics" component={WasteAnalyticsPage} />
       <Route path="/ai-agent" component={AIAgentPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
@@ -58,6 +66,9 @@ function AppContent() {
     { path: "/", label: "Dashboard", icon: BarChart3, testId: "link-dashboard" },
     { path: "/ingredients", label: "Ingredients", icon: Package, testId: "link-ingredients" },
     { path: "/recipes", label: "Recipes", icon: ChefHat, testId: "link-recipes" },
+    { path: "/inventory", label: "Count", icon: ClipboardList, testId: "link-inventory" },
+    { path: "/orders", label: "Orders", icon: ShoppingCart, testId: "link-orders" },
+    { path: "/waste-log", label: "Waste", icon: Trash2, testId: "link-waste" },
     { path: "/pricing", label: "Pricing", icon: Calculator, testId: "link-pricing" },
     { path: "/densities", label: "Densities", icon: Beaker, testId: "link-densities" },
     { path: "/ai-agent", label: "Mise AI", icon: Sparkles, testId: "link-ai-agent" },

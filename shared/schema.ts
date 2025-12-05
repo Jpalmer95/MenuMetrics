@@ -80,6 +80,13 @@ export const ingredients = pgTable("ingredients", {
   // Different from Global Waste % which accounts for operational losses (theft, expiration, etc.)
   yieldPercentage: real("yield_percentage").notNull().default(97),
   
+  // Inventory management fields
+  parValue: real("par_value"), // Target stock level (reorder point)
+  currentStock: real("current_stock"), // Current quantity on hand
+  storageType: text("storage_type"), // "dry", "cold", "frozen", "supplies"
+  countFrequency: text("count_frequency"), // "weekly", "monthly", "as_needed"
+  lastCountDate: timestamp("last_count_date"), // When inventory was last counted
+  
   // Calculated per-unit costs (auto-calculated from purchase data)
   costPerOunce: real("cost_per_ounce"),
   costPerGram: real("cost_per_gram"),
@@ -125,7 +132,30 @@ export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   densitySource: z.string().optional(),
   isPackaging: z.boolean().optional().default(false),
   yieldPercentage: z.number().min(1, "Yield must be at least 1%").max(100, "Yield cannot exceed 100%").optional().default(97),
+  parValue: z.number().nonnegative("Par value must be non-negative").optional(),
+  currentStock: z.number().nonnegative("Current stock must be non-negative").optional(),
+  storageType: z.enum(["dry", "cold", "frozen", "supplies"]).optional(),
+  countFrequency: z.enum(["weekly", "monthly", "as_needed"]).optional(),
 });
+
+export const storageTypes = ["dry", "cold", "frozen", "supplies"] as const;
+export type StorageType = typeof storageTypes[number];
+
+export const countFrequencies = ["weekly", "monthly", "as_needed"] as const;
+export type CountFrequency = typeof countFrequencies[number];
+
+export const storageTypeLabels: Record<StorageType, string> = {
+  dry: "Dry Storage",
+  cold: "Refrigerated",
+  frozen: "Frozen",
+  supplies: "Supplies",
+};
+
+export const countFrequencyLabels: Record<CountFrequency, string> = {
+  weekly: "Weekly",
+  monthly: "Monthly",
+  as_needed: "As Needed",
+};
 
 export type InsertIngredient = z.infer<typeof insertIngredientSchema>;
 export type Ingredient = typeof ingredients.$inferSelect;
@@ -328,10 +358,101 @@ export const insertDensityHeuristicSchema = createInsertSchema(densityHeuristics
 export type InsertDensityHeuristic = z.infer<typeof insertDensityHeuristicSchema>;
 export type DensityHeuristic = typeof densityHeuristics.$inferSelect;
 
+// Waste reasons for tracking different types of loss
+export const wasteReasons = [
+  "expired",
+  "spoiled", 
+  "broken",
+  "mis_ordered",
+  "over_prepared",
+  "customer_return",
+  "quality_issue",
+  "training_loss",
+  "other",
+] as const;
+
+export type WasteReason = typeof wasteReasons[number];
+
+export const wasteReasonLabels: Record<WasteReason, string> = {
+  expired: "Expired",
+  spoiled: "Spoiled/Went Bad",
+  broken: "Broken/Damaged",
+  mis_ordered: "Mis-ordered",
+  over_prepared: "Over-prepared",
+  customer_return: "Customer Return",
+  quality_issue: "Quality Issue",
+  training_loss: "Training Loss",
+  other: "Other",
+};
+
+// Waste log table - tracks all waste events
+export const wasteLogs = pgTable("waste_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  ingredientId: varchar("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
+  quantity: real("quantity").notNull(),
+  unit: text("unit").notNull(),
+  reason: text("reason").notNull(), // one of wasteReasons
+  notes: text("notes"),
+  costAtTime: real("cost_at_time").notNull(), // Calculated cost at time of waste
+  wastedAt: timestamp("wasted_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWasteLogSchema = createInsertSchema(wasteLogs).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+}).extend({
+  quantity: z.number().positive("Quantity must be positive"),
+  reason: z.enum(wasteReasons),
+  notes: z.string().optional(),
+  costAtTime: z.number().nonnegative("Cost must be non-negative"),
+  wastedAt: z.date().optional(),
+});
+
+export type InsertWasteLog = z.infer<typeof insertWasteLogSchema>;
+export type WasteLog = typeof wasteLogs.$inferSelect;
+
+export interface WasteLogWithIngredient extends WasteLog {
+  ingredient: Ingredient;
+}
+
+// Inventory count history - tracks when counts were done
+export const inventoryCounts = pgTable("inventory_counts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  storageType: text("storage_type"), // null for all items
+  countedAt: timestamp("counted_at").defaultNow().notNull(),
+  itemsCounted: real("items_counted").notNull().default(0),
+  notes: text("notes"),
+});
+
+export const insertInventoryCountSchema = createInsertSchema(inventoryCounts).omit({
+  id: true,
+  userId: true,
+}).extend({
+  storageType: z.enum(storageTypes).optional(),
+  countedAt: z.date().optional(),
+  itemsCounted: z.number().nonnegative().optional(),
+  notes: z.string().optional(),
+});
+
+export type InsertInventoryCount = z.infer<typeof insertInventoryCountSchema>;
+export type InventoryCount = typeof inventoryCounts.$inferSelect;
+
 import { relations } from "drizzle-orm";
 
 export const ingredientsRelations = relations(ingredients, ({ many }) => ({
   recipeIngredients: many(recipeIngredients),
+  wasteLogs: many(wasteLogs),
+}));
+
+export const wasteLogsRelations = relations(wasteLogs, ({ one }) => ({
+  ingredient: one(ingredients, {
+    fields: [wasteLogs.ingredientId],
+    references: [ingredients.id],
+  }),
 }));
 
 export const recipesRelations = relations(recipes, ({ many }) => ({

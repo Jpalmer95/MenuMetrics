@@ -15,6 +15,18 @@ Preferred communication style: Simple, everyday language.
 **Technology Stack**: React with TypeScript, Vite, Wouter, TanStack Query, Shadcn/ui (Radix UI), Tailwind CSS.
 **Design Philosophy**: Material Design principles, cream-colored theme, Open Sans/Roboto typography, spreadsheet-like clarity, mobile-responsive design.
 **Key UI Components**: `IngredientsTable`, `RecipeBuilder`, `DashboardStats`, Excel import/export dialogs.
+**Main Pages**:
+- **Dashboard** (`/`): Overview with key metrics and quick actions.
+- **Ingredients** (`/ingredients`): Full ingredient database with cost tracking.
+- **Recipes** (`/recipes`, `/recipes/:id`): Recipe creation and cost analysis.
+- **Inventory Count** (`/inventory`): Quick counting interface grouped by storage type.
+- **Orders** (`/orders`): Order generator with par value calculations and CSV export.
+- **Waste Log** (`/waste-log`): Log and track ingredient waste with cost impact.
+- **Waste Analytics** (`/waste-analytics`): Charts showing waste trends, breakdowns by reason, and top wasted items.
+- **Pricing** (`/pricing`): Pricing playground for margin analysis.
+- **Densities** (`/densities`): Density reference table for unit conversions.
+- **Mise AI** (`/ai-agent`): AI-powered recipe creation and business advice.
+- **Settings** (`/settings`): User preferences and AI provider configuration.
 
 ### Backend Architecture
 
@@ -26,16 +38,21 @@ Preferred communication style: Simple, everyday language.
 - **Cost Calculation**: Dynamically calculates per-unit costs from purchase data and applies them to recipe ingredients with unit conversions.
 - **Pricing Playground**: Allows calculation of recommended menu pricing based on waste percentage, target margin, and consumables buffer.
 - **Yield Percentage**: Accounts for inedible portions of ingredients in cost calculations.
+- **Inventory Management**: Par values, current stock tracking, storage type classification (dry/cold/frozen/supplies), count frequency settings (weekly/monthly/as_needed).
+- **Order Generation**: Calculates order quantities from par values minus current stock, groups by store, exports to CSV.
+- **Waste Tracking**: Logs waste with reason categories (expired/broken/misordered/overproduction/spillage/other), auto-calculates cost impact, analytics with trends and breakdowns.
 
 ### Data Storage
 
 **Database**: PostgreSQL (Neon serverless) with Drizzle ORM.
 **Schema Design**:
 - **Users**: Stores user profiles (id, email, names, image), linked via foreign keys with CASCADE DELETE for data isolation.
-- **Ingredients**: Stores `userId`, purchase details, `gramsPerMilliliter` for density, `isPackaging` flag, `densitySource`, and `yieldPercentage`.
+- **Ingredients**: Stores `userId`, purchase details, `gramsPerMilliliter` for density, `isPackaging` flag, `densitySource`, `yieldPercentage`, and inventory fields (`parValue`, `currentStock`, `storageType`, `countFrequency`, `lastCountDate`).
 - **Recipes**: Stores `userId`, metadata (name, category, serving size), pricing (menuPrice, totalCost, profit margin), and pricing playground settings (`wastePercentage`, `targetMargin`, `consumablesBuffer`).
 - **Recipe Ingredients Junction**: Links recipes to ingredients with `userId`, quantity, and unit.
 - **AI Settings**: Stores `userId` and per-user AI provider selection and API tokens.
+- **Waste Logs**: Tracks wasted ingredients with `userId`, `ingredientId`, quantity, unit, reason (expired/broken/misordered/overproduction/spillage/other), notes, and calculated cost at time of waste.
+- **Inventory Counts**: Records historical inventory counting sessions with `userId`, `storageType`, `itemsCounted`, notes, and timestamp.
 - **Sessions**: PostgreSQL-backed session storage.
 **Migration Strategy**: Drizzle Kit with PostgreSQL dialect.
 
