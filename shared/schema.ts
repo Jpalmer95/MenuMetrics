@@ -25,10 +25,45 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  // Stripe subscription fields
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
+  subscriptionTier: varchar("subscription_tier").default("free"), // free, trial, starter, professional, business
+  subscriptionStatus: varchar("subscription_status").default("inactive"), // inactive, trialing, active, past_due, canceled
+  subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
+  trialEndsAt: timestamp("trial_ends_at"),
 });
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Subscription tiers configuration
+export const subscriptionTiers = {
+  free: { name: "Free", aiQueriesPerMonth: 0, priceMonthly: 0 },
+  trial: { name: "Free Trial", aiQueriesPerMonth: 10, priceMonthly: 0, durationDays: 7 },
+  starter: { name: "Starter", aiQueriesPerMonth: 50, priceMonthly: 1900 }, // $19.00
+  professional: { name: "Professional", aiQueriesPerMonth: 200, priceMonthly: 4900 }, // $49.00
+  business: { name: "Business", aiQueriesPerMonth: 500, priceMonthly: 9900 }, // $99.00
+} as const;
+
+export type SubscriptionTier = keyof typeof subscriptionTiers;
+
+// AI Usage tracking table
+export const aiUsage = pgTable("ai_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  queriesUsed: real("queries_used").notNull().default(0),
+  lastQueryAt: timestamp("last_query_at"),
+});
+
+export const insertAiUsageSchema = createInsertSchema(aiUsage).omit({
+  id: true,
+});
+
+export type InsertAiUsage = z.infer<typeof insertAiUsageSchema>;
+export type AiUsage = typeof aiUsage.$inferSelect;
 
 export const measurementUnits = [
   "cups",

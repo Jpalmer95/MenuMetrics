@@ -25,6 +25,9 @@ import {
   type InventoryCount,
   type InsertInventoryCount,
   type StorageType,
+  type AiUsage,
+  type SubscriptionTier,
+  subscriptionTiers,
   ingredients,
   recipes,
   recipeIngredients,
@@ -35,6 +38,7 @@ import {
   categoryPricingSettings,
   wasteLogs,
   inventoryCounts,
+  aiUsage,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -103,6 +107,24 @@ export interface IStorage {
   getIngredientsByStorageType(userId: string, storageType: StorageType): Promise<Ingredient[]>;
   recordInventoryCount(count: InsertInventoryCount, userId: string): Promise<InventoryCount>;
   getInventoryCounts(userId: string, limit?: number): Promise<InventoryCount[]>;
+  
+  // Subscription and billing operations
+  updateUserStripeInfo(userId: string, stripeInfo: {
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string | null;
+    subscriptionTier?: string;
+    subscriptionStatus?: string;
+    subscriptionCurrentPeriodEnd?: Date | null;
+    trialEndsAt?: Date | null;
+  }): Promise<User | undefined>;
+  startFreeTrial(userId: string): Promise<User | undefined>;
+  
+  // AI Usage tracking
+  getOrCreateAiUsage(userId: string): Promise<AiUsage>;
+  incrementAiUsage(userId: string): Promise<AiUsage>;
+  getAiUsageRemaining(userId: string): Promise<{ used: number; limit: number; remaining: number }>;
+  canUseAi(userId: string): Promise<boolean>;
+  resetAiUsageForNewPeriod(userId: string, periodStart: Date, periodEnd: Date): Promise<AiUsage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -890,6 +912,177 @@ export class DatabaseStorage implements IStorage {
       .where(eq(inventoryCounts.userId, userId))
       .orderBy(inventoryCounts.countedAt)
       .limit(limit);
+  }
+
+  // Subscription and billing operations
+  async updateUserStripeInfo(userId: string, stripeInfo: {
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string | null;
+    subscriptionTier?: string;
+    subscriptionStatus?: string;
+    subscriptionCurrentPeriodEnd?: Date | null;
+    trialEndsAt?: Date | null;
+  }): Promise<User | undefined> {
+    const updateData: any = { updatedAt: new Date() };
+    if (stripeInfo.stripeCustomerId !== undefined) updateData.stripeCustomerId = stripeInfo.stripeCustomerId;
+    if (stripeInfo.stripeSubscriptionId !== undefined) updateData.stripeSubscriptionId = stripeInfo.stripeSubscriptionId;
+    if (stripeInfo.subscriptionTier !== undefined) updateData.subscriptionTier = stripeInfo.subscriptionTier;
+    if (stripeInfo.subscriptionStatus !== undefined) updateData.subscriptionStatus = stripeInfo.subscriptionStatus;
+    if (stripeInfo.subscriptionCurrentPeriodEnd !== undefined) updateData.subscriptionCurrentPeriodEnd = stripeInfo.subscriptionCurrentPeriodEnd;
+    if (stripeInfo.trialEndsAt !== undefined) updateData.trialEndsAt = stripeInfo.trialEndsAt;
+
+    const [updated] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.id, userId))
+      .returning();
+    return updated || undefined;
+  }
+
+  async startFreeTrial(userId: string): Promise<User | undefined> {
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
+    const [updated] = await db
+      .update(users)
+      .set({
+        subscriptionTier: 'trial',
+        subscriptionStatus: 'trialing',
+        trialEndsAt,
+        updatedAt: now,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (updated) {
+      // Create initial AI usage record for trial period
+      const periodStart = now;
+      const periodEnd = trialEndsAt;
+      await db.insert(aiUsage).values({
+        userId,
+        periodStart,
+        periodEnd,
+        queriesUsed: 0,
+      });
+    }
+    
+    return updated || undefined;
+  }
+
+  // AI Usage tracking
+  async getOrCreateAiUsage(userId: string): Promise<AiUsage> {
+    const now = new Date();
+    
+    // Find existing usage record for current period
+    const [existing] = await db
+      .select()
+      .from(aiUsage)
+      .where(eq(aiUsage.userId, userId))
+      .orderBy(aiUsage.periodEnd);
+    
+    if (existing && new Date(existing.periodEnd) > now) {
+      return existing;
+    }
+    
+    // Get user subscription info
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    // Calculate period based on subscription
+    let periodStart = now;
+    let periodEnd: Date;
+    
+    if (user.subscriptionCurrentPeriodEnd) {
+      periodEnd = new Date(user.subscriptionCurrentPeriodEnd);
+    } else if (user.trialEndsAt) {
+      periodEnd = new Date(user.trialEndsAt);
+    } else {
+      // Default to end of current month
+      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
+    
+    // Create new usage record
+    const [created] = await db
+      .insert(aiUsage)
+      .values({
+        userId,
+        periodStart,
+        periodEnd,
+        queriesUsed: 0,
+      })
+      .returning();
+    
+    return created;
+  }
+
+  async incrementAiUsage(userId: string): Promise<AiUsage> {
+    const usage = await this.getOrCreateAiUsage(userId);
+    
+    const [updated] = await db
+      .update(aiUsage)
+      .set({
+        queriesUsed: usage.queriesUsed + 1,
+        lastQueryAt: new Date(),
+      })
+      .where(eq(aiUsage.id, usage.id))
+      .returning();
+    
+    return updated;
+  }
+
+  async getAiUsageRemaining(userId: string): Promise<{ used: number; limit: number; remaining: number }> {
+    const user = await this.getUser(userId);
+    if (!user) {
+      return { used: 0, limit: 0, remaining: 0 };
+    }
+    
+    const tier = (user.subscriptionTier as SubscriptionTier) || 'free';
+    const tierConfig = subscriptionTiers[tier] || subscriptionTiers.free;
+    const limit = tierConfig.aiQueriesPerMonth;
+    
+    // Check if subscription/trial is still valid
+    const now = new Date();
+    const isActive = user.subscriptionStatus === 'active' || 
+      (user.subscriptionStatus === 'trialing' && user.trialEndsAt && new Date(user.trialEndsAt) > now);
+    
+    if (!isActive && tier !== 'free') {
+      return { used: 0, limit: 0, remaining: 0 };
+    }
+    
+    try {
+      const usage = await this.getOrCreateAiUsage(userId);
+      const used = usage.queriesUsed;
+      const remaining = Math.max(0, limit - used);
+      
+      return { used, limit, remaining };
+    } catch {
+      return { used: 0, limit, remaining: limit };
+    }
+  }
+
+  async canUseAi(userId: string): Promise<boolean> {
+    const { remaining } = await this.getAiUsageRemaining(userId);
+    return remaining > 0;
+  }
+
+  async resetAiUsageForNewPeriod(userId: string, periodStart: Date, periodEnd: Date): Promise<AiUsage> {
+    // Delete old usage records
+    await db.delete(aiUsage).where(eq(aiUsage.userId, userId));
+    
+    // Create new record
+    const [created] = await db
+      .insert(aiUsage)
+      .values({
+        userId,
+        periodStart,
+        periodEnd,
+        queriesUsed: 0,
+      })
+      .returning();
+    
+    return created;
   }
 }
 
