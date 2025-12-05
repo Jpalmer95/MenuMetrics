@@ -311,7 +311,13 @@ export default function DashboardPage() {
       {!chatOpen && (
         <Button
           onClick={() => setChatOpen(true)}
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-14 w-14 rounded-full shadow-lg z-[999]"
+          style={{
+            position: 'fixed',
+            bottom: '1rem',
+            right: '1rem',
+            zIndex: 9999,
+          }}
+          className="h-14 w-14 rounded-full shadow-lg"
           size="icon"
           data-testid="button-open-chat"
         >
@@ -321,10 +327,20 @@ export default function DashboardPage() {
 
       {/* Chat Window - Rendered at root level for proper fixed positioning */}
       {chatOpen && (
-        <Card className={`fixed z-[999] shadow-2xl transition-all duration-200 ${
+        <Card style={{
+          position: 'fixed',
+          zIndex: 9999,
+          bottom: chatExpanded ? '1rem' : '1rem',
+          right: chatExpanded ? '1rem' : '1rem',
+          left: chatExpanded ? '0.5rem' : 'auto',
+          top: chatExpanded ? '5rem' : 'auto',
+          width: chatExpanded ? 'calc(100% - 1rem)' : '380px',
+          maxWidth: chatExpanded ? '500px' : 'none',
+          height: chatExpanded ? 'auto' : '500px',
+        }} className={`shadow-2xl transition-all duration-200 ${
           chatExpanded 
-            ? "bottom-2 right-2 left-2 top-20 sm:bottom-4 sm:right-4 md:left-auto md:w-[500px] md:top-20" 
-            : "bottom-4 right-4 w-full sm:w-[380px] h-[500px] mx-2 sm:mx-0"
+            ? "md:w-[500px]" 
+            : "w-[380px]"
         }`}>
           <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
             <div className="flex items-center gap-2">
