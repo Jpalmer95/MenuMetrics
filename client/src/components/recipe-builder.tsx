@@ -34,6 +34,9 @@ interface RecipeBuilderProps {
   onAddSubRecipe?: (subRecipeId: string, quantity: number) => void;
   onRemoveSubRecipe?: (subRecipeIngredientId: string) => void;
   onUpdateSubRecipeQuantity?: (subRecipeIngredientId: string, quantity: number) => void;
+  onRemoveAllIngredients?: () => void;
+  onRemoveAllPackaging?: () => void;
+  onRemoveAllSubRecipes?: () => void;
 }
 
 const RecipeItemRow = ({
@@ -264,6 +267,9 @@ export function RecipeBuilder({
   onAddSubRecipe,
   onRemoveSubRecipe,
   onUpdateSubRecipeQuantity,
+  onRemoveAllIngredients,
+  onRemoveAllPackaging,
+  onRemoveAllSubRecipes,
 }: RecipeBuilderProps) {
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -278,6 +284,10 @@ export function RecipeBuilder({
   const [selectedSubRecipeId, setSelectedSubRecipeId] = useState("");
   const [subRecipeQuantity, setSubRecipeQuantity] = useState(1);
   const [subRecipeSearch, setSubRecipeSearch] = useState("");
+
+  const [confirmRemoveAllIngredients, setConfirmRemoveAllIngredients] = useState(false);
+  const [confirmRemoveAllPackaging, setConfirmRemoveAllPackaging] = useState(false);
+  const [confirmRemoveAllSubRecipes, setConfirmRemoveAllSubRecipes] = useState(false);
 
   const usedIngredientIds = recipeIngredients.map((ri) => ri.ingredientId);
   
@@ -715,11 +725,50 @@ export function RecipeBuilder({
 
       {/* Recipe Ingredients List */}
       <Card>
-        <CardHeader>
-          <CardTitle>Recipe Ingredients</CardTitle>
-          <CardDescription>Food ingredients in this recipe</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <div>
+            <CardTitle>Recipe Ingredients</CardTitle>
+            <CardDescription>Food ingredients in this recipe</CardDescription>
+          </div>
+          {recipeRegularIngredients.length > 0 && onRemoveAllIngredients && !confirmRemoveAllIngredients && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmRemoveAllIngredients(true)}
+              data-testid="button-remove-all-ingredients"
+              className="text-destructive hover:text-destructive"
+            >
+              Remove All
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
+          {confirmRemoveAllIngredients && onRemoveAllIngredients && (
+            <div className="flex items-center gap-2 p-3 border rounded-md bg-destructive/5">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <span className="text-sm font-medium flex-1">Remove all ingredients?</span>
+              <Button
+                size="icon"
+                className="h-8 w-8 bg-green-600 hover:bg-green-700"
+                onClick={() => {
+                  onRemoveAllIngredients();
+                  setConfirmRemoveAllIngredients(false);
+                }}
+                data-testid="button-confirm-remove-all-ingredients"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                className="h-8 w-8 text-destructive"
+                variant="ghost"
+                onClick={() => setConfirmRemoveAllIngredients(false)}
+                data-testid="button-cancel-remove-all-ingredients"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           {recipeRegularIngredients.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No ingredients added yet. Add ingredients from the selection above.
@@ -751,14 +800,53 @@ export function RecipeBuilder({
 
       {/* Recipe Packaging List */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-muted-foreground" />
-            <CardTitle>Packaging Items</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Packaging Items</CardTitle>
+            </div>
+            <CardDescription>Cups, lids, sleeves, and other packaging</CardDescription>
           </div>
-          <CardDescription>Cups, lids, sleeves, and other packaging</CardDescription>
+          {recipePackagingItems.length > 0 && onRemoveAllPackaging && !confirmRemoveAllPackaging && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmRemoveAllPackaging(true)}
+              data-testid="button-remove-all-packaging"
+              className="text-destructive hover:text-destructive"
+            >
+              Remove All
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
+          {confirmRemoveAllPackaging && onRemoveAllPackaging && (
+            <div className="flex items-center gap-2 p-3 border rounded-md bg-destructive/5">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <span className="text-sm font-medium flex-1">Remove all packaging items?</span>
+              <Button
+                size="icon"
+                className="h-8 w-8 bg-green-600 hover:bg-green-700"
+                onClick={() => {
+                  onRemoveAllPackaging();
+                  setConfirmRemoveAllPackaging(false);
+                }}
+                data-testid="button-confirm-remove-all-packaging"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                className="h-8 w-8 text-destructive"
+                variant="ghost"
+                onClick={() => setConfirmRemoveAllPackaging(false)}
+                data-testid="button-cancel-remove-all-packaging"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           {recipePackagingItems.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No packaging items added yet. Add packaging from the selection above.
@@ -791,14 +879,53 @@ export function RecipeBuilder({
       {/* Sub-Recipe Ingredients List */}
       {onRemoveSubRecipe && (
         <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <ChefHat className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>Recipe Ingredients</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <ChefHat className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Recipe Ingredients</CardTitle>
+              </div>
+              <CardDescription>Other recipes used as components</CardDescription>
             </div>
-            <CardDescription>Other recipes used as components</CardDescription>
+            {subRecipes.length > 0 && onRemoveAllSubRecipes && !confirmRemoveAllSubRecipes && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmRemoveAllSubRecipes(true)}
+                data-testid="button-remove-all-sub-recipes"
+                className="text-destructive hover:text-destructive"
+              >
+                Remove All
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
+            {confirmRemoveAllSubRecipes && onRemoveAllSubRecipes && (
+              <div className="flex items-center gap-2 p-3 border rounded-md bg-destructive/5">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <span className="text-sm font-medium flex-1">Remove all recipe ingredients?</span>
+                <Button
+                  size="icon"
+                  className="h-8 w-8 bg-green-600 hover:bg-green-700"
+                  onClick={() => {
+                    onRemoveAllSubRecipes();
+                    setConfirmRemoveAllSubRecipes(false);
+                  }}
+                  data-testid="button-confirm-remove-all-sub-recipes"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  variant="ghost"
+                  onClick={() => setConfirmRemoveAllSubRecipes(false)}
+                  data-testid="button-cancel-remove-all-sub-recipes"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             {subRecipes.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
                 No recipes added as ingredients yet. Add recipes from the selection above.

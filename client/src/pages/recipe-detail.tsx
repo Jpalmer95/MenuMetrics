@@ -255,6 +255,27 @@ export default function RecipeDetailPage() {
     updateSubRecipeQuantityMutation.mutate({ subRecipeIngredientId, quantity });
   };
 
+  const handleRemoveAllIngredients = () => {
+    const recipeIngredients = recipe?.ingredients?.filter((ri) => !ri.ingredientDetails.isPackaging) || [];
+    recipeIngredients.forEach((ri) => {
+      removeIngredientMutation.mutate(ri.id);
+    });
+  };
+
+  const handleRemoveAllPackaging = () => {
+    const packagingItems = recipe?.ingredients?.filter((ri) => ri.ingredientDetails.isPackaging) || [];
+    packagingItems.forEach((ri) => {
+      removeIngredientMutation.mutate(ri.id);
+    });
+  };
+
+  const handleRemoveAllSubRecipes = () => {
+    const subRecipes = recipe?.subRecipes || [];
+    subRecipes.forEach((sr) => {
+      removeSubRecipeMutation.mutate(sr.id);
+    });
+  };
+
   const handleStartEditMenuPrice = () => {
     setMenuPriceInput(recipe?.menuPrice?.toString() || "");
     setIsEditingMenuPrice(true);
@@ -599,6 +620,9 @@ export default function RecipeDetailPage() {
         onAddSubRecipe={handleAddSubRecipe}
         onRemoveSubRecipe={handleRemoveSubRecipe}
         onUpdateSubRecipeQuantity={handleUpdateSubRecipeQuantity}
+        onRemoveAllIngredients={handleRemoveAllIngredients}
+        onRemoveAllPackaging={handleRemoveAllPackaging}
+        onRemoveAllSubRecipes={handleRemoveAllSubRecipes}
       />
     </div>
   );
