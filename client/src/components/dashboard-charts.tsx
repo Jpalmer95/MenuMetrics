@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { X, GripVertical, Maximize2, Minimize2 } from "lucide-react";
 import type { Ingredient, Recipe, DashboardChartType, DashboardConfig, WasteLog } from "@shared/schema";
 import { dashboardChartLabels } from "@shared/schema";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   BarChart,
   Bar,
@@ -37,7 +39,39 @@ interface ChartWidgetProps {
   wasteLogs?: WasteLog[];
   onRemove?: (id: string) => void;
   onToggleWidth?: (id: string) => void;
-  isDragging?: boolean;
+}
+
+export function SortableChartWidget(props: ChartWidgetProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.config.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={props.config.width === "full" ? "md:col-span-2" : ""}
+    >
+      <ChartWidget {...props} dragHandleProps={{ attributes, listeners }} isDragging={isDragging} />
+    </div>
+  );
+}
+
+interface DragHandleProps {
+  attributes?: Record<string, unknown>;
+  listeners?: Record<string, unknown>;
 }
 
 export function ChartWidget({
@@ -47,8 +81,9 @@ export function ChartWidget({
   wasteLogs = [],
   onRemove,
   onToggleWidth,
+  dragHandleProps,
   isDragging,
-}: ChartWidgetProps) {
+}: ChartWidgetProps & { dragHandleProps?: DragHandleProps; isDragging?: boolean }) {
   const chartInfo = dashboardChartLabels[config.chartType as DashboardChartType] || {
     name: "Unknown Chart",
     description: "",
@@ -63,7 +98,14 @@ export function ChartWidget({
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
+          <div
+            {...dragHandleProps?.attributes}
+            {...dragHandleProps?.listeners}
+            className="touch-none"
+            data-testid={`drag-handle-${config.id}`}
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
+          </div>
           <div className="min-w-0">
             <CardTitle className="text-base truncate">{chartInfo.name}</CardTitle>
             <CardDescription className="text-xs truncate">{chartInfo.description}</CardDescription>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardStats } from "@/components/dashboard-stats";
-import { ChartWidget } from "@/components/dashboard-charts";
+import { SortableChartWidget } from "@/components/dashboard-charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,21 @@ import { MessageCircle, Send, Loader2, Sparkles, X, Minimize2, Maximize2, Plus, 
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Ingredient, Recipe, DashboardConfig, DashboardChartType, WasteLog } from "@shared/schema";
 import { dashboardChartLabels, dashboardChartTypes } from "@shared/schema";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -92,6 +107,41 @@ export default function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard-configs"] });
     },
   });
+
+  const reorderMutation = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      await apiRequest("PATCH", "/api/dashboard-configs/reorder", { orderedIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard-configs"] });
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = visibleConfigs.findIndex((c) => c.id === active.id);
+      const newIndex = visibleConfigs.findIndex((c) => c.id === over.id);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(visibleConfigs, oldIndex, newIndex);
+        const orderedIds = newOrder.map((c) => c.id);
+        reorderMutation.mutate(orderedIds);
+      }
+    }
+  };
 
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
@@ -205,23 +255,30 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2">
-            {visibleConfigs.map((config) => (
-              <div
-                key={config.id}
-                className={config.width === "full" ? "md:col-span-2" : ""}
-              >
-                <ChartWidget
-                  config={config}
-                  ingredients={ingredients}
-                  recipes={recipes}
-                  wasteLogs={wasteLogs}
-                  onRemove={(id) => removeChartMutation.mutate(id)}
-                  onToggleWidth={(id) => toggleWidthMutation.mutate(id)}
-                />
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={visibleConfigs.map((c) => c.id)}
+              strategy={rectSortingStrategy}
+            >
+              <div className="grid gap-6 md:grid-cols-2">
+                {visibleConfigs.map((config) => (
+                  <SortableChartWidget
+                    key={config.id}
+                    config={config}
+                    ingredients={ingredients}
+                    recipes={recipes}
+                    wasteLogs={wasteLogs}
+                    onRemove={(id) => removeChartMutation.mutate(id)}
+                    onToggleWidth={(id) => toggleWidthMutation.mutate(id)}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
