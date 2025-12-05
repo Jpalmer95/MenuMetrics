@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X, AlertCircle, AlertTriangle, Package, Search, ChefHat } from "lucide-react";
+import { Plus, X, AlertCircle, AlertTriangle, Package, Search, ChefHat, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -738,7 +738,7 @@ export function RecipeBuilder({
               data-testid="button-remove-all-ingredients"
               className="text-destructive hover:text-destructive"
             >
-              Remove All
+              Remove Section Items
             </Button>
           )}
         </CardHeader>
@@ -816,7 +816,7 @@ export function RecipeBuilder({
               data-testid="button-remove-all-packaging"
               className="text-destructive hover:text-destructive"
             >
-              Remove All
+              Remove Section Items
             </Button>
           )}
         </CardHeader>
@@ -895,7 +895,7 @@ export function RecipeBuilder({
                 data-testid="button-remove-all-sub-recipes"
                 className="text-destructive hover:text-destructive"
               >
-                Remove All
+                Remove Section Items
               </Button>
             )}
           </CardHeader>
