@@ -3,12 +3,14 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, type RecipeCategory } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, type RecipeCategory, subscriptionTiers, type SubscriptionTier } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { findBestMatch } from "@shared/fuzzy-matcher";
 import type { Ingredient } from "@shared/schema";
+import { registerBillingRoutes } from "./billingRoutes";
+import { aiUsageMiddleware } from "./aiUsageMiddleware";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -39,6 +41,8 @@ function findIngredientMatch(
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
+  
+  registerBillingRoutes(app);
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -1338,8 +1342,8 @@ Rules:
     }
   });
 
-  // AI Agent endpoints
-  app.post("/api/ai/recipe-ideas", isAuthenticated, async (req: any, res) => {
+  // AI Agent endpoints (protected by AI usage middleware)
+  app.post("/api/ai/recipe-ideas", isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { customPrompt, includeIngredientMatching } = req.body;
@@ -1424,7 +1428,7 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
     }
   });
 
-  // Create recipe from AI suggestion
+  // Create recipe from AI suggestion (no usage tracking - just saves AI-generated recipe)
   app.post("/api/ai/create-recipe", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1476,7 +1480,7 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
   });
 
   // AI Recipe Parser - accepts text or image
-  app.post("/api/ai/parse-recipe", upload.single("image"), isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/parse-recipe", upload.single("image"), isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { recipeText } = req.body;
@@ -1599,7 +1603,7 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
     }
   });
 
-  app.post("/api/ai/menu-strategy", isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/menu-strategy", isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { customPrompt } = req.body;
@@ -1657,7 +1661,7 @@ Format your response clearly with numbered sections.`;
   });
 
   // AI Seasonal Menu Suggestions
-  app.post("/api/ai/seasonal-suggestions", isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/seasonal-suggestions", isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { season, customPrompt } = req.body;
@@ -1744,7 +1748,7 @@ Mark inInventory as true if the ingredient exists in the available inventory lis
   });
 
   // AI Pricing Analysis with detailed recommendations
-  app.post("/api/ai/pricing-analysis", isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/pricing-analysis", isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { customPrompt } = req.body;
@@ -1814,7 +1818,7 @@ Format your response clearly with headers and bullet points for easy reading.`;
   });
 
   // AI Business Strategy Advisor
-  app.post("/api/ai/business-advice", isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/business-advice", isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { businessType, location, customPrompt } = req.body;
@@ -1902,7 +1906,7 @@ Be specific and actionable. Provide concrete examples and price points where rel
   });
 
   // Dashboard Chatbot - Quick questions about menu and metrics
-  app.post("/api/ai/dashboard-chat", isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/dashboard-chat", isAuthenticated, aiUsageMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { message } = req.body;
