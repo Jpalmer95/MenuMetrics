@@ -99,11 +99,11 @@ export default function AIAgentPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
           <Sparkles className="h-8 w-8 text-primary" />
-          AI Business Assistant
+          Mise AI
         </h1>
         <p className="text-muted-foreground mt-2">
-          Intelligent tools to help you create recipes, plan seasonal menus, optimize pricing, and develop business strategy.
-          All suggestions use your actual inventory and recipes for accurate recommendations.
+          Your kitchen alchemy toolkit. Four specialized agents help you create recipes, plan seasonal menus, 
+          optimize pricing, and develop business strategy — all using your actual inventory for accurate recommendations.
         </p>
       </div>
 
@@ -111,28 +111,32 @@ export default function AIAgentPage() {
         <Info className="h-4 w-4" />
         <AlertTitle>Safe & Secure</AlertTitle>
         <AlertDescription>
-          AI assistants can only suggest and create new items. They cannot modify or delete your existing inventory, recipes, or settings.
+          AI agents can only suggest and create new items. They cannot modify or delete your existing inventory, recipes, or settings.
           All AI-generated recipes require your explicit approval before being added.
         </AlertDescription>
       </Alert>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 h-auto">
-          <TabsTrigger value="recipe-creator" className="flex flex-col gap-1 py-3" data-testid="tab-recipe-creator">
+          <TabsTrigger value="recipe-creator" className="flex flex-col gap-0.5 py-3" data-testid="tab-recipe-creator">
             <ChefHat className="h-5 w-5" />
-            <span className="text-xs">Recipe Creator</span>
+            <span className="text-sm font-bold">Matter</span>
+            <span className="text-[10px] font-light text-muted-foreground">Recipe Creator</span>
           </TabsTrigger>
-          <TabsTrigger value="seasonal-planner" className="flex flex-col gap-1 py-3" data-testid="tab-seasonal-planner">
+          <TabsTrigger value="seasonal-planner" className="flex flex-col gap-0.5 py-3" data-testid="tab-seasonal-planner">
             <Calendar className="h-5 w-5" />
-            <span className="text-xs">Seasonal Planner</span>
+            <span className="text-sm font-bold">Phase</span>
+            <span className="text-[10px] font-light text-muted-foreground">Seasonal Planner</span>
           </TabsTrigger>
-          <TabsTrigger value="pricing-strategist" className="flex flex-col gap-1 py-3" data-testid="tab-pricing-strategist">
+          <TabsTrigger value="pricing-strategist" className="flex flex-col gap-0.5 py-3" data-testid="tab-pricing-strategist">
             <DollarSign className="h-5 w-5" />
-            <span className="text-xs">Pricing Strategy</span>
+            <span className="text-sm font-bold">Tare</span>
+            <span className="text-[10px] font-light text-muted-foreground">Pricing Strategist</span>
           </TabsTrigger>
-          <TabsTrigger value="business-advisor" className="flex flex-col gap-1 py-3" data-testid="tab-business-advisor">
+          <TabsTrigger value="business-advisor" className="flex flex-col gap-0.5 py-3" data-testid="tab-business-advisor">
             <TrendingUp className="h-5 w-5" />
-            <span className="text-xs">Business Advisor</span>
+            <span className="text-sm font-bold">Scope</span>
+            <span className="text-[10px] font-light text-muted-foreground">Business Advisor</span>
           </TabsTrigger>
         </TabsList>
 
@@ -165,10 +169,11 @@ function RecipeCreatorTab({ ingredients }: { ingredients: Ingredient[] }) {
 
   const recipeIdeasMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/ai/recipe-ideas", {
+      const res = await apiRequest("POST", "/api/ai/recipe-ideas", {
         customPrompt: customPrompt.trim() || undefined,
         includeIngredientMatching: true,
       });
+      return await res.json() as { recipes: AIRecipe[] };
     },
     onSuccess: (data) => {
       setRecipes(data.recipes || []);
@@ -387,10 +392,11 @@ function SeasonalPlannerTab({ ingredients }: { ingredients: Ingredient[] }) {
 
   const seasonalMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/ai/seasonal-suggestions", {
+      const res = await apiRequest("POST", "/api/ai/seasonal-suggestions", {
         season,
         customPrompt: customPrompt.trim() || undefined,
       });
+      return await res.json() as { suggestions: SeasonalSuggestion[] };
     },
     onSuccess: (data) => {
       setSuggestions(data.suggestions || []);
@@ -593,9 +599,10 @@ function PricingStrategistTab({ recipes }: { recipes: Recipe[] }) {
 
   const pricingMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/ai/pricing-analysis", {
+      const res = await apiRequest("POST", "/api/ai/pricing-analysis", {
         customPrompt: customPrompt.trim() || undefined,
       });
+      return await res.json() as { analysis: string; recommendations: PricingRecommendation[] };
     },
     onSuccess: (data) => {
       setAnalysis(data.analysis || "");
@@ -754,11 +761,12 @@ function BusinessAdvisorTab({ ingredients, recipes }: { ingredients: Ingredient[
 
   const advisorMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/ai/business-advice", {
+      const res = await apiRequest("POST", "/api/ai/business-advice", {
         businessType,
         location: location.trim() || undefined,
         customPrompt: customPrompt.trim() || undefined,
       });
+      return await res.json() as { advice: string };
     },
     onSuccess: (data) => {
       setAdvice(data.advice || "");

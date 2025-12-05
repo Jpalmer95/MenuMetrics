@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2, Plus, Search, ChefHat, Sparkles, Upload, Download, Check, X, DollarSign, Copy, Package } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, ChefHat, Upload, Download, Check, X, DollarSign, Copy, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,7 +39,6 @@ interface RecipesTableProps {
   recipes: Recipe[];
   onDelete: (id: string) => void;
   onAddNew: () => void;
-  onImportWithAI: () => void;
   onBulkImport: () => void;
   onExport: () => void;
   onViewDetails: (recipe: Recipe) => void;
@@ -61,7 +60,6 @@ export function RecipesTable({
   recipes,
   onDelete,
   onAddNew,
-  onImportWithAI,
   onBulkImport,
   onExport,
   onViewDetails,
@@ -267,10 +265,6 @@ export function RecipesTable({
           <Button onClick={onBulkImport} variant="outline" data-testid="button-bulk-import">
             <Upload className="h-4 w-4 mr-2" />
             Bulk Import
-          </Button>
-          <Button onClick={onImportWithAI} variant="outline" data-testid="button-import-ai">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Import with AI
           </Button>
           <Button onClick={onAddNew} data-testid="button-add-recipe">
             <Plus className="h-4 w-4 mr-2" />

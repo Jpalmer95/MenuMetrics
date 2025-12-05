@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { RecipesTable } from "@/components/recipes-table";
 import { AddRecipeWithIngredientsDialog } from "@/components/add-recipe-with-ingredients-dialog";
-import { ImportRecipeDialog } from "@/components/import-recipe-dialog";
 import { BulkImportRecipeDialog } from "@/components/bulk-import-recipe-dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import type { Recipe, InsertRecipe, Ingredient, RecipeCategory, RecipeWithIngredients, MeasurementUnit } from "@shared/schema";
@@ -31,7 +30,6 @@ interface RecipeIssue {
 
 export default function RecipesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -135,7 +133,6 @@ export default function RecipesPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/recipes/with-ingredients"] });
       setIsFormOpen(false);
-      setEditingRecipe(undefined);
       toast({
         title: "Success",
         description: "Recipe updated successfully",
@@ -307,32 +304,6 @@ export default function RecipesPage() {
     setIsFormOpen(true);
   };
 
-  const handleImportWithAI = () => {
-    setIsImportOpen(true);
-  };
-
-  const handleImportRecipe = async (recipeData: any) => {
-    try {
-      // Use the existing AI create recipe endpoint
-      const response = await apiRequest("POST", "/api/ai/create-recipe", recipeData);
-      const newRecipe = await response.json();
-      
-      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/recipes/with-ingredients"] });
-      setLocation(`/recipes/${newRecipe.id}`);
-      toast({
-        title: "Recipe Imported",
-        description: `"${recipeData.name}" has been added to your recipes.`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to import recipe. Some ingredients may not be in your database.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleViewDetails = (recipe: Recipe) => {
     setLocation(`/recipes/${recipe.id}`);
   };
@@ -419,7 +390,6 @@ export default function RecipesPage() {
         recipes={recipes}
         onDelete={(id) => deleteMutation.mutate(id)}
         onAddNew={handleAddNew}
-        onImportWithAI={handleImportWithAI}
         onBulkImport={handleBulkImport}
         onExport={handleExport}
         onViewDetails={handleViewDetails}
@@ -443,12 +413,6 @@ export default function RecipesPage() {
         onSubmit={handleSubmit}
         ingredients={ingredients}
         isLoading={createMutation.isPending}
-      />
-
-      <ImportRecipeDialog
-        open={isImportOpen}
-        onOpenChange={setIsImportOpen}
-        onImport={handleImportRecipe}
       />
 
       <BulkImportRecipeDialog

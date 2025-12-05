@@ -1,6 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardStats } from "@/components/dashboard-stats";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { MessageCircle, Send, Loader2, Sparkles, X, Minimize2, Maximize2 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 import type { Ingredient, Recipe } from "@shared/schema";
 import {
   BarChart,
@@ -15,9 +21,22 @@ import {
   Cell,
 } from "recharts";
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 export default function DashboardPage() {
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: "assistant", content: "Hi! I'm your MenuMetrics assistant. Ask me anything about your menu, ingredients, costs, or margins. Try asking:\n\n- What's my highest margin item?\n- How many recipes do I have?\n- What's my average profit margin?" }
+  ]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   const { data: ingredients = [], isLoading: ingredientsLoading } = useQuery<Ingredient[]>({
     queryKey: ["/api/ingredients"],
   });
@@ -25,6 +44,34 @@ export default function DashboardPage() {
   const { data: recipes = [], isLoading: recipesLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
   });
+
+  const chatMutation = useMutation({
+    mutationFn: async (message: string) => {
+      const res = await apiRequest("POST", "/api/ai/dashboard-chat", { message });
+      return await res.json() as { response: string };
+    },
+    onSuccess: (data) => {
+      setMessages(prev => [...prev, { role: "assistant", content: data.response || "I couldn't generate a response." }]);
+    },
+    onError: (error: any) => {
+      setMessages(prev => [...prev, { role: "assistant", content: `Sorry, I couldn't process that request. ${error.message || "Please try again."}` }]);
+    },
+  });
+
+  const handleSendMessage = () => {
+    if (!chatInput.trim() || chatMutation.isPending) return;
+    
+    const userMessage = chatInput.trim();
+    setMessages(prev => [...prev, { role: "user", content: userMessage }]);
+    setChatInput("");
+    chatMutation.mutate(userMessage);
+  };
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   if (ingredientsLoading || recipesLoading) {
     return (
@@ -257,6 +304,109 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Floating Chat Button */}
+      {!chatOpen && (
+        <Button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
+          size="icon"
+          data-testid="button-open-chat"
+        >
+          <MessageCircle className="h-6 w-6" />
+        </Button>
+      )}
+
+      {/* Chat Window */}
+      {chatOpen && (
+        <Card className={`fixed z-50 shadow-2xl transition-all duration-200 ${
+          chatExpanded 
+            ? "bottom-4 right-4 left-4 top-20 md:left-auto md:w-[500px] md:top-20" 
+            : "bottom-6 right-6 w-[380px] h-[500px]"
+        }`}>
+          <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base">Menu Assistant</CardTitle>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setChatExpanded(!chatExpanded)}
+                data-testid="button-expand-chat"
+              >
+                {chatExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setChatOpen(false)}
+                data-testid="button-close-chat"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col p-0 h-[calc(100%-120px)]">
+            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+              <div className="space-y-4">
+                {messages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      }`}
+                      data-testid={`chat-message-${msg.role}-${i}`}
+                    >
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                {chatMutation.isPending && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted rounded-lg px-3 py-2 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+            <div className="p-4 border-t">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
+                className="flex gap-2"
+              >
+                <Input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Ask about your menu..."
+                  disabled={chatMutation.isPending}
+                  data-testid="input-chat-message"
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!chatInput.trim() || chatMutation.isPending}
+                  data-testid="button-send-chat"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

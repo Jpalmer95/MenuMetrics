@@ -60,7 +60,7 @@ function AppContent() {
     { path: "/recipes", label: "Recipes", icon: ChefHat, testId: "link-recipes" },
     { path: "/pricing", label: "Pricing", icon: Calculator, testId: "link-pricing" },
     { path: "/densities", label: "Densities", icon: Beaker, testId: "link-densities" },
-    { path: "/ai-agent", label: "AI Agent", icon: Sparkles, testId: "link-ai-agent" },
+    { path: "/ai-agent", label: "Mise AI", icon: Sparkles, testId: "link-ai-agent" },
     { path: "/settings", label: "Settings", icon: Settings, testId: "link-settings" },
   ];
 

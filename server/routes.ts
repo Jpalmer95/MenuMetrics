@@ -1901,6 +1901,107 @@ Be specific and actionable. Provide concrete examples and price points where rel
     }
   });
 
+  // Dashboard Chatbot - Quick questions about menu and metrics
+  app.post("/api/ai/dashboard-chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { message } = req.body;
+      
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      const settings = await storage.getAISettings(userId);
+      const provider = (settings?.aiProvider || "openai") as AIProvider;
+      const customApiKey = settings?.huggingfaceToken || undefined;
+
+      const ingredients = await storage.getAllIngredients(userId);
+      const recipes = await storage.getAllRecipes(userId);
+      
+      // Calculate key metrics
+      const totalInventoryValue = ingredients.reduce((sum, i) => sum + (i.costPerUnit * i.quantity), 0);
+      const avgRecipeCost = recipes.length > 0 
+        ? recipes.reduce((sum, r) => sum + (r.totalCost || 0), 0) / recipes.length 
+        : 0;
+      const recipesWithPricing = recipes.filter(r => r.menuPrice && r.menuPrice > 0);
+      const avgMargin = recipesWithPricing.length > 0
+        ? recipesWithPricing.reduce((sum, r) => {
+            const cost = r.costPerServing || 0;
+            const price = r.menuPrice || 0;
+            return sum + (price > 0 ? ((price - cost) / price * 100) : 0);
+          }, 0) / recipesWithPricing.length
+        : 0;
+      
+      const highestMarginRecipe = recipesWithPricing.length > 0
+        ? recipesWithPricing.reduce((best, r) => {
+            const rMargin = r.menuPrice ? ((r.menuPrice - (r.costPerServing || 0)) / r.menuPrice * 100) : 0;
+            const bestMargin = best.menuPrice ? ((best.menuPrice - (best.costPerServing || 0)) / best.menuPrice * 100) : 0;
+            return rMargin > bestMargin ? r : best;
+          })
+        : null;
+      
+      const lowestMarginRecipe = recipesWithPricing.length > 0
+        ? recipesWithPricing.reduce((worst, r) => {
+            const rMargin = r.menuPrice ? ((r.menuPrice - (r.costPerServing || 0)) / r.menuPrice * 100) : 0;
+            const worstMargin = worst.menuPrice ? ((worst.menuPrice - (worst.costPerServing || 0)) / worst.menuPrice * 100) : 0;
+            return rMargin < worstMargin ? r : worst;
+          })
+        : null;
+
+      const mostExpensiveRecipe = recipes.length > 0
+        ? recipes.reduce((max, r) => (r.totalCost || 0) > (max.totalCost || 0) ? r : max)
+        : null;
+
+      const ingredientCategories = [...new Set(ingredients.map(i => i.category))];
+      const recipeCategories = [...new Set(recipes.map(r => r.category))];
+
+      const systemPrompt = `You are a friendly, helpful assistant for MenuMetrics - a recipe cost analysis app for coffee shops and cafes. You help users understand their menu data and answer questions about their ingredients, recipes, costs, and margins.
+
+Keep responses concise and helpful. Use the metrics data provided to answer questions accurately. If asked about specific items, search the data provided. Be conversational and supportive.`;
+      
+      const prompt = `User question: "${message}"
+
+CURRENT BUSINESS DATA:
+
+INVENTORY SUMMARY:
+- Total ingredients: ${ingredients.length}
+- Inventory categories: ${ingredientCategories.join(", ") || "None"}
+- Total inventory value: $${totalInventoryValue.toFixed(2)}
+
+MENU SUMMARY:
+- Total recipes: ${recipes.length}
+- Recipe categories: ${recipeCategories.join(", ") || "None"}
+- Recipes with pricing: ${recipesWithPricing.length}
+- Average recipe cost: $${avgRecipeCost.toFixed(2)}
+- Average margin: ${avgMargin.toFixed(1)}%
+${highestMarginRecipe ? `- Highest margin item: ${highestMarginRecipe.name} (${((highestMarginRecipe.menuPrice! - (highestMarginRecipe.costPerServing || 0)) / highestMarginRecipe.menuPrice! * 100).toFixed(1)}%)` : ''}
+${lowestMarginRecipe ? `- Lowest margin item: ${lowestMarginRecipe.name} (${((lowestMarginRecipe.menuPrice! - (lowestMarginRecipe.costPerServing || 0)) / lowestMarginRecipe.menuPrice! * 100).toFixed(1)}%)` : ''}
+${mostExpensiveRecipe ? `- Most expensive to make: ${mostExpensiveRecipe.name} ($${(mostExpensiveRecipe.totalCost || 0).toFixed(2)})` : ''}
+
+INGREDIENTS LIST:
+${ingredients.slice(0, 20).map(i => `- ${i.name}: $${i.costPerUnit.toFixed(2)}/${i.purchaseUnit} (${i.category})`).join('\n')}
+${ingredients.length > 20 ? `... and ${ingredients.length - 20} more` : ''}
+
+RECIPES LIST:
+${recipes.slice(0, 20).map(r => `- ${r.name}: Cost $${(r.costPerServing || 0).toFixed(2)}${r.menuPrice ? `, Price $${r.menuPrice.toFixed(2)}` : ''} (${r.category})`).join('\n')}
+${recipes.length > 20 ? `... and ${recipes.length - 20} more` : ''}
+
+Answer the user's question based on this data. Be helpful and specific.`;
+
+      const response = await callAI({
+        provider,
+        prompt,
+        systemPrompt,
+        customApiKey,
+      });
+
+      res.json({ response });
+    } catch (error: any) {
+      console.error("Dashboard chat error:", error);
+      res.status(500).json({ error: error.message || "Failed to process chat message" });
+    }
+  });
+
   // AI-powered density estimation for ingredients
   app.post("/api/ingredients/estimate-densities", isAuthenticated, async (req: any, res) => {
     try {
