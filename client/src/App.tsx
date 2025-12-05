@@ -25,6 +25,7 @@ import InventoryCountPage from "@/pages/inventory-count";
 import OrdersPage from "@/pages/orders";
 import WasteLogPage from "@/pages/waste-log";
 import WasteAnalyticsPage from "@/pages/waste-analytics";
+import TermsOfServicePage from "@/pages/terms-of-service";
 
 function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
   // Show landing page while loading or when not authenticated
@@ -32,6 +33,7 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
     return (
       <Switch>
         <Route path="/" component={LandingPage} />
+        <Route path="/terms-of-service" component={TermsOfServicePage} />
         <Route component={LandingPage} />
       </Switch>
     );
@@ -52,6 +54,7 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
       <Route path="/waste-analytics" component={WasteAnalyticsPage} />
       <Route path="/ai-agent" component={AIAgentPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/terms-of-service" component={TermsOfServicePage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -177,7 +180,12 @@ function AppContent() {
 
       <footer className="border-t bg-background/50 mt-8">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground" data-testid="text-footer">
-          Built by Jonathan Korstad in Replit, 2025
+          <div className="mb-3">Built by Jonathan Korstad in Replit, 2025</div>
+          <div className="flex justify-center gap-4">
+            <Link href="/terms-of-service" data-testid="link-terms" className="hover:text-foreground transition-colors">
+              Terms of Service
+            </Link>
+          </div>
         </div>
       </footer>
     </div>
