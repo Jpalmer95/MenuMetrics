@@ -399,7 +399,7 @@ export function RecipesTable({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5"
+                              className="h-6 w-6"
                               onClick={(e) => handleStartEditName(recipe, e)}
                               data-testid={`button-edit-name-${recipe.id}`}
                             >
@@ -443,7 +443,7 @@ export function RecipesTable({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5"
+                              className="h-6 w-6"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingCategoryId(recipe.id);
@@ -463,7 +463,7 @@ export function RecipesTable({
                       className="text-right tabular-nums font-medium"
                     >
                       {editingPriceId === recipe.id ? (
-                        <div className="flex items-center justify-end gap-1">
+                        <div onClick={(e) => e.stopPropagation()} className="flex items-center justify-end gap-1">
                           <div className="relative w-24">
                             <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                             <Input
@@ -517,7 +517,7 @@ export function RecipesTable({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-5 w-5"
+                              className="h-6 w-6"
                               onClick={(e) => handleStartEditPrice(recipe, e)}
                               data-testid={`button-edit-price-${recipe.id}`}
                             >
