@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Recipe, CategoryPricingSettings, RecipeCategory } from "@shared/schema";
@@ -46,6 +47,7 @@ export default function PricingPlaygroundPage() {
   const [globalWaste, setGlobalWaste] = useState<number>(15);
   const [globalTargetMargin, setGlobalTargetMargin] = useState<number>(80);
   const [minimumMarginThreshold, setMinimumMarginThreshold] = useState<number>(80);
+  const [useGlobalThreshold, setUseGlobalThreshold] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [categorySettings, setCategorySettings] = useState<CategorySettings>(defaultCategorySettings);
 
@@ -253,19 +255,25 @@ export default function PricingPlaygroundPage() {
       const recipeMargin = (recipe.menuPrice ?? 0) > 0
         ? (((recipe.menuPrice ?? 0) - recipeTrueCost) / (recipe.menuPrice ?? 0)) * 100
         : 0;
-      const isBelowMinMargin = (recipe.menuPrice ?? 0) > 0 && recipeMargin < minimumMarginThreshold;
-      const isOnTarget = (recipe.menuPrice ?? 0) > 0 && recipeMargin >= (recipe.targetMargin ?? 80) - 5;
+      const recipeTargetMargin = recipe.targetMargin ?? 80;
+      
+      // Flag based on selected mode
+      const isFlagged = useGlobalThreshold 
+        ? (recipe.menuPrice ?? 0) > 0 && recipeMargin < minimumMarginThreshold
+        : (recipe.menuPrice ?? 0) > 0 && recipeMargin < recipeTargetMargin;
+      
+      const isOnTarget = (recipe.menuPrice ?? 0) > 0 && recipeMargin >= recipeTargetMargin - 5;
       
       return {
         ...recipe,
         trueCost: recipeTrueCost,
         suggestedPrice: recipeSuggested,
         margin: recipeMargin,
-        isBelowMinMargin,
+        isBelowMinMargin: isFlagged,
         isOnTarget,
       };
     });
-  }, [recipes, minimumMarginThreshold]);
+  }, [recipes, minimumMarginThreshold, useGlobalThreshold]);
 
   const flaggedRecipesCount = useMemo(() => {
     return recipesWithMetrics.filter(r => r.isBelowMinMargin).length;
@@ -427,43 +435,54 @@ export default function PricingPlaygroundPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="flex items-center gap-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-help underline decoration-dotted">Minimum Margin Threshold</span>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p>Items with margins below this threshold will be flagged in the overview table. Use this to quickly identify underperforming menu items.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Label className="flex items-center gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted">Global Minimum Threshold (Optional)</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p>Toggle on to flag recipes below this global threshold. When off, recipes are flagged if they fall short of their individual target margins.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </Label>
+                        <Switch
+                          checked={useGlobalThreshold}
+                          onCheckedChange={setUseGlobalThreshold}
+                          data-testid="toggle-global-threshold"
+                        />
+                      </div>
                       <span className="font-medium tabular-nums" data-testid="text-min-margin-threshold">{minimumMarginThreshold}%</span>
                     </div>
-                    <Slider
-                      value={[minimumMarginThreshold]}
-                      onValueChange={(values) => setMinimumMarginThreshold(values[0])}
-                      max={95}
-                      min={10}
-                      step={1}
-                      data-testid="slider-min-margin"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>10% (Low)</span>
-                      <span>95% (High)</span>
-                    </div>
+                    {useGlobalThreshold && (
+                      <>
+                        <Slider
+                          value={[minimumMarginThreshold]}
+                          onValueChange={(values) => setMinimumMarginThreshold(values[0])}
+                          max={95}
+                          min={10}
+                          step={1}
+                          data-testid="slider-min-margin"
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>10% (Low)</span>
+                          <span>95% (High)</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   {flaggedRecipesCount > 0 ? (
                     <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                       <AlertTriangle className="h-4 w-4 text-red-600" />
                       <span className="text-sm text-red-700 dark:text-red-400">
-                        {flaggedRecipesCount} {flaggedRecipesCount === 1 ? "recipe" : "recipes"} below {minimumMarginThreshold}% margin
+                        {flaggedRecipesCount} {flaggedRecipesCount === 1 ? "recipe" : "recipes"} {useGlobalThreshold ? `below ${minimumMarginThreshold}% margin` : "below target margin"}
                       </span>
                     </div>
                   ) : recipes.length > 0 ? (
                     <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                       <Check className="h-4 w-4 text-green-600" />
                       <span className="text-sm text-green-700 dark:text-green-400">
-                        All priced recipes meet minimum margin threshold
+                        {useGlobalThreshold ? "All priced recipes meet minimum margin threshold" : "All recipes meet their target margins"}
                       </span>
                     </div>
                   ) : null}
@@ -831,7 +850,7 @@ export default function PricingPlaygroundPage() {
                 )}
               </CardTitle>
               <CardDescription>
-                Compare pricing metrics across all your recipes. Items below {minimumMarginThreshold}% margin are flagged.
+                Compare pricing metrics across all your recipes. Items {useGlobalThreshold ? `below ${minimumMarginThreshold}% margin` : "below their target margins"} are flagged.
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -907,7 +926,7 @@ export default function PricingPlaygroundPage() {
                                   <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Margin below {minimumMarginThreshold}% threshold</p>
+                                  <p>{useGlobalThreshold ? `Margin below ${minimumMarginThreshold}% threshold` : `Below ${recipe.targetMargin ?? 80}% target margin`}</p>
                                 </TooltipContent>
                               </Tooltip>
                             )}
@@ -941,7 +960,7 @@ export default function PricingPlaygroundPage() {
                           {(recipe.menuPrice ?? 0) === 0 ? (
                             <Badge variant="outline">Not priced</Badge>
                           ) : recipe.isBelowMinMargin ? (
-                            <Badge className="bg-red-500/20 text-red-700 border-red-500/30">Below {minimumMarginThreshold}%</Badge>
+                            <Badge className="bg-red-500/20 text-red-700 border-red-500/30">{useGlobalThreshold ? `Below ${minimumMarginThreshold}%` : "Below target"}</Badge>
                           ) : recipe.isOnTarget ? (
                             <Badge className="bg-green-500/20 text-green-700 border-green-500/30">On target</Badge>
                           ) : (
