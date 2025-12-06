@@ -11,6 +11,8 @@ import { findBestMatch } from "@shared/fuzzy-matcher";
 import type { Ingredient } from "@shared/schema";
 import { registerBillingRoutes } from "./billingRoutes";
 import { aiUsageMiddleware } from "./aiUsageMiddleware";
+import { getUncachableStripeClient } from "./stripeClient";
+import { pool } from "./db";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -2968,11 +2970,215 @@ Return the JSON array now:`;
         return res.status(400).json({ error: "Subscription is already canceled" });
       }
       
+      // If there's a Stripe subscription, cancel it there too
+      if (existing.stripeSubscriptionItemId) {
+        try {
+          const stripe = await getUncachableStripeClient();
+          // Get the subscription from the item
+          const subscriptionItem = await stripe.subscriptionItems.retrieve(existing.stripeSubscriptionItemId);
+          await stripe.subscriptions.cancel(subscriptionItem.subscription as string);
+        } catch (stripeError) {
+          console.error("Stripe cancellation error:", stripeError);
+          // Continue with local cancellation even if Stripe fails
+        }
+      }
+      
       const canceled = await storage.cancelManagedPricingSubscription(userId);
       res.json(canceled);
     } catch (error) {
       console.error("Cancel managed pricing subscription error:", error);
       res.status(500).json({ error: "Failed to cancel subscription" });
+    }
+  });
+
+  // Get managed pricing Stripe price IDs
+  app.get("/api/managed-pricing/prices", isAuthenticated, async (req: any, res) => {
+    try {
+      // Load managed pricing price IDs from Stripe
+      const result = await pool.query(`
+        SELECT id, nickname, metadata 
+        FROM stripe.prices 
+        WHERE active = true 
+          AND type = 'recurring'
+          AND (metadata->>'addon_type' = 'managed_pricing' OR nickname LIKE 'Managed Pricing%')
+      `);
+      
+      const priceMap: Record<string, { priceId: string; amount: number }> = {};
+      for (const price of result.rows) {
+        const tier = price.metadata?.tier || price.nickname?.toLowerCase().replace('managed pricing ', '').trim();
+        if (tier && ['small', 'medium', 'large', 'enterprise'].includes(tier)) {
+          priceMap[tier] = { priceId: price.id, amount: price.unit_amount };
+        }
+      }
+      
+      res.json(priceMap);
+    } catch (error) {
+      console.error("Get managed pricing prices error:", error);
+      res.json({}); // Return empty if prices not available
+    }
+  });
+
+  // Create Stripe checkout session for managed pricing
+  app.post("/api/managed-pricing/create-checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { tier, businessName, contactPhone, specialNotes } = req.body;
+
+      if (!tier) {
+        return res.status(400).json({ error: "Tier is required" });
+      }
+
+      if (!managedPricingTiers[tier as ManagedPricingTier]) {
+        return res.status(400).json({ error: "Invalid pricing tier" });
+      }
+
+      // Check item count against tier limit
+      const ingredients = await storage.getAllIngredients(userId);
+      const recipes = await storage.getAllRecipes(userId);
+      const itemCount = ingredients.length + recipes.length;
+      const tierLimit = managedPricingTiers[tier as ManagedPricingTier].maxItems;
+
+      if (tierLimit !== null && itemCount > tierLimit) {
+        return res.status(400).json({
+          error: `Your business has ${itemCount} items, which exceeds the ${tierLimit} item limit for the ${managedPricingTiers[tier as ManagedPricingTier].name} tier.`
+        });
+      }
+
+      // Check if user already has an active subscription
+      const existing = await storage.getManagedPricingSubscription(userId);
+      if (existing && existing.status === "active") {
+        return res.status(400).json({ error: "You already have an active managed pricing subscription" });
+      }
+
+      // Get the price ID for this tier
+      const priceResult = await pool.query(`
+        SELECT id FROM stripe.prices 
+        WHERE active = true 
+          AND type = 'recurring'
+          AND (metadata->>'tier' = $1 OR nickname = $2)
+          AND (metadata->>'addon_type' = 'managed_pricing' OR nickname LIKE 'Managed Pricing%')
+        LIMIT 1
+      `, [tier, `Managed Pricing ${tier.charAt(0).toUpperCase() + tier.slice(1)}`]);
+
+      if (priceResult.rows.length === 0) {
+        return res.status(400).json({ error: "Stripe pricing not available for this tier. Please contact support." });
+      }
+
+      const priceId = priceResult.rows[0].id;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      let customerId = user.stripeCustomerId;
+
+      // Create Stripe customer if needed
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          metadata: { userId },
+        });
+        customerId = customer.id;
+        await storage.updateUserStripeInfo(userId, { stripeCustomerId: customerId });
+      }
+
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.REPLIT_DOMAINS?.split(',')[0]
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'http://localhost:5000';
+
+      // Create checkout session
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: 'subscription',
+        success_url: `${baseUrl}/settings?tab=billing&managed_pricing_status=success`,
+        cancel_url: `${baseUrl}/settings?tab=billing&managed_pricing_status=canceled`,
+        metadata: {
+          userId,
+          tier,
+          addon_type: 'managed_pricing',
+          businessName: businessName || '',
+          contactPhone: contactPhone || '',
+          specialNotes: specialNotes || '',
+        },
+        subscription_data: {
+          metadata: {
+            userId,
+            tier,
+            addon_type: 'managed_pricing',
+          },
+        },
+      });
+
+      res.json({ sessionId: session.id, url: session.url });
+    } catch (error) {
+      console.error("Create managed pricing checkout error:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  // Handle Stripe webhook for managed pricing subscriptions
+  app.post("/api/managed-pricing/webhook", async (req: any, res) => {
+    try {
+      const event = req.body;
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const metadata = session.metadata;
+
+        if (metadata?.addon_type === 'managed_pricing') {
+          const userId = metadata.userId;
+          const tier = metadata.tier;
+
+          // Create the managed pricing subscription in our database
+          const existing = await storage.getManagedPricingSubscription(userId);
+          
+          if (existing) {
+            // Reactivate existing subscription
+            await storage.updateManagedPricingSubscription(userId, {
+              status: 'active',
+              tier,
+              stripeSubscriptionItemId: session.subscription,
+              businessName: metadata.businessName || existing.businessName,
+              contactPhone: metadata.contactPhone || existing.contactPhone,
+              specialNotes: metadata.specialNotes || existing.specialNotes,
+            });
+          } else {
+            // Create new subscription
+            await storage.createManagedPricingSubscription({
+              tier,
+              businessName: metadata.businessName || null,
+              contactPhone: metadata.contactPhone || null,
+              specialNotes: metadata.specialNotes || null,
+            }, userId);
+
+            // Update with Stripe subscription ID
+            await storage.updateManagedPricingSubscription(userId, {
+              stripeSubscriptionItemId: session.subscription,
+            });
+          }
+        }
+      } else if (event.type === 'customer.subscription.deleted') {
+        const subscription = event.data.object;
+        
+        // Check if this is a managed pricing subscription
+        if (subscription.metadata?.addon_type === 'managed_pricing') {
+          const userId = subscription.metadata.userId;
+          if (userId) {
+            await storage.cancelManagedPricingSubscription(userId);
+          }
+        }
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error("Managed pricing webhook error:", error);
+      res.status(400).json({ error: "Webhook error" });
     }
   });
 
