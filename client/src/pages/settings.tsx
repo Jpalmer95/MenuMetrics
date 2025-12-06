@@ -453,6 +453,11 @@ function BillingTab() {
   );
 }
 
+interface StripePriceInfo {
+  priceId: string;
+  amount: number;
+}
+
 function ManagedPricingSection() {
   const { toast } = useToast();
   const [showBusinessForm, setShowBusinessForm] = useState(false);
@@ -469,6 +474,10 @@ function ManagedPricingSection() {
     queryKey: ["/api/managed-pricing"],
   });
 
+  const { data: stripePrices, isLoading: pricesLoading } = useQuery<Record<string, StripePriceInfo>>({
+    queryKey: ["/api/managed-pricing/prices"],
+  });
+
   // Sync form state from subscription when it changes (not during mutations)
   useEffect(() => {
     if (subscription && subscription.status === "active") {
@@ -478,22 +487,26 @@ function ManagedPricingSection() {
     }
   }, [subscription]);
 
-  const subscribeMutation = useMutation({
+  const checkoutMutation = useMutation({
     mutationFn: async (data: { tier: string; businessName?: string; contactPhone?: string; specialNotes?: string }) => {
-      return await apiRequest("POST", "/api/managed-pricing", data);
+      const response = await apiRequest("POST", "/api/managed-pricing/create-checkout", data);
+      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/managed-pricing"] });
-      setShowBusinessForm(false);
-      toast({
-        title: "Managed Pricing Activated",
-        description: "Welcome! We'll start managing your pricing soon.",
-      });
+    onSuccess: (data) => {
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create checkout session. Please try again.",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to subscribe. Please try again.",
+        description: error.message || "Failed to start checkout. Please try again.",
         variant: "destructive",
       });
     },
@@ -548,7 +561,7 @@ function ManagedPricingSection() {
     },
   });
 
-  if (tiersLoading || subLoading) {
+  if (tiersLoading || subLoading || pricesLoading) {
     return (
       <div className="mt-8">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -573,9 +586,9 @@ function ManagedPricingSection() {
 
   const handleSubscribe = (tier: string) => {
     setSelectedTier(tier);
-    // For reactivation of canceled subscription, go directly to subscribe
+    // For reactivation of canceled subscription, go directly to checkout
     if (isCanceled && subscription?.tier === tier) {
-      subscribeMutation.mutate({
+      checkoutMutation.mutate({
         tier,
         businessName: businessName.trim() || undefined,
         contactPhone: contactPhone.trim() || undefined,
@@ -588,7 +601,7 @@ function ManagedPricingSection() {
 
   const handleConfirmSubscribe = () => {
     if (!selectedTier) return;
-    subscribeMutation.mutate({
+    checkoutMutation.mutate({
       tier: selectedTier,
       businessName: businessName.trim() || undefined,
       contactPhone: contactPhone.trim() || undefined,
@@ -796,11 +809,11 @@ function ManagedPricingSection() {
           <CardFooter className="flex gap-2">
             <Button
               onClick={handleConfirmSubscribe}
-              disabled={subscribeMutation.isPending}
+              disabled={checkoutMutation.isPending}
               data-testid="button-confirm-subscribe"
             >
-              {subscribeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm Subscription
+              {checkoutMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Continue to Payment
             </Button>
             <Button
               variant="outline"
@@ -845,11 +858,12 @@ function ManagedPricingSection() {
                   <Button
                     className="w-full"
                     size="sm"
-                    disabled={exceedsLimit || subscribeMutation.isPending}
+                    disabled={exceedsLimit || checkoutMutation.isPending || !stripePrices?.[key]}
                     onClick={() => handleSubscribe(key)}
                     data-testid={`button-mp-tier-${key}`}
                   >
-                    {isCanceled && subscription?.tier === key ? "Reactivate" : "Subscribe"}
+                    {checkoutMutation.isPending && selectedTier === key && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {!stripePrices?.[key] ? "Coming Soon" : isCanceled && subscription?.tier === key ? "Reactivate" : "Subscribe"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -866,6 +880,7 @@ export default function SettingsPage() {
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
   const initialTab = searchParams.get('tab') || 'ai';
   const status = searchParams.get('status');
+  const managedPricingStatus = searchParams.get('managed_pricing_status');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -882,6 +897,22 @@ export default function SettingsPage() {
       });
     }
   }, [status, toast]);
+
+  useEffect(() => {
+    if (managedPricingStatus === 'success') {
+      toast({
+        title: "Managed Pricing Activated",
+        description: "Welcome! We'll start managing your pricing soon.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/managed-pricing"] });
+    } else if (managedPricingStatus === 'canceled') {
+      toast({
+        title: "Checkout canceled",
+        description: "Your managed pricing checkout was canceled. You can try again anytime.",
+        variant: "destructive",
+      });
+    }
+  }, [managedPricingStatus, toast]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
