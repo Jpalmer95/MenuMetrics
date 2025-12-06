@@ -444,7 +444,7 @@ export default function PricingPlaygroundPage() {
                       onValueChange={(values) => setMinimumMarginThreshold(values[0])}
                       max={95}
                       min={10}
-                      step={5}
+                      step={1}
                       data-testid="slider-min-margin"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
