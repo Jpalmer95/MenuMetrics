@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle } from "lucide-react";
+import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle, DollarSign, Users, Package, Phone, FileText, X, RefreshCw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface";
@@ -46,6 +47,27 @@ interface Plan {
   priceMonthly: number;
   aiQueriesPerMonth: number;
   priceId: string | null;
+}
+
+interface ManagedPricingTier {
+  name: string;
+  maxItems: number | null;
+  priceMonthly: number;
+  description: string;
+}
+
+interface ManagedPricingSubscription {
+  id: string;
+  tier: string;
+  status: string;
+  businessName: string | null;
+  contactPhone: string | null;
+  specialNotes: string | null;
+  lastServiceDate: string | null;
+  nextScheduledDate: string | null;
+  createdAt: string;
+  tierDetails: ManagedPricingTier;
+  itemCount: number;
 }
 
 const providerOptions = [
@@ -425,6 +447,416 @@ function BillingTab() {
           })}
         </div>
       </div>
+
+      <ManagedPricingSection />
+    </div>
+  );
+}
+
+function ManagedPricingSection() {
+  const { toast } = useToast();
+  const [showBusinessForm, setShowBusinessForm] = useState(false);
+  const [businessName, setBusinessName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [specialNotes, setSpecialNotes] = useState("");
+  const [selectedTier, setSelectedTier] = useState<string | null>(null);
+
+  const { data: tiers, isLoading: tiersLoading } = useQuery<Record<string, ManagedPricingTier>>({
+    queryKey: ["/api/managed-pricing/tiers"],
+  });
+
+  const { data: subscription, isLoading: subLoading } = useQuery<ManagedPricingSubscription | null>({
+    queryKey: ["/api/managed-pricing"],
+  });
+
+  // Sync form state from subscription when it changes (not during mutations)
+  useEffect(() => {
+    if (subscription && subscription.status === "active") {
+      setBusinessName(subscription.businessName || "");
+      setContactPhone(subscription.contactPhone || "");
+      setSpecialNotes(subscription.specialNotes || "");
+    }
+  }, [subscription]);
+
+  const subscribeMutation = useMutation({
+    mutationFn: async (data: { tier: string; businessName?: string; contactPhone?: string; specialNotes?: string }) => {
+      return await apiRequest("POST", "/api/managed-pricing", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/managed-pricing"] });
+      setShowBusinessForm(false);
+      toast({
+        title: "Managed Pricing Activated",
+        description: "Welcome! We'll start managing your pricing soon.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to subscribe. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { tier?: string; businessName?: string; contactPhone?: string; specialNotes?: string }) => {
+      return await apiRequest("PATCH", "/api/managed-pricing", data);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/managed-pricing"] });
+      // Optimistically update selected tier to prevent stale display
+      if (variables.tier) {
+        setSelectedTier(variables.tier);
+        toast({
+          title: "Tier Changed",
+          description: "Your subscription tier has been updated.",
+        });
+      } else {
+        toast({
+          title: "Updated",
+          description: "Your managed pricing details have been updated.",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", "/api/managed-pricing");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/managed-pricing"] });
+      toast({
+        title: "Subscription Canceled",
+        description: "Your managed pricing subscription has been canceled.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (tiersLoading || subLoading) {
+    return (
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <DollarSign className="h-5 w-5" />
+          Managed Pricing Service
+        </h3>
+        <div className="flex items-center justify-center min-h-[100px]">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  const hasActiveSubscription = subscription && subscription.status === "active";
+  const isCanceled = subscription && subscription.status === "canceled";
+  const tierEntries = tiers ? Object.entries(tiers) : [];
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const handleSubscribe = (tier: string) => {
+    setSelectedTier(tier);
+    // For reactivation of canceled subscription, go directly to subscribe
+    if (isCanceled && subscription?.tier === tier) {
+      subscribeMutation.mutate({
+        tier,
+        businessName: businessName.trim() || undefined,
+        contactPhone: contactPhone.trim() || undefined,
+        specialNotes: specialNotes.trim() || undefined,
+      });
+    } else {
+      setShowBusinessForm(true);
+    }
+  };
+
+  const handleConfirmSubscribe = () => {
+    if (!selectedTier) return;
+    subscribeMutation.mutate({
+      tier: selectedTier,
+      businessName: businessName.trim() || undefined,
+      contactPhone: contactPhone.trim() || undefined,
+      specialNotes: specialNotes.trim() || undefined,
+    });
+  };
+
+  const handleCancelForm = () => {
+    setShowBusinessForm(false);
+    setSelectedTier(null);
+  };
+
+  const handleUpdateDetails = () => {
+    updateMutation.mutate({
+      businessName: businessName.trim() || undefined,
+      contactPhone: contactPhone.trim() || undefined,
+      specialNotes: specialNotes.trim() || undefined,
+    });
+  };
+
+  const handleChangeTier = (newTier: string) => {
+    if (newTier === subscription?.tier) return;
+    updateMutation.mutate({ tier: newTier });
+  };
+
+  return (
+    <div className="mt-8 border-t pt-8">
+      <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+        <DollarSign className="h-5 w-5" />
+        Managed Pricing Service
+      </h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        Let our experts manage your ingredient pricing and keep your costs optimized.
+      </p>
+
+      {hasActiveSubscription && subscription && (
+        <Card className="mb-6 border-primary">
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                <CardTitle className="text-lg">Active: {subscription.tierDetails.name}</CardTitle>
+              </div>
+              <Badge variant="default">Active</Badge>
+            </div>
+            <CardDescription>{subscription.tierDetails.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Your Items:</span>
+                <span className="ml-2 font-medium">
+                  {subscription.itemCount} / {subscription.tierDetails.maxItems || "Unlimited"}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Price:</span>
+                <span className="ml-2 font-medium">${(subscription.tierDetails.priceMonthly / 100).toFixed(2)}/mo</span>
+              </div>
+              {subscription.lastServiceDate && (
+                <div>
+                  <span className="text-muted-foreground">Last Update:</span>
+                  <span className="ml-2 font-medium">{formatDate(subscription.lastServiceDate)}</span>
+                </div>
+              )}
+              {subscription.nextScheduledDate && (
+                <div>
+                  <span className="text-muted-foreground">Next Update:</span>
+                  <span className="ml-2 font-medium">{formatDate(subscription.nextScheduledDate)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="mp-business-name" className="flex items-center gap-1 text-sm">
+                  <Users className="h-3 w-3" />
+                  Business Name
+                </Label>
+                <Input
+                  id="mp-business-name"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Your business name"
+                  data-testid="input-mp-business-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mp-phone" className="flex items-center gap-1 text-sm">
+                  <Phone className="h-3 w-3" />
+                  Contact Phone
+                </Label>
+                <Input
+                  id="mp-phone"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                  data-testid="input-mp-phone"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mp-notes" className="flex items-center gap-1 text-sm">
+                  <FileText className="h-3 w-3" />
+                  Special Notes
+                </Label>
+                <Textarea
+                  id="mp-notes"
+                  value={specialNotes}
+                  onChange={(e) => setSpecialNotes(e.target.value)}
+                  placeholder="Any special requirements or notes for our team..."
+                  className="resize-none"
+                  rows={2}
+                  data-testid="input-mp-notes"
+                />
+              </div>
+              <Button
+                onClick={handleUpdateDetails}
+                disabled={updateMutation.isPending}
+                size="sm"
+                data-testid="button-update-mp-details"
+              >
+                {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Details
+              </Button>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between flex-wrap gap-2">
+            <Select value={subscription.tier} onValueChange={handleChangeTier}>
+              <SelectTrigger className="w-[200px]" data-testid="select-mp-tier">
+                <SelectValue placeholder="Change tier" />
+              </SelectTrigger>
+              <SelectContent>
+                {tierEntries.map(([key, tier]) => (
+                  <SelectItem key={key} value={key}>
+                    {tier.name} - ${(tier.priceMonthly / 100).toFixed(0)}/mo
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+              data-testid="button-cancel-mp"
+            >
+              {cancelMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <X className="mr-2 h-4 w-4" />
+              Cancel Service
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {isCanceled && subscription && (
+        <Alert className="mb-4">
+          <RefreshCw className="h-4 w-4" />
+          <AlertDescription>
+            Your managed pricing subscription was canceled. You can reactivate it below.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {showBusinessForm && !hasActiveSubscription && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Complete Your Subscription</CardTitle>
+            <CardDescription>
+              Subscribing to {tiers && selectedTier ? tiers[selectedTier]?.name : "Managed Pricing"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="form-business-name">Business Name (optional)</Label>
+              <Input
+                id="form-business-name"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="Your business name"
+                data-testid="input-form-business-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="form-phone">Contact Phone (optional)</Label>
+              <Input
+                id="form-phone"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                placeholder="(555) 123-4567"
+                data-testid="input-form-phone"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="form-notes">Special Notes (optional)</Label>
+              <Textarea
+                id="form-notes"
+                value={specialNotes}
+                onChange={(e) => setSpecialNotes(e.target.value)}
+                placeholder="Any special requirements..."
+                className="resize-none"
+                rows={2}
+                data-testid="input-form-notes"
+              />
+            </div>
+          </CardContent>
+          <CardFooter className="flex gap-2">
+            <Button
+              onClick={handleConfirmSubscribe}
+              disabled={subscribeMutation.isPending}
+              data-testid="button-confirm-subscribe"
+            >
+              {subscribeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirm Subscription
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCancelForm}
+              data-testid="button-cancel-form"
+            >
+              Cancel
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {!hasActiveSubscription && !showBusinessForm && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {tierEntries.map(([key, tier]) => {
+            const price = tier.priceMonthly / 100;
+            const itemCount = subscription?.itemCount || 0;
+            const exceedsLimit = tier.maxItems !== null && itemCount > tier.maxItems;
+
+            return (
+              <Card key={key} className={isCanceled && subscription?.tier === key ? "border-primary" : ""}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{tier.name}</CardTitle>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold">${price}</span>
+                    <span className="text-muted-foreground text-sm">/mo</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pb-2">
+                  <p className="text-sm text-muted-foreground mb-2">{tier.description}</p>
+                  <div className="flex items-center gap-1 text-xs">
+                    <Package className="h-3 w-3" />
+                    <span>{tier.maxItems ? `Up to ${tier.maxItems} items` : "Unlimited items"}</span>
+                  </div>
+                  {exceedsLimit && (
+                    <p className="text-xs text-destructive mt-1">
+                      You have {itemCount} items (exceeds limit)
+                    </p>
+                  )}
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    disabled={exceedsLimit || subscribeMutation.isPending}
+                    onClick={() => handleSubscribe(key)}
+                    data-testid={`button-mp-tier-${key}`}
+                  >
+                    {isCanceled && subscription?.tier === key ? "Reactivate" : "Subscribe"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
