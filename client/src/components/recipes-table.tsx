@@ -381,8 +381,7 @@ export function RecipesTable({
                         </div>
                       ) : (
                         <div 
-                          className="flex items-center gap-2 group"
-                          onClick={(e) => onUpdateName && handleStartEditName(recipe, e)}
+                          className="flex items-center gap-2"
                         >
                           <ChefHat className="h-4 w-4 text-muted-foreground" />
                           <span>{recipe.name}</span>
@@ -397,7 +396,15 @@ export function RecipesTable({
                             </Badge>
                           )}
                           {onUpdateName && (
-                            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={(e) => handleStartEditName(recipe, e)}
+                              data-testid={`button-edit-name-${recipe.id}`}
+                            >
+                              <Pencil className="h-3 w-3 text-muted-foreground" />
+                            </Button>
                           )}
                         </div>
                       )}
@@ -425,14 +432,24 @@ export function RecipesTable({
                         </Select>
                       ) : (
                         <div 
-                          className="flex items-center gap-1 group cursor-pointer"
-                          onClick={() => onUpdateCategory && setEditingCategoryId(recipe.id)}
+                          className="flex items-center gap-1"
                         >
                           <Badge variant="outline" data-testid={`badge-category-${recipe.id}`}>
                             {recipeCategoryLabels[recipe.category as RecipeCategory] || recipe.category}
                           </Badge>
                           {onUpdateCategory && (
-                            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCategoryId(recipe.id);
+                              }}
+                              data-testid={`button-edit-category-${recipe.id}`}
+                            >
+                              <Pencil className="h-3 w-3 text-muted-foreground" />
+                            </Button>
                           )}
                         </div>
                       )}
@@ -484,8 +501,7 @@ export function RecipesTable({
                         </div>
                       ) : (
                         <div 
-                          className="flex items-center justify-end gap-1 group"
-                          onClick={(e) => onUpdateMenuPrice && handleStartEditPrice(recipe, e)}
+                          className="flex items-center justify-end gap-1"
                         >
                           {recipe.menuPrice ? (
                             <span data-testid={`text-menu-price-row-${recipe.id}`}>
@@ -497,7 +513,15 @@ export function RecipesTable({
                             </Badge>
                           )}
                           {onUpdateMenuPrice && (
-                            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={(e) => handleStartEditPrice(recipe, e)}
+                              data-testid={`button-edit-price-${recipe.id}`}
+                            >
+                              <Pencil className="h-3 w-3 text-muted-foreground" />
+                            </Button>
                           )}
                         </div>
                       )}
