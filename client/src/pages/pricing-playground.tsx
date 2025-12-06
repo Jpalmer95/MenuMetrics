@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X, Layers, ArrowUpDown } from "lucide-react";
+import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X, Layers, ArrowUpDown, Undo2, ChevronUp, ChevronDown, Circle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,43 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Recipe, CategoryPricingSettings, RecipeCategory } from "@shared/schema";
 import { calculateSuggestedPrice, calculateTrueCost, recipeCategories, recipeCategoryLabels } from "@shared/schema";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+type RoundingDirection = "up" | "down" | "nearest";
+type RoundingIncrement = 1.0 | 0.5 | 0.25 | 0.1 | 0.05;
+
+const roundingIncrements: { value: RoundingIncrement; label: string }[] = [
+  { value: 1.0, label: "$1.00" },
+  { value: 0.5, label: "$0.50" },
+  { value: 0.25, label: "$0.25" },
+  { value: 0.1, label: "$0.10" },
+  { value: 0.05, label: "$0.05" },
+];
+
+function applyRounding(price: number, direction: RoundingDirection, increment: RoundingIncrement): number {
+  if (direction === "up") {
+    return Math.ceil(price / increment) * increment;
+  } else if (direction === "down") {
+    return Math.floor(price / increment) * increment;
+  } else {
+    return Math.round(price / increment) * increment;
+  }
+}
+
+type PreviousPriceData = {
+  recipeId: string;
+  previousPrice: number | null;
+  newPrice: number;
+}[];
 
 type CategorySettings = Record<RecipeCategory, { wastePercentage: number; targetMargin: number }>;
 
@@ -52,6 +89,16 @@ export default function PricingPlaygroundPage() {
   const [categorySettings, setCategorySettings] = useState<CategorySettings>(defaultCategorySettings);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  
+  // Rounding settings
+  const [roundingDirection, setRoundingDirection] = useState<RoundingDirection>("nearest");
+  const [roundingIncrement, setRoundingIncrement] = useState<RoundingIncrement>(0.25);
+  
+  // Bulk apply state
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmDialogType, setConfirmDialogType] = useState<"global" | RecipeCategory | null>(null);
+  const [lastBulkUpdate, setLastBulkUpdate] = useState<PreviousPriceData | null>(null);
+  const [showUndoBanner, setShowUndoBanner] = useState(false);
 
   const { data: recipes = [], isLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
@@ -227,6 +274,60 @@ export default function PricingPlaygroundPage() {
     },
   });
 
+  // Bulk apply suggested prices mutation
+  const bulkApplyPricesMutation = useMutation({
+    mutationFn: async (priceUpdates: { recipeId: string; menuPrice: number }[]) => {
+      const response = await apiRequest("POST", "/api/recipes/bulk-apply-prices", {
+        priceUpdates,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setLastBulkUpdate(data.previousPrices);
+      setShowUndoBanner(true);
+      toast({
+        title: "Prices Applied",
+        description: `Updated menu prices for ${data.updatedCount} recipes.`,
+      });
+      // Auto-hide undo banner after 30 seconds
+      setTimeout(() => setShowUndoBanner(false), 30000);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to apply bulk prices.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Undo bulk price changes mutation
+  const undoBulkPricesMutation = useMutation({
+    mutationFn: async (previousPrices: PreviousPriceData) => {
+      const response = await apiRequest("POST", "/api/recipes/undo-bulk-prices", {
+        previousPrices,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setLastBulkUpdate(null);
+      setShowUndoBanner(false);
+      toast({
+        title: "Prices Restored",
+        description: `Restored previous prices for ${data.restoredCount} recipes.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to undo price changes.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCategorySettingChange = (category: RecipeCategory, field: "wastePercentage" | "targetMargin", value: number) => {
     setCategorySettings(prev => ({
       ...prev,
@@ -361,6 +462,38 @@ export default function PricingPlaygroundPage() {
     });
   }, [filteredRecipes, sortColumn, sortDirection]);
 
+  // Calculate rounded suggested prices for bulk apply
+  const getRecipesForBulkApply = (category: "global" | RecipeCategory) => {
+    const targetRecipes = category === "global" 
+      ? recipesWithMetrics 
+      : recipesWithMetrics.filter(r => r.category === category);
+    
+    return targetRecipes.map(recipe => ({
+      recipeId: recipe.id,
+      menuPrice: applyRounding(recipe.suggestedPrice, roundingDirection, roundingIncrement),
+    }));
+  };
+
+  const handleBulkApplyClick = (category: "global" | RecipeCategory) => {
+    setConfirmDialogType(category);
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmBulkApply = () => {
+    if (confirmDialogType) {
+      const priceUpdates = getRecipesForBulkApply(confirmDialogType);
+      bulkApplyPricesMutation.mutate(priceUpdates);
+    }
+    setConfirmDialogOpen(false);
+    setConfirmDialogType(null);
+  };
+
+  const handleUndo = () => {
+    if (lastBulkUpdate) {
+      undoBulkPricesMutation.mutate(lastBulkUpdate);
+    }
+  };
+
   const handleSave = () => {
     if (!selectedRecipeId) return;
     updatePricingMutation.mutate({
@@ -395,14 +528,194 @@ export default function PricingPlaygroundPage() {
     );
   }
 
+  const confirmDialogCategory = confirmDialogType === "global" 
+    ? "all recipes" 
+    : confirmDialogType 
+      ? recipeCategoryLabels[confirmDialogType] 
+      : "";
+  
+  const confirmDialogRecipeCount = confirmDialogType 
+    ? getRecipesForBulkApply(confirmDialogType).length 
+    : 0;
+
   return (
     <div className="space-y-6">
+      {/* Undo Banner */}
+      {showUndoBanner && lastBulkUpdate && (
+        <div className="flex items-center justify-between p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-blue-600" />
+            <span className="text-sm text-blue-700 dark:text-blue-400">
+              Bulk price update applied to {lastBulkUpdate.length} recipes
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleUndo}
+            disabled={undoBulkPricesMutation.isPending}
+            data-testid="button-undo-bulk"
+          >
+            <Undo2 className="h-4 w-4 mr-2" />
+            {undoBulkPricesMutation.isPending ? "Undoing..." : "Undo Changes"}
+          </Button>
+        </div>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Pricing Playground</h1>
         <p className="text-muted-foreground mt-1">
           Calculate true costs and suggested pricing that accounts for waste, shrinkage, and profit margins
         </p>
       </div>
+
+      {/* Menu Pricing Logic Panel */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Menu Pricing Logic
+          </CardTitle>
+          <CardDescription>
+            Configure how suggested prices are rounded for a consistent menu pricing look
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* Rounding Direction */}
+            <div className="space-y-2">
+              <Label>Rounding Direction</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={roundingDirection === "up" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRoundingDirection("up")}
+                  className="flex-1"
+                  data-testid="button-round-up"
+                >
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  Always Up
+                </Button>
+                <Button
+                  variant={roundingDirection === "nearest" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRoundingDirection("nearest")}
+                  className="flex-1"
+                  data-testid="button-round-nearest"
+                >
+                  <Circle className="h-4 w-4 mr-1" />
+                  Nearest
+                </Button>
+                <Button
+                  variant={roundingDirection === "down" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRoundingDirection("down")}
+                  className="flex-1"
+                  data-testid="button-round-down"
+                >
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Always Down
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {roundingDirection === "up" && "Prices will round up to the next increment"}
+                {roundingDirection === "down" && "Prices will round down to the previous increment"}
+                {roundingDirection === "nearest" && "Prices will round to whichever increment is closest"}
+              </p>
+            </div>
+
+            {/* Rounding Increment */}
+            <div className="space-y-2">
+              <Label>Round To Nearest</Label>
+              <Select
+                value={String(roundingIncrement)}
+                onValueChange={(val) => setRoundingIncrement(parseFloat(val) as RoundingIncrement)}
+              >
+                <SelectTrigger data-testid="select-rounding-increment">
+                  <SelectValue placeholder="Select increment" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roundingIncrements.map(({ value, label }) => (
+                    <SelectItem key={value} value={String(value)}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                All bulk prices will round to this increment
+              </p>
+            </div>
+
+            {/* Bulk Apply All Button */}
+            <div className="space-y-2">
+              <Label>Quick Actions</Label>
+              <Button
+                onClick={() => handleBulkApplyClick("global")}
+                disabled={bulkApplyPricesMutation.isPending || recipes.length === 0}
+                className="w-full"
+                data-testid="button-bulk-apply-all"
+              >
+                <Wand2 className="h-4 w-4 mr-2" />
+                {bulkApplyPricesMutation.isPending 
+                  ? "Applying..." 
+                  : `Apply All Suggested Prices (${recipes.length})`
+                }
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Updates all recipes to their rounded suggested prices
+              </p>
+            </div>
+          </div>
+
+          {/* Category-specific bulk apply buttons */}
+          <div className="mt-6 pt-6 border-t">
+            <Label className="mb-3 block">Apply by Category</Label>
+            <div className="flex flex-wrap gap-2">
+              {recipeCategories.map((category) => {
+                const count = getRecipeCountByCategory(category);
+                return (
+                  <Button
+                    key={category}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkApplyClick(category)}
+                    disabled={bulkApplyPricesMutation.isPending || count === 0}
+                    data-testid={`button-bulk-apply-${category}`}
+                  >
+                    <DollarSign className="h-3 w-3 mr-1" />
+                    {recipeCategoryLabels[category]} ({count})
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply Suggested Prices?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will update the menu prices for {confirmDialogRecipeCount} {confirmDialogCategory} to their suggested prices 
+              (rounded {roundingDirection} to the nearest {roundingIncrements.find(r => r.value === roundingIncrement)?.label}).
+              <br /><br />
+              <strong>You can undo this action immediately after it's applied.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-bulk">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmBulkApply}
+              data-testid="button-confirm-bulk"
+            >
+              Apply Prices
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card>
         <CardHeader>

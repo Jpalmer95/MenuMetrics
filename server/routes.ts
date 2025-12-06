@@ -736,6 +736,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk apply suggested menu prices
+  app.post("/api/recipes/bulk-apply-prices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { priceUpdates } = req.body;
+      
+      if (!Array.isArray(priceUpdates)) {
+        return res.status(400).json({ error: "priceUpdates must be an array" });
+      }
+      
+      // Store previous prices for undo functionality
+      const recipes = await storage.getAllRecipes(userId);
+      const previousPrices: { recipeId: string; previousPrice: number | null; newPrice: number }[] = [];
+      
+      for (const update of priceUpdates) {
+        const recipe = recipes.find(r => r.id === update.recipeId);
+        if (recipe) {
+          previousPrices.push({
+            recipeId: update.recipeId,
+            previousPrice: recipe.menuPrice ?? null,
+            newPrice: update.menuPrice,
+          });
+        }
+      }
+      
+      // Apply the updates
+      const updates = priceUpdates.map(update => 
+        storage.updateRecipePricing(update.recipeId, {
+          menuPrice: update.menuPrice,
+        }, userId)
+      );
+      
+      await Promise.all(updates);
+      
+      res.json({ 
+        success: true, 
+        updatedCount: priceUpdates.length,
+        previousPrices
+      });
+    } catch (error) {
+      console.error("Bulk apply prices error:", error);
+      res.status(500).json({ error: "Failed to bulk apply prices" });
+    }
+  });
+
+  // Undo bulk price changes
+  app.post("/api/recipes/undo-bulk-prices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { previousPrices } = req.body;
+      
+      if (!Array.isArray(previousPrices)) {
+        return res.status(400).json({ error: "previousPrices must be an array" });
+      }
+      
+      // Restore previous prices
+      const updates = previousPrices.map(item => 
+        storage.updateRecipePricing(item.recipeId, {
+          menuPrice: item.previousPrice ?? undefined,
+        }, userId)
+      );
+      
+      await Promise.all(updates);
+      
+      res.json({ 
+        success: true, 
+        restoredCount: previousPrices.length
+      });
+    } catch (error) {
+      console.error("Undo bulk prices error:", error);
+      res.status(500).json({ error: "Failed to undo bulk prices" });
+    }
+  });
+
   app.post("/api/recipes/:id/duplicate", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
