@@ -38,6 +38,8 @@ export default function RecipeDetailPage() {
   const [isEditingCategory, setIsEditingCategory] = useState(false);
   const [isEditingServings, setIsEditingServings] = useState(false);
   const [servingsInput, setServingsInput] = useState("");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
 
   const { data: recipe, isLoading: recipeLoading } = useQuery<RecipeWithIngredients>({
     queryKey: ["/api/recipes", id],
@@ -222,6 +224,48 @@ export default function RecipeDetailPage() {
     },
   });
 
+  const updateNameMutation = useMutation({
+    mutationFn: (name: string) =>
+      apiRequest("PATCH", `/api/recipes/${id}/name`, { name }),
+    onSuccess: (updatedRecipe: RecipeWithIngredients) => {
+      queryClient.setQueryData(["/api/recipes", id], updatedRecipe);
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      setIsEditingName(false);
+      toast({
+        title: "Success",
+        description: "Recipe name updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update recipe name",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStartEditName = () => {
+    if (recipe) {
+      setNameInput(recipe.name);
+      setIsEditingName(true);
+    }
+  };
+
+  const handleSaveName = () => {
+    const trimmedName = nameInput.trim();
+    if (trimmedName && trimmedName !== recipe?.name) {
+      updateNameMutation.mutate(trimmedName);
+    } else {
+      setIsEditingName(false);
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setNameInput("");
+  };
+
   const handleAddIngredient = (ingredientId: string, quantity: number, unit: string) => {
     addIngredientMutation.mutate({
       recipeId: id!,
@@ -384,7 +428,51 @@ export default function RecipeDetailPage() {
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">{recipe.name}</h1>
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveName();
+                    if (e.key === "Escape") handleCancelEditName();
+                  }}
+                  className="h-10 text-2xl font-bold w-64"
+                  placeholder="Recipe name"
+                  autoFocus
+                  data-testid="input-recipe-name"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-green-600"
+                  onClick={handleSaveName}
+                  disabled={updateNameMutation.isPending}
+                  data-testid="button-save-name"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  onClick={handleCancelEditName}
+                  disabled={updateNameMutation.isPending}
+                  data-testid="button-cancel-name"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center gap-2 group cursor-pointer"
+                onClick={handleStartEditName}
+              >
+                <h1 className="text-3xl font-bold tracking-tight" data-testid="text-recipe-name">{recipe.name}</h1>
+                <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
             {isEditingCategory ? (
               <Select
                 defaultValue={recipe.category}

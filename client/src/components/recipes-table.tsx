@@ -345,7 +345,7 @@ export function RecipesTable({
                   >
                     <TableCell className="font-medium" data-testid={`text-recipe-name-${recipe.id}`}>
                       {editingNameId === recipe.id ? (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <ChefHat className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <Input
                             type="text"
