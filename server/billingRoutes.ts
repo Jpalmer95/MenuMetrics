@@ -9,25 +9,30 @@ const STRIPE_PRICE_IDS: Record<string, string> = {};
 
 async function loadStripePrices() {
   try {
-    const result = await pool.query(`
-      SELECT id, nickname 
-      FROM stripe.prices 
-      WHERE active = true AND type = 'recurring'
-    `);
+    const stripe = await getUncachableStripeClient();
     
-    for (const price of result.rows) {
+    // Fetch all active recurring prices from Stripe API
+    const prices = await stripe.prices.list({
+      active: true,
+      type: 'recurring',
+      limit: 100,
+    });
+    
+    for (const price of prices.data) {
       if (price.nickname) {
+        // Match AI plan nicknames like "Starter Plan" -> "starter"
         const tier = price.nickname.toLowerCase().replace(' plan', '');
         STRIPE_PRICE_IDS[tier] = price.id;
       }
     }
     console.log('Loaded Stripe price IDs:', STRIPE_PRICE_IDS);
   } catch (error) {
-    console.log('Stripe prices not yet available (will load after products are seeded)');
+    console.log('Stripe prices not yet available:', error instanceof Error ? error.message : error);
   }
 }
 
-setTimeout(loadStripePrices, 5000);
+// Load prices after routes are registered
+setTimeout(loadStripePrices, 2000);
 
 export function registerBillingRoutes(app: Express) {
   app.get('/api/billing/config', async (req: Request, res: Response) => {

@@ -2994,20 +2994,22 @@ Return the JSON array now:`;
   // Get managed pricing Stripe price IDs
   app.get("/api/managed-pricing/prices", isAuthenticated, async (req: any, res) => {
     try {
-      // Load managed pricing price IDs from Stripe
-      const result = await pool.query(`
-        SELECT id, nickname, metadata 
-        FROM stripe.prices 
-        WHERE active = true 
-          AND type = 'recurring'
-          AND (metadata->>'addon_type' = 'managed_pricing' OR nickname LIKE 'Managed Pricing%')
-      `);
+      // Load managed pricing price IDs from Stripe API
+      const stripe = await getUncachableStripeClient();
+      const prices = await stripe.prices.list({
+        active: true,
+        type: 'recurring',
+        limit: 100,
+      });
       
       const priceMap: Record<string, { priceId: string; amount: number }> = {};
-      for (const price of result.rows) {
-        const tier = price.metadata?.tier || price.nickname?.toLowerCase().replace('managed pricing ', '').trim();
-        if (tier && ['small', 'medium', 'large', 'enterprise'].includes(tier)) {
-          priceMap[tier] = { priceId: price.id, amount: price.unit_amount };
+      for (const price of prices.data) {
+        if (price.nickname?.toLowerCase().startsWith('managed pricing')) {
+          // Extract tier from nickname like "Managed Pricing Small" -> "small"
+          const tier = price.nickname.toLowerCase().replace('managed pricing ', '').trim();
+          if (['small', 'medium', 'large', 'enterprise'].includes(tier)) {
+            priceMap[tier] = { priceId: price.id, amount: price.unit_amount || 0 };
+          }
         }
       }
       
@@ -3050,28 +3052,30 @@ Return the JSON array now:`;
         return res.status(400).json({ error: "You already have an active managed pricing subscription" });
       }
 
-      // Get the price ID for this tier
-      const priceResult = await pool.query(`
-        SELECT id FROM stripe.prices 
-        WHERE active = true 
-          AND type = 'recurring'
-          AND (metadata->>'tier' = $1 OR nickname = $2)
-          AND (metadata->>'addon_type' = 'managed_pricing' OR nickname LIKE 'Managed Pricing%')
-        LIMIT 1
-      `, [tier, `Managed Pricing ${tier.charAt(0).toUpperCase() + tier.slice(1)}`]);
+      // Get the price ID for this tier from Stripe API
+      const stripe = await getUncachableStripeClient();
+      const prices = await stripe.prices.list({
+        active: true,
+        type: 'recurring',
+        limit: 100,
+      });
+      
+      const tierNickname = `Managed Pricing ${tier.charAt(0).toUpperCase() + tier.slice(1)}`.toLowerCase();
+      const matchingPrice = prices.data.find(p => 
+        p.nickname?.toLowerCase() === tierNickname
+      );
 
-      if (priceResult.rows.length === 0) {
+      if (!matchingPrice) {
         return res.status(400).json({ error: "Stripe pricing not available for this tier. Please contact support." });
       }
 
-      const priceId = priceResult.rows[0].id;
+      const priceId = matchingPrice.id;
       const user = await storage.getUser(userId);
 
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      const stripe = await getUncachableStripeClient();
       let customerId = user.stripeCustomerId;
 
       // Create Stripe customer if needed
