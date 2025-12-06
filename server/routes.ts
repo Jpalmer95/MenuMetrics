@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier, insertManagedPricingSubscriptionSchema, updateManagedPricingSubscriptionSchema, managedPricingTiers, type ManagedPricingTier } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -2804,6 +2804,280 @@ Return the JSON array now:`;
     } catch (error) {
       console.error("Delete dashboard config error:", error);
       res.status(500).json({ error: "Failed to delete dashboard configuration" });
+    }
+  });
+
+  // ============================================================================
+  // MANAGED PRICING ADD-ON ROUTES
+  // ============================================================================
+
+  // Get available managed pricing tiers
+  app.get("/api/managed-pricing/tiers", isAuthenticated, async (req: any, res) => {
+    try {
+      res.json(managedPricingTiers);
+    } catch (error) {
+      console.error("Get managed pricing tiers error:", error);
+      res.status(500).json({ error: "Failed to fetch pricing tiers" });
+    }
+  });
+
+  // Get user's managed pricing subscription
+  app.get("/api/managed-pricing", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getManagedPricingSubscription(userId);
+      
+      if (!subscription) {
+        return res.json(null);
+      }
+      
+      // Also return the user's item count for tier recommendation
+      const ingredients = await storage.getAllIngredients(userId);
+      const recipes = await storage.getAllRecipes(userId);
+      const itemCount = ingredients.length + recipes.length;
+      
+      res.json({
+        ...subscription,
+        currentItemCount: itemCount,
+        tierDetails: managedPricingTiers[subscription.tier as ManagedPricingTier],
+      });
+    } catch (error) {
+      console.error("Get managed pricing subscription error:", error);
+      res.status(500).json({ error: "Failed to fetch managed pricing subscription" });
+    }
+  });
+
+  // Create/subscribe to managed pricing (or reactivate canceled/paused subscription)
+  app.post("/api/managed-pricing", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Check if user already has a subscription
+      const existing = await storage.getManagedPricingSubscription(userId);
+      
+      if (existing && existing.status === "active") {
+        return res.status(400).json({ error: "You already have an active managed pricing subscription" });
+      }
+      
+      // For reactivation, tier is optional - can reuse existing tier
+      const requestedTier = req.body.tier || (existing ? existing.tier : null);
+      
+      if (!requestedTier) {
+        return res.status(400).json({ error: "Tier is required for new subscriptions" });
+      }
+      
+      // Validate tier exists
+      if (!managedPricingTiers[requestedTier as ManagedPricingTier]) {
+        return res.status(400).json({ error: "Invalid pricing tier" });
+      }
+      
+      // Always validate item count against tier limits (new subscription, tier change, OR reactivation)
+      const ingredients = await storage.getAllIngredients(userId);
+      const recipes = await storage.getAllRecipes(userId);
+      const itemCount = ingredients.length + recipes.length;
+      const tierLimit = managedPricingTiers[requestedTier as ManagedPricingTier].maxItems;
+      
+      if (tierLimit !== null && itemCount > tierLimit) {
+        return res.status(400).json({ 
+          error: `Your business has ${itemCount} items, which exceeds the ${tierLimit} item limit for the ${managedPricingTiers[requestedTier as ManagedPricingTier].name} tier. Please select a higher tier.`
+        });
+      }
+      
+      // If user has a canceled/paused subscription, reactivate it
+      if (existing) {
+        const updates: Record<string, any> = {
+          status: "active",
+          canceledAt: null,
+        };
+        
+        // Update tier if specified
+        if (req.body.tier) {
+          updates.tier = req.body.tier;
+        }
+        
+        // Update business details if provided
+        if (req.body.businessName !== undefined) updates.businessName = req.body.businessName;
+        if (req.body.contactPhone !== undefined) updates.contactPhone = req.body.contactPhone;
+        if (req.body.specialNotes !== undefined) updates.specialNotes = req.body.specialNotes;
+        
+        const reactivated = await storage.updateManagedPricingSubscription(userId, updates);
+        return res.json(reactivated);
+      }
+      
+      // Create new subscription
+      const validatedData = insertManagedPricingSubscriptionSchema.parse(req.body);
+      const subscription = await storage.createManagedPricingSubscription(validatedData, userId);
+      res.status(201).json(subscription);
+    } catch (error) {
+      console.error("Create managed pricing subscription error:", error);
+      res.status(400).json({ error: "Invalid subscription data" });
+    }
+  });
+
+  // Update managed pricing subscription (user can update business details and tier)
+  app.patch("/api/managed-pricing", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const existing = await storage.getManagedPricingSubscription(userId);
+      if (!existing) {
+        return res.status(404).json({ error: "No managed pricing subscription found" });
+      }
+      
+      // Validate with partial update schema (all fields optional)
+      const validatedData = updateManagedPricingSubscriptionSchema.parse(req.body);
+      
+      // If tier is being changed, validate against item count
+      if (validatedData.tier) {
+        if (!managedPricingTiers[validatedData.tier as ManagedPricingTier]) {
+          return res.status(400).json({ error: "Invalid pricing tier" });
+        }
+        
+        // Check item count against new tier
+        const ingredients = await storage.getAllIngredients(userId);
+        const recipes = await storage.getAllRecipes(userId);
+        const itemCount = ingredients.length + recipes.length;
+        const tierLimit = managedPricingTiers[validatedData.tier as ManagedPricingTier].maxItems;
+        
+        if (tierLimit !== null && itemCount > tierLimit) {
+          return res.status(400).json({ 
+            error: `Your business has ${itemCount} items, which exceeds the ${tierLimit} item limit for this tier.`
+          });
+        }
+      }
+      
+      const subscription = await storage.updateManagedPricingSubscription(userId, validatedData);
+      res.json(subscription);
+    } catch (error) {
+      console.error("Update managed pricing subscription error:", error);
+      res.status(400).json({ error: "Failed to update subscription" });
+    }
+  });
+
+  // Cancel managed pricing subscription
+  app.delete("/api/managed-pricing", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const existing = await storage.getManagedPricingSubscription(userId);
+      if (!existing) {
+        return res.status(404).json({ error: "No managed pricing subscription found" });
+      }
+      
+      if (existing.status === "canceled") {
+        return res.status(400).json({ error: "Subscription is already canceled" });
+      }
+      
+      const canceled = await storage.cancelManagedPricingSubscription(userId);
+      res.json(canceled);
+    } catch (error) {
+      console.error("Cancel managed pricing subscription error:", error);
+      res.status(500).json({ error: "Failed to cancel subscription" });
+    }
+  });
+
+  // Admin middleware helper
+  const isAdmin = async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      
+      next();
+    } catch (error) {
+      res.status(500).json({ error: "Authorization error" });
+    }
+  };
+
+  // Admin: Get all managed pricing subscriptions
+  app.get("/api/admin/managed-pricing", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const subscriptions = await storage.getAllManagedPricingSubscriptions();
+      
+      // Enrich with item counts and tier details
+      const enriched = await Promise.all(
+        subscriptions.map(async (sub) => {
+          const ingredients = await storage.getAllIngredients(sub.userId);
+          const recipes = await storage.getAllRecipes(sub.userId);
+          return {
+            ...sub,
+            currentItemCount: ingredients.length + recipes.length,
+            tierDetails: managedPricingTiers[sub.tier as ManagedPricingTier],
+          };
+        })
+      );
+      
+      res.json(enriched);
+    } catch (error) {
+      console.error("Admin get managed pricing subscriptions error:", error);
+      res.status(500).json({ error: "Failed to fetch subscriptions" });
+    }
+  });
+
+  // Admin: Update managed pricing subscription service tracking
+  app.patch("/api/admin/managed-pricing/:userId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const targetUserId = req.params.userId;
+      
+      const existing = await storage.getManagedPricingSubscription(targetUserId);
+      if (!existing) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+      
+      // Admin can update service tracking fields
+      const allowedFields = ["lastPriceUpdateAt", "nextScheduledUpdate", "status", "specialNotes"];
+      const updates: Record<string, any> = {};
+      
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          // Convert date strings to Date objects
+          if ((field === "lastPriceUpdateAt" || field === "nextScheduledUpdate") && req.body[field]) {
+            updates[field] = new Date(req.body[field]);
+          } else {
+            updates[field] = req.body[field];
+          }
+        }
+      }
+      
+      const subscription = await storage.updateManagedPricingSubscription(targetUserId, updates);
+      res.json(subscription);
+    } catch (error) {
+      console.error("Admin update managed pricing subscription error:", error);
+      res.status(400).json({ error: "Failed to update subscription" });
+    }
+  });
+
+  // Admin: Get user's ingredient and recipe data (for price management)
+  app.get("/api/admin/managed-pricing/:userId/data", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const targetUserId = req.params.userId;
+      
+      const subscription = await storage.getManagedPricingSubscription(targetUserId);
+      if (!subscription) {
+        return res.status(404).json({ error: "Subscription not found" });
+      }
+      
+      const ingredients = await storage.getAllIngredients(targetUserId);
+      const recipes = await storage.getAllRecipesWithIngredients(targetUserId);
+      const user = await storage.getUser(targetUserId);
+      
+      res.json({
+        subscription,
+        user: {
+          id: user?.id,
+          email: user?.email,
+          firstName: user?.firstName,
+          lastName: user?.lastName,
+        },
+        ingredients,
+        recipes,
+      });
+    } catch (error) {
+      console.error("Admin get managed pricing data error:", error);
+      res.status(500).json({ error: "Failed to fetch user data" });
     }
   });
 

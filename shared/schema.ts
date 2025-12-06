@@ -658,5 +658,14 @@ export const insertManagedPricingSubscriptionSchema = createInsertSchema(managed
   specialNotes: z.string().optional(),
 });
 
+// Schema for updating managed pricing subscription (all fields optional for partial updates)
+export const updateManagedPricingSubscriptionSchema = z.object({
+  tier: z.enum(["small", "medium", "large", "enterprise"]).optional(),
+  businessName: z.string().optional(),
+  contactPhone: z.string().optional(),
+  specialNotes: z.string().optional(),
+});
+
 export type InsertManagedPricingSubscription = z.infer<typeof insertManagedPricingSubscriptionSchema>;
+export type UpdateManagedPricingSubscription = z.infer<typeof updateManagedPricingSubscriptionSchema>;
 export type ManagedPricingSubscription = typeof managedPricingSubscriptions.$inferSelect;
