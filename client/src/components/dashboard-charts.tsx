@@ -218,6 +218,7 @@ const tooltipStyle = {
   backgroundColor: "hsl(var(--card))",
   border: "1px solid hsl(var(--border))",
   borderRadius: "var(--radius)",
+  color: "hsl(var(--card-foreground))",
 };
 
 function MostExpensiveRecipesChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
