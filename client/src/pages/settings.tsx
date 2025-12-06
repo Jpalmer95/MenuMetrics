@@ -439,7 +439,7 @@ function BillingTab() {
                     data-testid={`button-subscribe-${plan.id}`}
                   >
                     {checkoutMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isCurrentPlan ? "Current Plan" : "Subscribe"}
+                    {isCurrentPlan ? "Current Plan" : !plan.priceId ? "Coming Soon" : "Subscribe"}
                   </Button>
                 </CardFooter>
               </Card>
