@@ -39,9 +39,10 @@ interface ChartWidgetProps {
   wasteLogs?: WasteLog[];
   onRemove?: (id: string) => void;
   onToggleWidth?: (id: string) => void;
+  isOver?: boolean;
 }
 
-export function SortableChartWidget(props: ChartWidgetProps) {
+export function SortableChartWidget(props: ChartWidgetProps & { isOver?: boolean }) {
   const {
     attributes,
     listeners,
@@ -54,17 +55,21 @@ export function SortableChartWidget(props: ChartWidgetProps) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 1000 : 1,
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={props.config.width === "full" ? "md:col-span-2" : ""}
+      className={`${props.config.width === "full" ? "md:col-span-2" : ""} ${isDragging ? "opacity-40" : ""}`}
+      data-testid={`sortable-chart-${props.config.id}`}
     >
-      <ChartWidget {...props} dragHandleProps={{ attributes, listeners }} isDragging={isDragging} />
+      <ChartWidget 
+        {...props} 
+        dragHandleProps={{ attributes, listeners }} 
+        isDragging={isDragging}
+        isOver={props.isOver}
+      />
     </div>
   );
 }
@@ -83,7 +88,8 @@ export function ChartWidget({
   onToggleWidth,
   dragHandleProps,
   isDragging,
-}: ChartWidgetProps & { dragHandleProps?: DragHandleProps; isDragging?: boolean }) {
+  isOver,
+}: ChartWidgetProps & { dragHandleProps?: DragHandleProps; isDragging?: boolean; isOver?: boolean }) {
   const chartInfo = dashboardChartLabels[config.chartType as DashboardChartType] || {
     name: "Unknown Chart",
     description: "",
@@ -93,7 +99,11 @@ export function ChartWidget({
 
   return (
     <Card
-      className={`relative transition-shadow ${isDragging ? "shadow-lg ring-2 ring-primary" : ""}`}
+      className={`relative transition-all duration-200 ${
+        isDragging ? "shadow-2xl ring-2 ring-primary scale-105" : ""
+      } ${
+        isOver ? "ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5" : ""
+      }`}
       data-testid={`chart-widget-${config.id}`}
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
@@ -101,10 +111,10 @@ export function ChartWidget({
           <div
             {...dragHandleProps?.attributes}
             {...dragHandleProps?.listeners}
-            className="touch-none"
+            className="touch-none select-none cursor-grab active:cursor-grabbing p-1 -m-1 rounded hover:bg-muted/50"
             data-testid={`drag-handle-${config.id}`}
           >
-            <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
+            <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
           </div>
           <div className="min-w-0">
             <CardTitle className="text-base truncate">{chartInfo.name}</CardTitle>

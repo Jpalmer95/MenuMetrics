@@ -2689,6 +2689,22 @@ Return the JSON array now:`;
     }
   });
 
+  // NOTE: This route MUST be before /:id routes to avoid "reorder" being matched as an ID
+  app.patch("/api/dashboard-configs/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { orderedIds } = req.body;
+      if (!Array.isArray(orderedIds)) {
+        return res.status(400).json({ error: "orderedIds must be an array" });
+      }
+      const configs = await storage.reorderDashboardConfigs(userId, orderedIds);
+      res.json(configs);
+    } catch (error) {
+      console.error("Reorder dashboard configs error:", error);
+      res.status(500).json({ error: "Failed to reorder dashboard configurations" });
+    }
+  });
+
   app.patch("/api/dashboard-configs/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -2714,21 +2730,6 @@ Return the JSON array now:`;
     } catch (error) {
       console.error("Delete dashboard config error:", error);
       res.status(500).json({ error: "Failed to delete dashboard configuration" });
-    }
-  });
-
-  app.patch("/api/dashboard-configs/reorder", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { orderedIds } = req.body;
-      if (!Array.isArray(orderedIds)) {
-        return res.status(400).json({ error: "orderedIds must be an array" });
-      }
-      const configs = await storage.reorderDashboardConfigs(userId, orderedIds);
-      res.json(configs);
-    } catch (error) {
-      console.error("Reorder dashboard configs error:", error);
-      res.status(500).json({ error: "Failed to reorder dashboard configurations" });
     }
   });
 

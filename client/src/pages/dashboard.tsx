@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardStats } from "@/components/dashboard-stats";
-import { SortableChartWidget } from "@/components/dashboard-charts";
+import { SortableChartWidget, ChartWidget } from "@/components/dashboard-charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,12 +20,16 @@ import type { Ingredient, Recipe, DashboardConfig, DashboardChartType, WasteLog 
 import { dashboardChartLabels, dashboardChartTypes } from "@shared/schema";
 import {
   DndContext,
-  closestCenter,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
+  MouseSensor,
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  DragOverEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -61,6 +65,8 @@ export default function DashboardPage() {
     { role: "assistant", content: "Hi! I'm your MenuMetrics assistant. Ask me anything about your menu, ingredients, costs, or margins. I can also suggest charts for your dashboard!\n\nTry asking:\n- What's my highest margin item?\n- Show me a chart of my food costs\n- Add a margin analysis chart\n- What's my average profit margin?" }
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const { data: ingredients = [], isLoading: ingredientsLoading } = useQuery<Ingredient[]>({
     queryKey: ["/api/ingredients"],
@@ -127,15 +133,52 @@ export default function DashboardPage() {
     mutationFn: async (orderedIds: string[]) => {
       await apiRequest("PATCH", "/api/dashboard-configs/reorder", { orderedIds });
     },
-    onSuccess: () => {
+    onMutate: async (orderedIds: string[]) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/dashboard-configs"] });
+      
+      // Snapshot the previous value
+      const previousConfigs = queryClient.getQueryData<DashboardConfig[]>(["/api/dashboard-configs"]);
+      
+      // Optimistically update with new order
+      if (previousConfigs) {
+        const newConfigs = orderedIds.map((id, index) => {
+          const config = previousConfigs.find(c => c.id === id);
+          return config ? { ...config, position: index } : null;
+        }).filter(Boolean) as DashboardConfig[];
+        
+        // Keep any configs not in the ordered list
+        const remainingConfigs = previousConfigs.filter(c => !orderedIds.includes(c.id));
+        
+        queryClient.setQueryData<DashboardConfig[]>(
+          ["/api/dashboard-configs"],
+          [...newConfigs, ...remainingConfigs]
+        );
+      }
+      
+      return { previousConfigs };
+    },
+    onError: (_err, _orderedIds, context) => {
+      // Roll back on error
+      if (context?.previousConfigs) {
+        queryClient.setQueryData(["/api/dashboard-configs"], context.previousConfigs);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after mutation settles
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard-configs"] });
     },
   });
 
   const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -143,15 +186,27 @@ export default function DashboardPage() {
     })
   );
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    setOverId(event.over?.id as string | null);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     
+    setActiveId(null);
+    setOverId(null);
+    
     if (over && active.id !== over.id) {
-      const oldIndex = visibleConfigs.findIndex((c) => c.id === active.id);
-      const newIndex = visibleConfigs.findIndex((c) => c.id === over.id);
+      const configs = dashboardConfigs.filter((c) => c.isVisible).sort((a, b) => a.position - b.position);
+      const oldIndex = configs.findIndex((c) => c.id === active.id);
+      const newIndex = configs.findIndex((c) => c.id === over.id);
       
       if (oldIndex !== -1 && newIndex !== -1) {
-        const newOrder = arrayMove(visibleConfigs, oldIndex, newIndex);
+        const newOrder = arrayMove(configs, oldIndex, newIndex);
         const orderedIds = newOrder.map((c) => c.id);
         reorderMutation.mutate(orderedIds);
       }
@@ -201,6 +256,8 @@ export default function DashboardPage() {
   const visibleConfigs = dashboardConfigs
     .filter((c) => c.isVisible)
     .sort((a, b) => a.position - b.position);
+
+  const activeConfig = activeId ? visibleConfigs.find(c => c.id === activeId) : null;
 
   const activeChartTypes = new Set(visibleConfigs.map((c) => c.chartType));
   const availableChartTypes = chartTypes.filter((ct) => !activeChartTypes.has(ct.type));
@@ -276,7 +333,9 @@ export default function DashboardPage() {
         ) : (
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
+            collisionDetection={rectIntersection}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
             <SortableContext
@@ -293,10 +352,24 @@ export default function DashboardPage() {
                     wasteLogs={wasteLogs}
                     onRemove={(id) => removeChartMutation.mutate(id)}
                     onToggleWidth={(id) => toggleWidthMutation.mutate(id)}
+                    isOver={overId === config.id && activeId !== config.id}
                   />
                 ))}
               </div>
             </SortableContext>
+            <DragOverlay>
+              {activeConfig && (
+                <div className="opacity-90 rotate-2 scale-105">
+                  <ChartWidget
+                    config={activeConfig}
+                    ingredients={ingredients}
+                    recipes={recipes}
+                    wasteLogs={wasteLogs}
+                    isDragging={true}
+                  />
+                </div>
+              )}
+            </DragOverlay>
           </DndContext>
         )}
       </div>
