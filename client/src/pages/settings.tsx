@@ -905,12 +905,14 @@ export default function SettingsPage() {
         description: "Welcome! We'll start managing your pricing soon.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/managed-pricing"] });
+      window.history.replaceState({}, '', '/settings?tab=billing');
     } else if (managedPricingStatus === 'canceled') {
       toast({
         title: "Checkout canceled",
         description: "Your managed pricing checkout was canceled. You can try again anytime.",
         variant: "destructive",
       });
+      window.history.replaceState({}, '', '/settings?tab=billing');
     }
   }, [managedPricingStatus, toast]);
 
