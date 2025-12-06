@@ -29,6 +29,9 @@ import {
   type SubscriptionTier,
   type DashboardConfig,
   type InsertDashboardConfig,
+  type ManagedPricingSubscription,
+  type InsertManagedPricingSubscription,
+  type ManagedPricingTier,
   subscriptionTiers,
   ingredients,
   recipes,
@@ -42,6 +45,7 @@ import {
   inventoryCounts,
   aiUsage,
   dashboardConfigs,
+  managedPricingSubscriptions,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -137,6 +141,13 @@ export interface IStorage {
   deleteDashboardConfig(id: string, userId: string): Promise<boolean>;
   reorderDashboardConfigs(userId: string, orderedIds: string[]): Promise<DashboardConfig[]>;
   createDefaultDashboardConfigs(userId: string): Promise<DashboardConfig[]>;
+  
+  // Managed Pricing Add-on operations
+  getManagedPricingSubscription(userId: string): Promise<ManagedPricingSubscription | undefined>;
+  getAllManagedPricingSubscriptions(): Promise<(ManagedPricingSubscription & { user: User })[]>;
+  createManagedPricingSubscription(subscription: InsertManagedPricingSubscription, userId: string): Promise<ManagedPricingSubscription>;
+  updateManagedPricingSubscription(userId: string, updates: Partial<ManagedPricingSubscription>): Promise<ManagedPricingSubscription | undefined>;
+  cancelManagedPricingSubscription(userId: string): Promise<ManagedPricingSubscription | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1170,6 +1181,60 @@ export class DatabaseStorage implements IStorage {
       created.push(config);
     }
     return created;
+  }
+
+  // Managed Pricing Add-on methods
+  async getManagedPricingSubscription(userId: string): Promise<ManagedPricingSubscription | undefined> {
+    const [subscription] = await db
+      .select()
+      .from(managedPricingSubscriptions)
+      .where(eq(managedPricingSubscriptions.userId, userId));
+    return subscription || undefined;
+  }
+
+  async getAllManagedPricingSubscriptions(): Promise<(ManagedPricingSubscription & { user: User })[]> {
+    const results = await db
+      .select()
+      .from(managedPricingSubscriptions)
+      .innerJoin(users, eq(managedPricingSubscriptions.userId, users.id));
+    
+    return results.map(r => ({
+      ...r.managed_pricing_subscriptions,
+      user: r.users,
+    }));
+  }
+
+  async createManagedPricingSubscription(subscription: InsertManagedPricingSubscription, userId: string): Promise<ManagedPricingSubscription> {
+    const [created] = await db
+      .insert(managedPricingSubscriptions)
+      .values({
+        ...subscription,
+        userId,
+      })
+      .returning();
+    return created;
+  }
+
+  async updateManagedPricingSubscription(userId: string, updates: Partial<ManagedPricingSubscription>): Promise<ManagedPricingSubscription | undefined> {
+    const [updated] = await db
+      .update(managedPricingSubscriptions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(managedPricingSubscriptions.userId, userId))
+      .returning();
+    return updated || undefined;
+  }
+
+  async cancelManagedPricingSubscription(userId: string): Promise<ManagedPricingSubscription | undefined> {
+    const [canceled] = await db
+      .update(managedPricingSubscriptions)
+      .set({ 
+        status: "canceled", 
+        canceledAt: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(managedPricingSubscriptions.userId, userId))
+      .returning();
+    return canceled || undefined;
   }
 }
 

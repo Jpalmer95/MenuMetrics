@@ -32,6 +32,8 @@ export const users = pgTable("users", {
   subscriptionStatus: varchar("subscription_status").default("inactive"), // inactive, trialing, active, past_due, canceled
   subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
   trialEndsAt: timestamp("trial_ends_at"),
+  // Admin role for managing consultation requests
+  role: varchar("role").default("user"), // "user" or "admin"
 });
 
 export type UpsertUser = typeof users.$inferInsert;
@@ -578,3 +580,83 @@ export const insertDashboardConfigSchema = createInsertSchema(dashboardConfigs).
 
 export type InsertDashboardConfig = z.infer<typeof insertDashboardConfigSchema>;
 export type DashboardConfig = typeof dashboardConfigs.$inferSelect;
+
+// Managed Pricing Add-on - Monthly subscription for live inventory pricing management
+// Pricing scales based on business size (ingredient + recipe count)
+
+export const managedPricingTiers = {
+  small: { 
+    name: "Small Business", 
+    maxItems: 100, 
+    priceMonthly: 2900, // $29/month
+    description: "Up to 100 ingredients + recipes combined"
+  },
+  medium: { 
+    name: "Medium Business", 
+    maxItems: 500, 
+    priceMonthly: 7900, // $79/month
+    description: "Up to 500 ingredients + recipes combined"
+  },
+  large: { 
+    name: "Large Business", 
+    maxItems: 1000, 
+    priceMonthly: 14900, // $149/month
+    description: "Up to 1,000 ingredients + recipes combined"
+  },
+  enterprise: { 
+    name: "Enterprise", 
+    maxItems: null, // Unlimited
+    priceMonthly: 24900, // $249/month
+    description: "Unlimited ingredients + recipes"
+  },
+} as const;
+
+export type ManagedPricingTier = keyof typeof managedPricingTiers;
+
+// Managed pricing subscriptions table - tracks add-on subscriptions
+export const managedPricingSubscriptions = pgTable("managed_pricing_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  
+  // Subscription details
+  tier: text("tier").notNull(), // small, medium, large, enterprise
+  status: text("status").notNull().default("active"), // active, paused, canceled
+  
+  // Stripe integration
+  stripeSubscriptionItemId: varchar("stripe_subscription_item_id"), // For add-on billing
+  stripePriceId: varchar("stripe_price_id"),
+  
+  // Business details for the managed service
+  businessName: text("business_name"),
+  contactPhone: text("contact_phone"),
+  specialNotes: text("special_notes"), // Any special requirements or notes
+  
+  // Service tracking
+  lastPriceUpdateAt: timestamp("last_price_update_at"), // When prices were last updated by admin
+  nextScheduledUpdate: timestamp("next_scheduled_update"), // When next update is planned
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  canceledAt: timestamp("canceled_at"),
+});
+
+export const insertManagedPricingSubscriptionSchema = createInsertSchema(managedPricingSubscriptions).omit({
+  id: true,
+  userId: true,
+  status: true,
+  stripeSubscriptionItemId: true,
+  stripePriceId: true,
+  lastPriceUpdateAt: true,
+  nextScheduledUpdate: true,
+  createdAt: true,
+  updatedAt: true,
+  canceledAt: true,
+}).extend({
+  tier: z.enum(["small", "medium", "large", "enterprise"]),
+  businessName: z.string().optional(),
+  contactPhone: z.string().optional(),
+  specialNotes: z.string().optional(),
+});
+
+export type InsertManagedPricingSubscription = z.infer<typeof insertManagedPricingSubscriptionSchema>;
+export type ManagedPricingSubscription = typeof managedPricingSubscriptions.$inferSelect;
