@@ -343,7 +343,7 @@ export function RecipesTable({
                     className="hover:bg-muted/30 cursor-pointer"
                     onClick={() => onViewDetails(recipe)}
                   >
-                    <TableCell className="font-medium" onClick={(e) => e.stopPropagation()} data-testid={`text-recipe-name-${recipe.id}`}>
+                    <TableCell className="font-medium" data-testid={`text-recipe-name-${recipe.id}`}>
                       {editingNameId === recipe.id ? (
                         <div className="flex items-center gap-1">
                           <ChefHat className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -409,17 +409,18 @@ export function RecipesTable({
                         </div>
                       )}
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell>
                       {editingCategoryId === recipe.id ? (
-                        <Select
-                          defaultValue={recipe.category}
-                          onValueChange={(value) => handleCategoryChange(recipe.id, value as RecipeCategory)}
-                          disabled={isUpdatingCategory}
-                        >
-                          <SelectTrigger 
-                            className="h-7 w-[140px] text-xs"
-                            data-testid={`select-category-${recipe.id}`}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            defaultValue={recipe.category}
+                            onValueChange={(value) => handleCategoryChange(recipe.id, value as RecipeCategory)}
+                            disabled={isUpdatingCategory}
                           >
+                            <SelectTrigger 
+                              className="h-7 w-[140px] text-xs"
+                              data-testid={`select-category-${recipe.id}`}
+                            >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -430,6 +431,7 @@ export function RecipesTable({
                             ))}
                           </SelectContent>
                         </Select>
+                        </div>
                       ) : (
                         <div 
                           className="flex items-center gap-1"
@@ -459,7 +461,6 @@ export function RecipesTable({
                     </TableCell>
                     <TableCell 
                       className="text-right tabular-nums font-medium"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       {editingPriceId === recipe.id ? (
                         <div className="flex items-center justify-end gap-1">
