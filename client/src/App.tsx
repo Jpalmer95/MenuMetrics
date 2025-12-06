@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2 } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2, Shield } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -26,6 +26,7 @@ import OrdersPage from "@/pages/orders";
 import WasteLogPage from "@/pages/waste-log";
 import WasteAnalyticsPage from "@/pages/waste-analytics";
 import TermsOfServicePage from "@/pages/terms-of-service";
+import AdminManagedPricingPage from "@/pages/admin-managed-pricing";
 
 function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
   // Show landing page while loading or when not authenticated
@@ -55,6 +56,7 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
       <Route path="/ai-agent" component={AIAgentPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/terms-of-service" component={TermsOfServicePage} />
+      <Route path="/admin/managed-pricing" component={AdminManagedPricingPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -63,7 +65,7 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
 function AppContent() {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: BarChart3, testId: "link-dashboard" },
@@ -76,6 +78,7 @@ function AppContent() {
     { path: "/densities", label: "Densities", icon: Beaker, testId: "link-densities" },
     { path: "/ai-agent", label: "Mise AI", icon: Sparkles, testId: "link-ai-agent" },
     { path: "/settings", label: "Settings", icon: Settings, testId: "link-settings" },
+    ...(user?.role === "admin" ? [{ path: "/admin/managed-pricing", label: "Admin", icon: Shield, testId: "link-admin" }] : []),
   ];
 
   const handleLogout = () => {
