@@ -540,7 +540,7 @@ export const dashboardChartLabels: Record<DashboardChartType, { name: string; de
   cost_efficient_recipes: { name: "Cost-Efficient Recipes", description: "Recipes with lowest cost per serving" },
   ingredients_by_category: { name: "Ingredients by Category", description: "Distribution of inventory by category" },
   margin_analysis: { name: "Margin Analysis", description: "Most profitable items by dollar per unit" },
-  food_cost_percentage: { name: "Food Cost %", description: "Recipes by food cost percentage (target: 28-35%)" },
+  food_cost_percentage: { name: "Food Cost %", description: "Recipes by food cost percentage (target: 20-24%)" },
   menu_engineering_matrix: { name: "Menu Engineering Matrix", description: "Stars, Puzzles, Plowhorses, Dogs classification" },
   top_revenue_drivers: { name: "Top Revenue Drivers", description: "Items generating most total profit" },
   waste_impact: { name: "Waste Impact", description: "Money lost to waste by category" },

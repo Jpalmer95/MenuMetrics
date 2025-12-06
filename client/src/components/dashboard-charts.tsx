@@ -332,7 +332,11 @@ function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingr
             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip contentStyle={tooltipStyle} />
+        <Tooltip 
+          contentStyle={tooltipStyle} 
+          itemStyle={{ color: "hsl(var(--card-foreground))" }}
+          labelStyle={{ color: "hsl(var(--card-foreground))" }}
+        />
       </PieChart>
     </ResponsiveContainer>
   );
@@ -386,7 +390,7 @@ function FoodCostPercentageChart({ recipes, height }: { recipes: Recipe[]; heigh
       return {
         name: r.name.length > 12 ? r.name.substring(0, 12) + "..." : r.name,
         foodCostPct: Math.round(foodCostPct * 10) / 10,
-        isInRange: foodCostPct >= 28 && foodCostPct <= 35,
+        isInRange: foodCostPct >= 20 && foodCostPct <= 24,
       };
     })
     .sort((a, b) => b.foodCostPct - a.foodCostPct)
@@ -415,8 +419,8 @@ function FoodCostPercentageChart({ recipes, height }: { recipes: Recipe[]; heigh
           tick={{ fill: "hsl(var(--muted-foreground))" }}
         />
         <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => `${value.toFixed(1)}%`} />
-        <ReferenceLine x={28} stroke="hsl(var(--chart-4))" strokeDasharray="5 5" />
-        <ReferenceLine x={35} stroke="hsl(var(--chart-4))" strokeDasharray="5 5" />
+        <ReferenceLine x={20} stroke="hsl(var(--chart-4))" strokeDasharray="5 5" />
+        <ReferenceLine x={24} stroke="hsl(var(--chart-4))" strokeDasharray="5 5" />
         <Bar
           dataKey="foodCostPct"
           radius={[0, 4, 4, 0]}
@@ -650,7 +654,12 @@ function InventoryValueChart({ ingredients, height }: { ingredients: Ingredient[
             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => `$${value.toFixed(2)}`} />
+        <Tooltip 
+          contentStyle={tooltipStyle} 
+          itemStyle={{ color: "hsl(var(--card-foreground))" }}
+          labelStyle={{ color: "hsl(var(--card-foreground))" }}
+          formatter={(value: number) => `$${value.toFixed(2)}`} 
+        />
       </PieChart>
     </ResponsiveContainer>
   );
