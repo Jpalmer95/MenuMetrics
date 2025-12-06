@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X, Layers } from "lucide-react";
+import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X, Layers, ArrowUpDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,8 @@ export default function PricingPlaygroundPage() {
   const [useGlobalThreshold, setUseGlobalThreshold] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [categorySettings, setCategorySettings] = useState<CategorySettings>(defaultCategorySettings);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: recipes = [], isLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
@@ -264,16 +266,31 @@ export default function PricingPlaygroundPage() {
       
       const isOnTarget = (recipe.menuPrice ?? 0) > 0 && recipeMargin >= recipeTargetMargin - 5;
       
+      // Profit per unit = Menu Price - True Cost
+      const profitPerUnit = (recipe.menuPrice ?? 0) > 0 
+        ? (recipe.menuPrice ?? 0) - recipeTrueCost 
+        : 0;
+      
       return {
         ...recipe,
         trueCost: recipeTrueCost,
         suggestedPrice: recipeSuggested,
         margin: recipeMargin,
+        profitPerUnit,
         isBelowMinMargin: isFlagged,
         isOnTarget,
       };
     });
   }, [recipes, minimumMarginThreshold, useGlobalThreshold]);
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
 
   const flaggedRecipesCount = useMemo(() => {
     return recipesWithMetrics.filter(r => r.isBelowMinMargin).length;
@@ -289,6 +306,60 @@ export default function PricingPlaygroundPage() {
       (recipe.category && recipe.category.toLowerCase().includes(query))
     );
   }, [recipesWithMetrics, searchQuery]);
+
+  const sortedRecipes = useMemo(() => {
+    if (!sortColumn) return filteredRecipes;
+    
+    return [...filteredRecipes].sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
+      
+      switch (sortColumn) {
+        case "name":
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case "category":
+          aValue = (a.category || "").toLowerCase();
+          bValue = (b.category || "").toLowerCase();
+          break;
+        case "baseCost":
+          aValue = a.costPerServing;
+          bValue = b.costPerServing;
+          break;
+        case "waste":
+          aValue = a.wastePercentage ?? 0;
+          bValue = b.wastePercentage ?? 0;
+          break;
+        case "trueCost":
+          aValue = a.trueCost;
+          bValue = b.trueCost;
+          break;
+        case "menuPrice":
+          aValue = a.menuPrice ?? 0;
+          bValue = b.menuPrice ?? 0;
+          break;
+        case "margin":
+          aValue = a.margin;
+          bValue = b.margin;
+          break;
+        case "profitPerUnit":
+          aValue = a.profitPerUnit;
+          bValue = b.profitPerUnit;
+          break;
+        case "suggested":
+          aValue = a.suggestedPrice;
+          bValue = b.suggestedPrice;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filteredRecipes, sortColumn, sortDirection]);
 
   const handleSave = () => {
     if (!selectedRecipeId) return;
@@ -891,18 +962,91 @@ export default function PricingPlaygroundPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-3 font-medium">Recipe</th>
-                    <th className="text-right p-3 font-medium">Base Cost</th>
-                    <th className="text-right p-3 font-medium">Waste %</th>
-                    <th className="text-right p-3 font-medium">True Cost</th>
-                    <th className="text-right p-3 font-medium">Menu Price</th>
-                    <th className="text-right p-3 font-medium">Margin</th>
-                    <th className="text-right p-3 font-medium">Suggested</th>
+                    <th 
+                      className="text-left p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("name")}
+                      data-testid="header-recipe"
+                    >
+                      <div className="flex items-center gap-1">
+                        Recipe
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "name" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("baseCost")}
+                      data-testid="header-base-cost"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Base Cost
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "baseCost" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("waste")}
+                      data-testid="header-waste"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Waste %
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "waste" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("trueCost")}
+                      data-testid="header-true-cost"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        True Cost
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "trueCost" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("menuPrice")}
+                      data-testid="header-menu-price"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Menu Price
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "menuPrice" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("profitPerUnit")}
+                      data-testid="header-profit"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Profit $
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "profitPerUnit" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("margin")}
+                      data-testid="header-margin"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Margin
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "margin" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
+                    <th 
+                      className="text-right p-3 font-medium cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("suggested")}
+                      data-testid="header-suggested"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Suggested
+                        <ArrowUpDown className={`h-3 w-3 ${sortColumn === "suggested" ? "opacity-100" : "opacity-40"}`} />
+                      </div>
+                    </th>
                     <th className="text-center p-3 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRecipes.map((recipe) => {
+                  {sortedRecipes.map((recipe) => {
                     const isSelected = recipe.id === selectedRecipeId;
 
                     return (
@@ -941,6 +1085,17 @@ export default function PricingPlaygroundPage() {
                         <td className="p-3 text-right tabular-nums">${recipe.trueCost.toFixed(2)}</td>
                         <td className="p-3 text-right tabular-nums">
                           {(recipe.menuPrice ?? 0) > 0 ? `$${(recipe.menuPrice ?? 0).toFixed(2)}` : "-"}
+                        </td>
+                        <td className={`p-3 text-right tabular-nums ${
+                          (recipe.menuPrice ?? 0) > 0 
+                            ? recipe.profitPerUnit > 0 
+                              ? "text-green-600 font-medium" 
+                              : recipe.profitPerUnit < 0 
+                                ? "text-red-600 font-medium" 
+                                : ""
+                            : "text-muted-foreground"
+                        }`} data-testid={`text-profit-${recipe.id}`}>
+                          {(recipe.menuPrice ?? 0) > 0 ? `$${recipe.profitPerUnit.toFixed(2)}` : "-"}
                         </td>
                         <td className={`p-3 text-right tabular-nums ${
                           (recipe.menuPrice ?? 0) > 0 ? (
