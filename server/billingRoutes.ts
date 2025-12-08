@@ -16,13 +16,43 @@ async function loadStripePrices() {
       active: true,
       type: 'recurring',
       limit: 100,
+      expand: ['data.product'],
     });
     
+    const validTiers = ['starter', 'professional', 'business'];
+    
     for (const price of prices.data) {
-      if (price.nickname) {
-        // Match AI plan nicknames like "Starter Plan" -> "starter"
-        const tier = price.nickname.toLowerCase().replace(' plan', '');
+      let tier: string | null = null;
+      
+      // Method 1: Check price metadata for tier
+      if (price.metadata?.tier && validTiers.includes(price.metadata.tier)) {
+        tier = price.metadata.tier;
+      }
+      // Method 2: Check product metadata for tier
+      else if (typeof price.product === 'object' && price.product?.metadata?.tier && validTiers.includes(price.product.metadata.tier)) {
+        tier = price.product.metadata.tier;
+      }
+      // Method 3: Check price nickname like "Starter Plan" -> "starter"
+      else if (price.nickname) {
+        const extracted = price.nickname.toLowerCase().replace(' plan', '').trim();
+        if (validTiers.includes(extracted)) {
+          tier = extracted;
+        }
+      }
+      // Method 4: Check product name for tier keywords (e.g., "MenuMetrics Starter Plan")
+      else if (typeof price.product === 'object' && price.product?.name) {
+        const productName = price.product.name.toLowerCase();
+        for (const t of validTiers) {
+          if (productName.includes(t)) {
+            tier = t;
+            break;
+          }
+        }
+      }
+      
+      if (tier && !STRIPE_PRICE_IDS[tier]) {
         STRIPE_PRICE_IDS[tier] = price.id;
+        console.log(`Mapped ${tier} plan to price ${price.id}`);
       }
     }
     console.log('Loaded Stripe price IDs:', STRIPE_PRICE_IDS);
