@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, TrendingUp, TrendingDown, Minus, DollarSign, Package, Percent, Check, X, Edit2, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Minus, DollarSign, Package, Percent, Check, X, Edit2, Search, ArrowUpDown, ArrowUp, ArrowDown, Link2, Unlink } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type SortField = "name" | "category" | "portionCost" | "menuPrice" | "margin";
@@ -24,6 +24,8 @@ export default function AdditionsPricingPage() {
     additionPortionSize?: number;
     additionPortionUnit?: string;
     additionMenuPrice?: number;
+    additionBaseIngredientId?: string | null;
+    additionBasePortionRatio?: number;
   }>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -144,6 +146,133 @@ export default function AdditionsPricingPage() {
     return ((menuPrice - portionCost) / menuPrice) * 100;
   };
 
+  // Calculate base cost (the ingredient being replaced/upgraded from)
+  const calculateBaseCost = (ingredient: Ingredient): number | null => {
+    if (!ingredient.additionBaseIngredientId) {
+      return null;
+    }
+
+    const baseIngredient = ingredients.find(i => i.id === ingredient.additionBaseIngredientId);
+    if (!baseIngredient) {
+      return null;
+    }
+
+    // Use the same portion unit and size but with ratio applied
+    const portionSize = ingredient.additionPortionSize;
+    const portionUnit = ingredient.additionPortionUnit?.toLowerCase();
+    const ratio = ingredient.additionBasePortionRatio ?? 1.0;
+
+    if (!portionSize || !portionUnit) {
+      return null;
+    }
+
+    // Get the appropriate cost per unit from base ingredient
+    let costPerUnit: number | null = null;
+    switch (portionUnit) {
+      case "g":
+      case "grams":
+        costPerUnit = baseIngredient.costPerGram;
+        break;
+      case "oz":
+      case "ounces":
+        costPerUnit = baseIngredient.costPerOunce;
+        break;
+      case "cup":
+      case "cups":
+        costPerUnit = baseIngredient.costPerCup;
+        break;
+      case "tbsp":
+      case "tablespoons":
+        costPerUnit = baseIngredient.costPerTbsp;
+        break;
+      case "tsp":
+      case "teaspoons":
+        costPerUnit = baseIngredient.costPerTsp;
+        break;
+      case "lb":
+      case "pounds":
+        costPerUnit = baseIngredient.costPerPound;
+        break;
+      case "kg":
+        costPerUnit = baseIngredient.costPerKg;
+        break;
+      case "ml":
+        costPerUnit = baseIngredient.costPerMl;
+        break;
+      case "liter":
+      case "liters":
+        costPerUnit = baseIngredient.costPerLiter;
+        break;
+      case "pint":
+      case "pints":
+        costPerUnit = baseIngredient.costPerPint;
+        break;
+      case "quart":
+      case "quarts":
+        costPerUnit = baseIngredient.costPerQuart;
+        break;
+      case "gallon":
+      case "gallons":
+        costPerUnit = baseIngredient.costPerGallon;
+        break;
+      case "unit":
+      case "units":
+        costPerUnit = baseIngredient.costPerUnit;
+        break;
+      default:
+        costPerUnit = baseIngredient.costPerGram;
+    }
+
+    if (costPerUnit === null || costPerUnit === undefined) {
+      return null;
+    }
+
+    return portionSize * ratio * costPerUnit;
+  };
+
+  // Calculate upgrade cost (portion cost minus base cost)
+  const calculateUpgradeCost = (ingredient: Ingredient): number | null => {
+    const portionCost = calculatePortionCost(ingredient);
+    const baseCost = calculateBaseCost(ingredient);
+
+    if (portionCost === null) {
+      return null;
+    }
+
+    // If no base ingredient, upgrade cost equals portion cost
+    if (baseCost === null) {
+      return portionCost;
+    }
+
+    return portionCost - baseCost;
+  };
+
+  // Calculate upgrade margin (based on upgrade cost instead of portion cost)
+  const calculateUpgradeMargin = (ingredient: Ingredient): number | null => {
+    const upgradeCost = calculateUpgradeCost(ingredient);
+    const menuPrice = ingredient.additionMenuPrice;
+
+    if (upgradeCost === null || menuPrice === null || menuPrice === undefined || menuPrice === 0) {
+      return null;
+    }
+
+    return ((menuPrice - upgradeCost) / menuPrice) * 100;
+  };
+
+  // Get base ingredient name for display
+  const getBaseIngredientName = (ingredient: Ingredient): string | null => {
+    if (!ingredient.additionBaseIngredientId) {
+      return null;
+    }
+    const baseIngredient = ingredients.find(i => i.id === ingredient.additionBaseIngredientId);
+    return baseIngredient?.name ?? null;
+  };
+
+  // Get non-addition ingredients (potential base ingredients for upgrades)
+  const potentialBaseIngredients = useMemo(() => {
+    return ingredients.filter(ing => !ing.isAddition && !ing.isPackaging);
+  }, [ingredients]);
+
   // Toggle sort for a column
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -239,6 +368,8 @@ export default function AdditionsPricingPage() {
       additionPortionSize: ingredient.additionPortionSize ?? undefined,
       additionPortionUnit: ingredient.additionPortionUnit ?? undefined,
       additionMenuPrice: ingredient.additionMenuPrice ?? undefined,
+      additionBaseIngredientId: ingredient.additionBaseIngredientId ?? null,
+      additionBasePortionRatio: ingredient.additionBasePortionRatio ?? 1.0,
     });
   };
 
@@ -248,25 +379,37 @@ export default function AdditionsPricingPage() {
   };
 
   const saveEdit = (ingredient: Ingredient) => {
+    // Build the update data, explicitly handling null for base ingredient to clear it
+    const updateData: Partial<InsertIngredient> & { additionBaseIngredientId?: string | null } = {
+      name: ingredient.name,
+      category: ingredient.category,
+      purchaseQuantity: ingredient.purchaseQuantity,
+      purchaseUnit: ingredient.purchaseUnit,
+      purchaseCost: ingredient.purchaseCost,
+      isPackaging: ingredient.isPackaging,
+      isAddition: ingredient.isAddition,
+      store: ingredient.store ?? undefined,
+      pricePerUnit: ingredient.pricePerUnit ?? undefined,
+      gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
+      densitySource: ingredient.densitySource ?? undefined,
+      yieldPercentage: ingredient.yieldPercentage ?? 97,
+      additionPortionSize: editValues.additionPortionSize,
+      additionPortionUnit: editValues.additionPortionUnit,
+      additionMenuPrice: editValues.additionMenuPrice,
+      additionBasePortionRatio: editValues.additionBasePortionRatio,
+    };
+    
+    // Explicitly include additionBaseIngredientId even when null to clear it
+    // Use null to signal removal, undefined to leave unchanged
+    if (editValues.additionBaseIngredientId === null) {
+      updateData.additionBaseIngredientId = null;
+    } else if (editValues.additionBaseIngredientId) {
+      updateData.additionBaseIngredientId = editValues.additionBaseIngredientId;
+    }
+    
     updateMutation.mutate({
       id: ingredient.id,
-      data: {
-        name: ingredient.name,
-        category: ingredient.category,
-        purchaseQuantity: ingredient.purchaseQuantity,
-        purchaseUnit: ingredient.purchaseUnit,
-        purchaseCost: ingredient.purchaseCost,
-        isPackaging: ingredient.isPackaging,
-        isAddition: ingredient.isAddition,
-        store: ingredient.store ?? undefined,
-        pricePerUnit: ingredient.pricePerUnit ?? undefined,
-        gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
-        densitySource: ingredient.densitySource ?? undefined,
-        yieldPercentage: ingredient.yieldPercentage ?? 97,
-        additionPortionSize: editValues.additionPortionSize,
-        additionPortionUnit: editValues.additionPortionUnit,
-        additionMenuPrice: editValues.additionMenuPrice,
-      },
+      data: updateData,
     });
   };
 
@@ -431,13 +574,32 @@ export default function AdditionsPricingPage() {
                         {getSortIcon("menuPrice")}
                       </button>
                     </TableHead>
+                    <TableHead>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1">
+                          <Link2 className="h-3 w-3" />
+                          <span>Base Item</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          The ingredient this add-in replaces (e.g., regular milk for oat milk upgrade)
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Tooltip>
+                        <TooltipTrigger>Upgrade Cost</TooltipTrigger>
+                        <TooltipContent>
+                          Add-in cost minus base item cost = true upgrade cost
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableHead>
                     <TableHead className="text-right">
                       <button
                         onClick={() => toggleSort("margin")}
                         className="flex items-center justify-end hover-elevate px-1 py-0.5 rounded ml-auto"
                         data-testid="sort-margin"
                       >
-                        Margin
+                        Upgrade Margin
                         {getSortIcon("margin")}
                       </button>
                     </TableHead>
@@ -447,14 +609,17 @@ export default function AdditionsPricingPage() {
                 <TableBody>
                   {filteredAndSortedAdditions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         No add-ins match your search "{searchQuery}"
                       </TableCell>
                     </TableRow>
                   ) : filteredAndSortedAdditions.map((ingredient) => {
                     const isEditing = editingId === ingredient.id;
                     const portionCost = calculatePortionCost(ingredient);
-                    const margin = calculateMargin(ingredient);
+                    const baseCost = calculateBaseCost(ingredient);
+                    const upgradeCost = calculateUpgradeCost(ingredient);
+                    const upgradeMargin = calculateUpgradeMargin(ingredient);
+                    const baseIngredientName = getBaseIngredientName(ingredient);
 
                     return (
                       <TableRow key={ingredient.id} data-testid={`row-addition-${ingredient.id}`}>
@@ -555,10 +720,77 @@ export default function AdditionsPricingPage() {
                             </span>
                           )}
                         </TableCell>
+                        {/* Base Item Column */}
+                        <TableCell>
+                          {isEditing ? (
+                            <Select
+                              value={editValues.additionBaseIngredientId ?? "none"}
+                              onValueChange={(val) => setEditValues({
+                                ...editValues,
+                                additionBaseIngredientId: val === "none" ? null : val,
+                              })}
+                            >
+                              <SelectTrigger className="h-8 w-36" data-testid={`select-base-ingredient-${ingredient.id}`}>
+                                <SelectValue placeholder="No base item" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  <span className="flex items-center gap-1 text-muted-foreground">
+                                    <Unlink className="h-3 w-3" />
+                                    No base item
+                                  </span>
+                                </SelectItem>
+                                {potentialBaseIngredients.map((baseIng) => (
+                                  <SelectItem key={baseIng.id} value={baseIng.id}>
+                                    {baseIng.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span data-testid={`text-base-ingredient-${ingredient.id}`}>
+                              {baseIngredientName ? (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Badge variant="outline" className="font-normal gap-1">
+                                      <Link2 className="h-3 w-3" />
+                                      {baseIngredientName}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Base cost: ${baseCost?.toFixed(3) ?? "-"}
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </span>
+                          )}
+                        </TableCell>
+                        {/* Upgrade Cost Column */}
+                        <TableCell className="text-right tabular-nums" data-testid={`text-upgrade-cost-${ingredient.id}`}>
+                          {upgradeCost !== null ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <span className={`font-medium ${baseCost !== null ? 'text-primary' : ''}`}>
+                                  ${upgradeCost.toFixed(3)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {baseCost !== null 
+                                  ? `$${portionCost?.toFixed(3)} (add-in) - $${baseCost.toFixed(3)} (base) = $${upgradeCost.toFixed(3)}`
+                                  : 'No base item set - showing full portion cost'}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        {/* Upgrade Margin Column */}
                         <TableCell className="text-right">
-                          <div className={`flex items-center justify-end gap-1 font-semibold ${getMarginColor(margin)}`} data-testid={`text-margin-${ingredient.id}`}>
-                            {getMarginIcon(margin)}
-                            {margin !== null ? `${margin.toFixed(1)}%` : "-"}
+                          <div className={`flex items-center justify-end gap-1 font-semibold ${getMarginColor(upgradeMargin)}`} data-testid={`text-margin-${ingredient.id}`}>
+                            {getMarginIcon(upgradeMargin)}
+                            {upgradeMargin !== null ? `${upgradeMargin.toFixed(1)}%` : "-"}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -622,7 +854,13 @@ export default function AdditionsPricingPage() {
             <strong>Menu Price:</strong> What you charge customers for this add-in
           </p>
           <p>
-            <strong>Margin:</strong> The percentage of revenue that is profit. 
+            <strong>Base Item:</strong> For upgrade-style add-ins (like oat milk replacing regular milk), select the ingredient being replaced. This allows accurate margin calculations.
+          </p>
+          <p>
+            <strong>Upgrade Cost:</strong> The true cost of the upgrade = Add-in portion cost minus base item cost. If no base item is set, this equals the full portion cost.
+          </p>
+          <p>
+            <strong>Upgrade Margin:</strong> The percentage of revenue that is profit after accounting for base item replacement. 
             <span className="text-emerald-600 dark:text-emerald-400"> Green (70%+)</span> is excellent,
             <span className="text-amber-600 dark:text-amber-400"> Yellow (50-70%)</span> is acceptable,
             <span className="text-red-600 dark:text-red-400"> Red (&lt;50%)</span> may need adjustment
