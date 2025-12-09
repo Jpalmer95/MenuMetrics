@@ -24,6 +24,7 @@ Preferred communication style: Simple, everyday language.
 - **Waste Log** (`/waste-log`): Log and track ingredient waste with cost impact.
 - **Waste Analytics** (`/waste-analytics`): Charts showing waste trends, breakdowns by reason, and top wasted items.
 - **Pricing** (`/pricing`): Pricing playground for margin analysis.
+- **Add-Ins** (`/add-ins`): Pricing configuration for add-in ingredients (whey protein, MCT oil, etc.) with portion cost and margin analysis.
 - **Densities** (`/densities`): Density reference table for unit conversions.
 - **Mise AI** (`/ai-agent`): AI-powered recipe creation and business advice.
 - **Settings** (`/settings`): User preferences and AI provider configuration.
@@ -47,7 +48,7 @@ Preferred communication style: Simple, everyday language.
 **Database**: PostgreSQL (Neon serverless) with Drizzle ORM.
 **Schema Design**:
 - **Users**: Stores user profiles (id, email, names, image), linked via foreign keys with CASCADE DELETE for data isolation.
-- **Ingredients**: Stores `userId`, purchase details, `gramsPerMilliliter` for density, `isPackaging` flag, `densitySource`, `yieldPercentage`, and inventory fields (`parValue`, `currentStock`, `storageType`, `countFrequency`, `lastCountDate`).
+- **Ingredients**: Stores `userId`, purchase details, `gramsPerMilliliter` for density, `isPackaging` flag, `isAddition` flag (for add-ins like protein powders), `densitySource`, `yieldPercentage`, inventory fields (`parValue`, `currentStock`, `storageType`, `countFrequency`, `lastCountDate`), and addition pricing fields (`additionPortionSize`, `additionPortionUnit`, `additionMenuPrice`) for add-in margin tracking.
 - **Recipes**: Stores `userId`, metadata (name, category, serving size), pricing (menuPrice, totalCost, profit margin), and pricing playground settings (`wastePercentage`, `targetMargin`, `consumablesBuffer`).
 - **Recipe Ingredients Junction**: Links recipes to ingredients with `userId`, quantity, and unit.
 - **AI Settings**: Stores `userId` and per-user AI provider selection and API tokens.
