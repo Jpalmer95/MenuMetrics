@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-import { Info, Loader2 } from "lucide-react";
+import { Info, Loader2, Zap, Package } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -78,6 +79,8 @@ export function IngredientFormDialog({
       pricePerUnit: undefined,
       gramsPerMilliliter: undefined,
       densitySource: undefined,
+      isPackaging: false,
+      isAddition: false,
       yieldPercentage: 97,
     },
   });
@@ -139,6 +142,8 @@ export function IngredientFormDialog({
         pricePerUnit: ingredient.pricePerUnit || undefined,
         gramsPerMilliliter: ingredient.gramsPerMilliliter || undefined,
         densitySource: ingredient.densitySource || undefined,
+        isPackaging: ingredient.isPackaging || false,
+        isAddition: ingredient.isAddition || false,
         yieldPercentage: ingredient.yieldPercentage ?? 97,
       });
       // Set preset if density matches a known value
@@ -155,6 +160,8 @@ export function IngredientFormDialog({
         pricePerUnit: undefined,
         gramsPerMilliliter: undefined,
         densitySource: undefined,
+        isPackaging: false,
+        isAddition: false,
         yieldPercentage: 97,
       });
       setSelectedPreset("");
@@ -461,6 +468,81 @@ export function IngredientFormDialog({
                   )}
                 />
               )}
+            </div>
+
+            {/* Item Type Toggles */}
+            <div className="space-y-4 rounded-md border p-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Item Type</div>
+                  <div className="text-xs text-muted-foreground">
+                    Mark this item if it's packaging (cups, lids) or an add-in option (whey protein, MCT oil).
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-4">
+                <FormField
+                  control={form.control}
+                  name="isPackaging"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <div className="space-y-0.5">
+                          <FormLabel className="cursor-pointer">Packaging Item</FormLabel>
+                          <FormDescription className="text-xs">
+                            Cups, lids, straws, bags, etc.
+                          </FormDescription>
+                        </div>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value || false}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            if (checked) {
+                              form.setValue("isAddition", false);
+                            }
+                          }}
+                          data-testid="switch-is-packaging"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="isAddition"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <Zap className="h-4 w-4 text-muted-foreground" />
+                        <div className="space-y-0.5">
+                          <FormLabel className="cursor-pointer">Add-In Option</FormLabel>
+                          <FormDescription className="text-xs">
+                            Extras like whey protein, MCT oil, espresso shot, etc.
+                          </FormDescription>
+                        </div>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value || false}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            if (checked) {
+                              form.setValue("isPackaging", false);
+                            }
+                          }}
+                          data-testid="switch-is-addition"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             {/* Yield Percentage Section */}

@@ -111,6 +111,10 @@ export const ingredients = pgTable("ingredients", {
   // Packaging flag (to separate packaging costs from ingredient costs)
   isPackaging: boolean("is_packaging").notNull().default(false),
   
+  // Addition flag (for add-ins like whey protein, MCT oil, etc.)
+  // Additions need simple recipes created for pricing calculations
+  isAddition: boolean("is_addition").notNull().default(false),
+  
   // Yield percentage - accounts for inedible portions (peels, cores, brine, etc.)
   // Default 97% (3% waste) - for items like bananas use ~65% (35% peel waste)
   // This affects the effective cost: Effective Cost = Purchase Cost ÷ (yieldPercentage / 100)
@@ -168,6 +172,7 @@ export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   gramsPerMilliliter: z.number().positive("Density must be positive").optional(),
   densitySource: z.string().optional(),
   isPackaging: z.boolean().optional().default(false),
+  isAddition: z.boolean().optional().default(false),
   yieldPercentage: z.number().min(1, "Yield must be at least 1%").max(100, "Yield cannot exceed 100%").optional().default(97),
   parValue: z.number().nonnegative("Par value must be non-negative").optional(),
   currentStock: z.number().nonnegative("Current stock must be non-negative").optional(),
