@@ -692,3 +692,40 @@ export const updateManagedPricingSubscriptionSchema = z.object({
 export type InsertManagedPricingSubscription = z.infer<typeof insertManagedPricingSubscriptionSchema>;
 export type UpdateManagedPricingSubscription = z.infer<typeof updateManagedPricingSubscriptionSchema>;
 export type ManagedPricingSubscription = typeof managedPricingSubscriptions.$inferSelect;
+
+// Pricing Snapshots - allows users to save and restore pricing configurations
+// Limited to 2 snapshots per user for quick rollback after bulk price changes
+export const pricingSnapshots = pgTable("pricing_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // User-defined name for the snapshot
+  
+  // Snapshot data - stores all recipe pricing and category settings
+  recipePricing: jsonb("recipe_pricing").notNull(), // Array of { recipeId, menuPrice, wastePercentage, targetMargin, consumablesBuffer }
+  categorySettings: jsonb("category_settings").notNull(), // Array of { category, wastePercentage, targetMargin }
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPricingSnapshotSchema = createInsertSchema(pricingSnapshots).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+}).extend({
+  name: z.string().min(1, "Snapshot name is required").max(100, "Name too long"),
+  recipePricing: z.array(z.object({
+    recipeId: z.string(),
+    menuPrice: z.number().nullable(),
+    wastePercentage: z.number(),
+    targetMargin: z.number(),
+    consumablesBuffer: z.number(),
+  })),
+  categorySettings: z.array(z.object({
+    category: z.string(),
+    wastePercentage: z.number(),
+    targetMargin: z.number(),
+  })),
+});
+
+export type InsertPricingSnapshot = z.infer<typeof insertPricingSnapshotSchema>;
+export type PricingSnapshot = typeof pricingSnapshots.$inferSelect;

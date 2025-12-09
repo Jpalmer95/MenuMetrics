@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle, DollarSign, Users, Package, Phone, FileText, X, RefreshCw } from "lucide-react";
+import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle, DollarSign, Users, Package, Phone, FileText, X, RefreshCw, Download, Upload, Database, FileJson } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -875,6 +875,210 @@ function ManagedPricingSection() {
   );
 }
 
+function DataTab() {
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [clearExisting, setClearExisting] = useState(false);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch("/api/export", {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Export failed");
+      }
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `foodcost-backup-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Export Complete",
+        description: "Your data has been downloaded as a JSON file.",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "There was an error exporting your data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    
+    setIsImporting(true);
+    try {
+      const text = await importFile.text();
+      const data = JSON.parse(text);
+      
+      const response = await apiRequest("POST", "/api/import", {
+        data,
+        options: { clearExisting },
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Import Complete",
+          description: `Imported ${result.stats.ingredients} ingredients, ${result.stats.recipes} recipes, and more.`,
+        });
+        queryClient.invalidateQueries();
+        setImportFile(null);
+      } else {
+        throw new Error(result.error || "Import failed");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Import Failed",
+        description: error.message || "There was an error importing your data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5" />
+            Export Data
+          </CardTitle>
+          <CardDescription>
+            Download all your data as a JSON file for backup or migration to another account
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-muted/50 rounded-lg">
+            <h4 className="font-medium mb-2">What's included in the export:</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li className="flex items-center gap-2"><Package className="h-4 w-4" /> All ingredients with costs, densities, and settings</li>
+              <li className="flex items-center gap-2"><FileText className="h-4 w-4" /> All recipes with ingredients and pricing</li>
+              <li className="flex items-center gap-2"><DollarSign className="h-4 w-4" /> Category pricing settings and pricing snapshots</li>
+              <li className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> AI provider preferences</li>
+              <li className="flex items-center gap-2"><Database className="h-4 w-4" /> Dashboard configurations, waste logs, and inventory counts</li>
+            </ul>
+          </div>
+          <Button 
+            onClick={handleExport} 
+            disabled={isExporting}
+            className="w-full"
+            data-testid="button-export"
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                Download Backup File
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Import Data
+          </CardTitle>
+          <CardDescription>
+            Restore data from a backup file or migrate from another account
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Importing data will add to your existing data. Check "Clear existing data" below if you want to replace everything.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="space-y-2">
+            <Label htmlFor="import-file">Backup File</Label>
+            <Input
+              id="import-file"
+              type="file"
+              accept=".json"
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              data-testid="input-import-file"
+            />
+          </div>
+
+          {importFile && (
+            <div className="flex items-center gap-2 p-2 bg-muted rounded">
+              <FileJson className="h-4 w-4" />
+              <span className="text-sm">{importFile.name}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6 ml-auto"
+                onClick={() => setImportFile(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="clear-existing"
+              checked={clearExisting}
+              onChange={(e) => setClearExisting(e.target.checked)}
+              className="rounded"
+              data-testid="checkbox-clear-existing"
+            />
+            <Label htmlFor="clear-existing" className="text-sm cursor-pointer">
+              Clear existing data before import (removes all current ingredients and recipes)
+            </Label>
+          </div>
+
+          <Button 
+            onClick={handleImport} 
+            disabled={!importFile || isImporting}
+            className="w-full"
+            variant={clearExisting ? "destructive" : "default"}
+            data-testid="button-import"
+          >
+            {isImporting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                {clearExisting ? "Replace All Data" : "Import Data"}
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [location] = useLocation();
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
@@ -927,7 +1131,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue={initialTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="ai" data-testid="tab-ai">
             <Sparkles className="h-4 w-4 mr-2" />
             AI Provider
@@ -936,12 +1140,19 @@ export default function SettingsPage() {
             <CreditCard className="h-4 w-4 mr-2" />
             Subscription
           </TabsTrigger>
+          <TabsTrigger value="data" data-testid="tab-data">
+            <Database className="h-4 w-4 mr-2" />
+            Data
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="ai" className="mt-6">
           <AISettingsTab />
         </TabsContent>
         <TabsContent value="billing" className="mt-6">
           <BillingTab />
+        </TabsContent>
+        <TabsContent value="data" className="mt-6">
+          <DataTab />
         </TabsContent>
       </Tabs>
     </div>

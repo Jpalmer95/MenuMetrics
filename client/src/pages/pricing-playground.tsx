@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X, Layers, ArrowUpDown, Undo2, ChevronUp, ChevronDown, Circle } from "lucide-react";
+import { Calculator, TrendingUp, DollarSign, AlertTriangle, Check, Percent, Package, Settings2, Wand2, Search, X, Layers, ArrowUpDown, Undo2, ChevronUp, ChevronDown, Circle, Save, History, Trash2, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Recipe, CategoryPricingSettings, RecipeCategory } from "@shared/schema";
+import type { Recipe, CategoryPricingSettings, RecipeCategory, PricingSnapshot } from "@shared/schema";
 import { calculateSuggestedPrice, calculateTrueCost, recipeCategories, recipeCategoryLabels } from "@shared/schema";
 import {
   AlertDialog,
@@ -106,6 +106,79 @@ export default function PricingPlaygroundPage() {
 
   const { data: savedCategorySettings = [] } = useQuery<CategoryPricingSettings[]>({
     queryKey: ["/api/pricing-settings"],
+  });
+
+  // Pricing Snapshots
+  const { data: pricingSnapshots = [] } = useQuery<PricingSnapshot[]>({
+    queryKey: ["/api/pricing-snapshots"],
+  });
+
+  const [snapshotName, setSnapshotName] = useState<string>("");
+  const [showSnapshotDialog, setShowSnapshotDialog] = useState(false);
+
+  const createSnapshotMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const response = await apiRequest("POST", "/api/pricing-snapshots", { name });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-snapshots"] });
+      setSnapshotName("");
+      setShowSnapshotDialog(false);
+      toast({
+        title: "Snapshot Saved",
+        description: "Your current pricing has been saved. You can restore it anytime.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save pricing snapshot.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const applySnapshotMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("POST", `/api/pricing-snapshots/${id}/apply`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/recipes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-settings"] });
+      toast({
+        title: "Pricing Restored",
+        description: data.message || "Your pricing has been restored from the snapshot.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to restore pricing snapshot.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteSnapshotMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/pricing-snapshots/${id}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-snapshots"] });
+      toast({
+        title: "Snapshot Deleted",
+        description: "The pricing snapshot has been removed.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete pricing snapshot.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Update local category settings when saved settings are fetched
@@ -690,8 +763,120 @@ export default function PricingPlaygroundPage() {
               })}
             </div>
           </div>
+
+          {/* Pricing Snapshots */}
+          <div className="mt-6 pt-6 border-t">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Pricing Savepoints
+              </Label>
+              <span className="text-xs text-muted-foreground">
+                {pricingSnapshots.length}/2 saved
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Save your current pricing to restore later if you make changes you don't like.
+            </p>
+            
+            {/* Create Snapshot Button */}
+            <Button
+              variant="outline"
+              onClick={() => setShowSnapshotDialog(true)}
+              disabled={pricingSnapshots.length >= 2 || createSnapshotMutation.isPending}
+              className="w-full mb-4"
+              data-testid="button-create-snapshot"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {pricingSnapshots.length >= 2 
+                ? "Maximum Savepoints Reached" 
+                : "Save Current Pricing"
+              }
+            </Button>
+
+            {/* Saved Snapshots */}
+            {pricingSnapshots.length > 0 && (
+              <div className="space-y-2">
+                {pricingSnapshots.map((snapshot) => (
+                  <div 
+                    key={snapshot.id} 
+                    className="flex items-center justify-between p-3 rounded-md border bg-muted/30"
+                    data-testid={`snapshot-${snapshot.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{snapshot.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(snapshot.createdAt).toLocaleDateString()} at{" "}
+                        {new Date(snapshot.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => applySnapshotMutation.mutate(snapshot.id)}
+                        disabled={applySnapshotMutation.isPending}
+                        data-testid={`button-restore-${snapshot.id}`}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <RotateCcw className="h-4 w-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>Restore this pricing</TooltipContent>
+                        </Tooltip>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteSnapshotMutation.mutate(snapshot.id)}
+                        disabled={deleteSnapshotMutation.isPending}
+                        data-testid={`button-delete-${snapshot.id}`}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                          </TooltipTrigger>
+                          <TooltipContent>Delete this savepoint</TooltipContent>
+                        </Tooltip>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {/* Create Snapshot Dialog */}
+      <AlertDialog open={showSnapshotDialog} onOpenChange={setShowSnapshotDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save Pricing Savepoint</AlertDialogTitle>
+            <AlertDialogDescription>
+              Give this savepoint a name so you can easily identify it later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="e.g., Before holiday price increase"
+              value={snapshotName}
+              onChange={(e) => setSnapshotName(e.target.value)}
+              data-testid="input-snapshot-name"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-snapshot">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => createSnapshotMutation.mutate(snapshotName)}
+              disabled={!snapshotName.trim() || createSnapshotMutation.isPending}
+              data-testid="button-save-snapshot"
+            >
+              {createSnapshotMutation.isPending ? "Saving..." : "Save Savepoint"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmation Dialog */}
       <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>

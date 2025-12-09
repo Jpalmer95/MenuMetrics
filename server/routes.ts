@@ -812,6 +812,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Pricing Snapshots - save and restore pricing configurations
+  app.get("/api/pricing-snapshots", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const snapshots = await storage.getPricingSnapshots(userId);
+      res.json(snapshots);
+    } catch (error) {
+      console.error("Get pricing snapshots error:", error);
+      res.status(500).json({ error: "Failed to fetch pricing snapshots" });
+    }
+  });
+
+  app.post("/api/pricing-snapshots", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { name } = req.body;
+      
+      if (!name || typeof name !== "string" || name.trim().length === 0) {
+        return res.status(400).json({ error: "Snapshot name is required" });
+      }
+
+      // Capture current pricing state
+      const recipes = await storage.getAllRecipes(userId);
+      const categorySettings = await storage.getCategoryPricingSettings(userId);
+
+      const recipePricing = recipes.map(recipe => ({
+        recipeId: recipe.id,
+        menuPrice: recipe.menuPrice ?? null,
+        wastePercentage: recipe.wastePercentage ?? 0,
+        targetMargin: recipe.targetMargin ?? 80,
+        consumablesBuffer: recipe.consumablesBuffer ?? 0,
+      }));
+
+      const categoryData = categorySettings.map(setting => ({
+        category: setting.category,
+        wastePercentage: setting.wastePercentage,
+        targetMargin: setting.targetMargin,
+      }));
+
+      const snapshot = await storage.createPricingSnapshot({
+        name: name.trim(),
+        recipePricing,
+        categorySettings: categoryData,
+      }, userId);
+
+      res.status(201).json(snapshot);
+    } catch (error) {
+      console.error("Create pricing snapshot error:", error);
+      res.status(500).json({ error: "Failed to create pricing snapshot" });
+    }
+  });
+
+  app.post("/api/pricing-snapshots/:id/apply", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = await storage.applyPricingSnapshot(req.params.id, userId);
+      
+      res.json({ 
+        success: true, 
+        message: `Restored pricing for ${result.updatedRecipes} recipes and ${result.updatedCategories} category settings`,
+        ...result
+      });
+    } catch (error) {
+      console.error("Apply pricing snapshot error:", error);
+      res.status(500).json({ error: "Failed to apply pricing snapshot" });
+    }
+  });
+
+  app.delete("/api/pricing-snapshots/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deletePricingSnapshot(req.params.id, userId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Pricing snapshot not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete pricing snapshot error:", error);
+      res.status(500).json({ error: "Failed to delete pricing snapshot" });
+    }
+  });
+
   app.post("/api/recipes/:id/duplicate", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -3288,6 +3370,330 @@ Return the JSON array now:`;
     } catch (error) {
       console.error("Admin get managed pricing data error:", error);
       res.status(500).json({ error: "Failed to fetch user data" });
+    }
+  });
+
+  // ============================================================
+  // EXPORT / IMPORT - Complete Data Backup & Restore
+  // ============================================================
+
+  // Export all user data as JSON for backup/migration
+  app.get("/api/export", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      // Gather all user data
+      const [
+        ingredients,
+        recipes,
+        categoryPricingSettings,
+        aiSettings,
+        dashboardConfigs,
+        wasteLogs,
+        inventoryCounts,
+        pricingSnapshots,
+      ] = await Promise.all([
+        storage.getAllIngredients(userId),
+        storage.getAllRecipesWithIngredients(userId),
+        storage.getCategoryPricingSettings(userId),
+        storage.getAISettings(userId),
+        storage.getDashboardConfigs(userId),
+        storage.getWasteLogs(userId),
+        storage.getInventoryCounts(userId),
+        storage.getPricingSnapshots(userId),
+      ]);
+
+      // Format export data with version for future compatibility
+      const exportData = {
+        version: "1.0",
+        exportedAt: new Date().toISOString(),
+        data: {
+          ingredients: ingredients.map(({ id, userId: uid, ...rest }) => ({ 
+            exportId: id,
+            ...rest 
+          })),
+          recipes: recipes.map(({ id, userId: uid, createdAt, ...rest }) => ({
+            exportId: id,
+            ...rest,
+            ingredients: rest.ingredients?.map((ri: any) => ({
+              exportIngredientId: ri.ingredientId,
+              quantity: ri.quantity,
+              unit: ri.unit,
+            })) || [],
+            subRecipes: rest.subRecipes?.map((sr: any) => ({
+              exportSubRecipeId: sr.subRecipeId,
+              servings: sr.servings,
+            })) || [],
+          })),
+          categoryPricingSettings: categoryPricingSettings.map(({ id, userId: uid, updatedAt, ...rest }) => rest),
+          aiSettings: aiSettings ? { 
+            aiProvider: aiSettings.aiProvider,
+          } : null,
+          dashboardConfigs: dashboardConfigs.map(({ id, userId: uid, createdAt, updatedAt, ...rest }) => rest),
+          wasteLogs: wasteLogs.map(({ id, userId: uid, ingredientId, ...rest }) => ({
+            exportIngredientId: ingredientId,
+            ...rest,
+          })),
+          inventoryCounts: inventoryCounts.map(({ id, userId: uid, ingredientId, ...rest }) => ({
+            exportIngredientId: ingredientId,
+            ...rest,
+          })),
+          pricingSnapshots: pricingSnapshots.map(({ id, userId: uid, createdAt, ...rest }) => rest),
+        }
+      };
+
+      // Set headers for file download
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename=foodcost-backup-${new Date().toISOString().split('T')[0]}.json`);
+      res.json(exportData);
+    } catch (error) {
+      console.error("Export data error:", error);
+      res.status(500).json({ error: "Failed to export data" });
+    }
+  });
+
+  // Import data from backup file
+  app.post("/api/import", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { data, options = {} } = req.body;
+      const { clearExisting = false } = options;
+
+      if (!data || !data.version) {
+        return res.status(400).json({ error: "Invalid import data format" });
+      }
+
+      // Validate version compatibility
+      const supportedVersions = ["1.0"];
+      if (!supportedVersions.includes(data.version)) {
+        return res.status(400).json({ error: `Unsupported export version: ${data.version}` });
+      }
+
+      const importData = data.data;
+      const stats = {
+        ingredients: 0,
+        recipes: 0,
+        categoryPricingSettings: 0,
+        dashboardConfigs: 0,
+        wasteLogs: 0,
+        inventoryCounts: 0,
+        pricingSnapshots: 0,
+        skipped: 0,
+      };
+
+      // ID mapping: old export IDs -> new database IDs
+      const ingredientIdMap = new Map<string, string>();
+      const recipeIdMap = new Map<string, string>();
+
+      // If clearing existing data, delete in reverse order of dependencies
+      if (clearExisting) {
+        // Delete user's existing data
+        const existingRecipes = await storage.getAllRecipes(userId);
+        for (const recipe of existingRecipes) {
+          await storage.deleteRecipe(recipe.id, userId);
+        }
+        const existingIngredients = await storage.getAllIngredients(userId);
+        for (const ingredient of existingIngredients) {
+          await storage.deleteIngredient(ingredient.id, userId);
+        }
+      }
+
+      // 1. Import ingredients first (they're referenced by recipes)
+      if (importData.ingredients && Array.isArray(importData.ingredients)) {
+        for (const ing of importData.ingredients) {
+          const { exportId, ...ingData } = ing;
+          try {
+            // Remove any base ingredient reference temporarily (will fix in second pass)
+            const { additionBaseIngredientId, ...cleanData } = ingData;
+            const created = await storage.createIngredient(cleanData, userId);
+            ingredientIdMap.set(exportId, created.id);
+            stats.ingredients++;
+          } catch (e) {
+            console.error("Failed to import ingredient:", e);
+            stats.skipped++;
+          }
+        }
+
+        // Second pass: fix base ingredient references
+        for (const ing of importData.ingredients) {
+          if (ing.additionBaseIngredientId && ingredientIdMap.has(ing.additionBaseIngredientId)) {
+            const newId = ingredientIdMap.get(ing.exportId);
+            const newBaseId = ingredientIdMap.get(ing.additionBaseIngredientId);
+            if (newId && newBaseId) {
+              try {
+                await storage.updateIngredient(newId, { additionBaseIngredientId: newBaseId }, userId);
+              } catch (e) {
+                console.error("Failed to update base ingredient reference:", e);
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Import recipes (without sub-recipes first)
+      if (importData.recipes && Array.isArray(importData.recipes)) {
+        for (const recipe of importData.recipes) {
+          const { exportId, ingredients: recipeIngredients, subRecipes, ...recipeData } = recipe;
+          try {
+            // Map ingredient IDs to new IDs
+            const mappedIngredients = (recipeIngredients || [])
+              .filter((ri: any) => ingredientIdMap.has(ri.exportIngredientId))
+              .map((ri: any) => ({
+                ingredientId: ingredientIdMap.get(ri.exportIngredientId)!,
+                quantity: ri.quantity,
+                unit: ri.unit,
+              }));
+
+            const created = await storage.createRecipe({
+              ...recipeData,
+              ingredients: mappedIngredients,
+              subRecipes: [], // Will add in second pass
+            }, userId);
+            recipeIdMap.set(exportId, created.id);
+            stats.recipes++;
+          } catch (e) {
+            console.error("Failed to import recipe:", e);
+            stats.skipped++;
+          }
+        }
+
+        // Second pass: add sub-recipe relationships
+        for (const recipe of importData.recipes) {
+          if (recipe.subRecipes && recipe.subRecipes.length > 0) {
+            const newRecipeId = recipeIdMap.get(recipe.exportId);
+            if (newRecipeId) {
+              for (const sr of recipe.subRecipes) {
+                const newSubRecipeId = recipeIdMap.get(sr.exportSubRecipeId);
+                if (newSubRecipeId) {
+                  try {
+                    await storage.addSubRecipeToRecipe(newRecipeId, {
+                      subRecipeId: newSubRecipeId,
+                      servings: sr.servings,
+                    }, userId);
+                  } catch (e) {
+                    console.error("Failed to add sub-recipe:", e);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Import category pricing settings
+      if (importData.categoryPricingSettings && Array.isArray(importData.categoryPricingSettings)) {
+        for (const setting of importData.categoryPricingSettings) {
+          try {
+            await storage.upsertCategoryPricingSetting(setting, userId);
+            stats.categoryPricingSettings++;
+          } catch (e) {
+            console.error("Failed to import category pricing setting:", e);
+            stats.skipped++;
+          }
+        }
+      }
+
+      // 4. Import AI settings
+      if (importData.aiSettings) {
+        try {
+          await storage.upsertAISettings(importData.aiSettings, userId);
+        } catch (e) {
+          console.error("Failed to import AI settings:", e);
+        }
+      }
+
+      // 5. Import dashboard configs
+      if (importData.dashboardConfigs && Array.isArray(importData.dashboardConfigs)) {
+        // Clear existing dashboard configs first for clean import
+        const existingConfigs = await storage.getDashboardConfigs(userId);
+        for (const config of existingConfigs) {
+          await storage.deleteDashboardConfig(config.id, userId);
+        }
+        
+        for (const config of importData.dashboardConfigs) {
+          try {
+            await storage.createDashboardConfig(config, userId);
+            stats.dashboardConfigs++;
+          } catch (e) {
+            console.error("Failed to import dashboard config:", e);
+            stats.skipped++;
+          }
+        }
+      }
+
+      // 6. Import waste logs (only if ingredients were imported)
+      if (importData.wasteLogs && Array.isArray(importData.wasteLogs)) {
+        for (const log of importData.wasteLogs) {
+          const { exportIngredientId, ...logData } = log;
+          const newIngredientId = ingredientIdMap.get(exportIngredientId);
+          if (newIngredientId) {
+            try {
+              await storage.createWasteLog({
+                ...logData,
+                ingredientId: newIngredientId,
+              }, userId);
+              stats.wasteLogs++;
+            } catch (e) {
+              console.error("Failed to import waste log:", e);
+              stats.skipped++;
+            }
+          }
+        }
+      }
+
+      // 7. Import inventory counts
+      if (importData.inventoryCounts && Array.isArray(importData.inventoryCounts)) {
+        for (const count of importData.inventoryCounts) {
+          const { exportIngredientId, ...countData } = count;
+          const newIngredientId = ingredientIdMap.get(exportIngredientId);
+          if (newIngredientId) {
+            try {
+              await storage.createInventoryCount({
+                ...countData,
+                ingredientId: newIngredientId,
+              }, userId);
+              stats.inventoryCounts++;
+            } catch (e) {
+              console.error("Failed to import inventory count:", e);
+              stats.skipped++;
+            }
+          }
+        }
+      }
+
+      // 8. Import pricing snapshots (need to remap recipe IDs in the data)
+      if (importData.pricingSnapshots && Array.isArray(importData.pricingSnapshots)) {
+        for (const snapshot of importData.pricingSnapshots) {
+          try {
+            // Remap recipe IDs in the pricing data
+            const mappedRecipePricing = (snapshot.recipePricing || [])
+              .filter((rp: any) => recipeIdMap.has(rp.recipeId))
+              .map((rp: any) => ({
+                ...rp,
+                recipeId: recipeIdMap.get(rp.recipeId)!,
+              }));
+
+            await storage.createPricingSnapshot({
+              name: snapshot.name,
+              recipePricing: mappedRecipePricing,
+              categorySettings: snapshot.categorySettings || [],
+            }, userId);
+            stats.pricingSnapshots++;
+          } catch (e) {
+            console.error("Failed to import pricing snapshot:", e);
+            stats.skipped++;
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        message: "Import completed successfully",
+        stats,
+      });
+    } catch (error) {
+      console.error("Import data error:", error);
+      res.status(500).json({ error: "Failed to import data" });
     }
   });
 

@@ -32,6 +32,8 @@ import {
   type ManagedPricingSubscription,
   type InsertManagedPricingSubscription,
   type ManagedPricingTier,
+  type PricingSnapshot,
+  type InsertPricingSnapshot,
   subscriptionTiers,
   ingredients,
   recipes,
@@ -46,6 +48,7 @@ import {
   aiUsage,
   dashboardConfigs,
   managedPricingSubscriptions,
+  pricingSnapshots,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -148,6 +151,13 @@ export interface IStorage {
   createManagedPricingSubscription(subscription: InsertManagedPricingSubscription, userId: string): Promise<ManagedPricingSubscription>;
   updateManagedPricingSubscription(userId: string, updates: Partial<ManagedPricingSubscription>): Promise<ManagedPricingSubscription | undefined>;
   cancelManagedPricingSubscription(userId: string): Promise<ManagedPricingSubscription | undefined>;
+  
+  // Pricing Snapshot operations
+  getPricingSnapshots(userId: string): Promise<PricingSnapshot[]>;
+  getPricingSnapshot(id: string, userId: string): Promise<PricingSnapshot | undefined>;
+  createPricingSnapshot(snapshot: InsertPricingSnapshot, userId: string): Promise<PricingSnapshot>;
+  deletePricingSnapshot(id: string, userId: string): Promise<boolean>;
+  applyPricingSnapshot(id: string, userId: string): Promise<{ updatedRecipes: number; updatedCategories: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1235,6 +1245,102 @@ export class DatabaseStorage implements IStorage {
       .where(eq(managedPricingSubscriptions.userId, userId))
       .returning();
     return canceled || undefined;
+  }
+
+  // Pricing Snapshot methods
+  async getPricingSnapshots(userId: string): Promise<PricingSnapshot[]> {
+    const snapshots = await db
+      .select()
+      .from(pricingSnapshots)
+      .where(eq(pricingSnapshots.userId, userId));
+    return snapshots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async getPricingSnapshot(id: string, userId: string): Promise<PricingSnapshot | undefined> {
+    const [snapshot] = await db
+      .select()
+      .from(pricingSnapshots)
+      .where(and(eq(pricingSnapshots.id, id), eq(pricingSnapshots.userId, userId)));
+    return snapshot || undefined;
+  }
+
+  async createPricingSnapshot(snapshot: InsertPricingSnapshot, userId: string): Promise<PricingSnapshot> {
+    // Enforce limit of 2 snapshots per user
+    const existing = await this.getPricingSnapshots(userId);
+    if (existing.length >= 2) {
+      // Delete the oldest snapshot
+      const oldest = existing[existing.length - 1];
+      await this.deletePricingSnapshot(oldest.id, userId);
+    }
+
+    const [created] = await db
+      .insert(pricingSnapshots)
+      .values({
+        ...snapshot,
+        userId,
+      })
+      .returning();
+    return created;
+  }
+
+  async deletePricingSnapshot(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(pricingSnapshots)
+      .where(and(eq(pricingSnapshots.id, id), eq(pricingSnapshots.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async applyPricingSnapshot(id: string, userId: string): Promise<{ updatedRecipes: number; updatedCategories: number }> {
+    const snapshot = await this.getPricingSnapshot(id, userId);
+    if (!snapshot) {
+      throw new Error("Snapshot not found");
+    }
+
+    let updatedRecipes = 0;
+    let updatedCategories = 0;
+
+    // Apply recipe pricing
+    const recipePricingData = snapshot.recipePricing as Array<{
+      recipeId: string;
+      menuPrice: number | null;
+      wastePercentage: number;
+      targetMargin: number;
+      consumablesBuffer: number;
+    }>;
+
+    for (const pricing of recipePricingData) {
+      const result = await db
+        .update(recipes)
+        .set({
+          menuPrice: pricing.menuPrice,
+          wastePercentage: pricing.wastePercentage,
+          targetMargin: pricing.targetMargin,
+          consumablesBuffer: pricing.consumablesBuffer,
+        })
+        .where(and(eq(recipes.id, pricing.recipeId), eq(recipes.userId, userId)));
+      
+      if (result.rowCount && result.rowCount > 0) {
+        updatedRecipes++;
+      }
+    }
+
+    // Apply category settings
+    const categorySettingsData = snapshot.categorySettings as Array<{
+      category: string;
+      wastePercentage: number;
+      targetMargin: number;
+    }>;
+
+    for (const setting of categorySettingsData) {
+      await this.upsertCategoryPricingSetting({
+        category: setting.category as RecipeCategory,
+        wastePercentage: setting.wastePercentage,
+        targetMargin: setting.targetMargin,
+      }, userId);
+      updatedCategories++;
+    }
+
+    return { updatedRecipes, updatedCategories };
   }
 }
 
