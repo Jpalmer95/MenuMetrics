@@ -122,6 +122,12 @@ export const ingredients = pgTable("ingredients", {
   // Menu price charged to customers for this add-in
   additionMenuPrice: real("addition_menu_price"),
   
+  // Base ingredient reference for upgrade pricing (e.g., subtract regular milk cost from oat milk upgrade)
+  // When set, the upgrade cost = add-in portion cost - base portion cost
+  additionBaseIngredientId: varchar("addition_base_ingredient_id").references(() => ingredients.id, { onDelete: "set null" }),
+  // Ratio for base ingredient portion (1.0 = same portion size, 0.5 = half portion of base ingredient)
+  additionBasePortionRatio: real("addition_base_portion_ratio").default(1.0),
+  
   // Yield percentage - accounts for inedible portions (peels, cores, brine, etc.)
   // Default 97% (3% waste) - for items like bananas use ~65% (35% peel waste)
   // This affects the effective cost: Effective Cost = Purchase Cost ÷ (yieldPercentage / 100)
@@ -183,6 +189,8 @@ export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   additionPortionSize: z.number().positive("Portion size must be positive").optional(),
   additionPortionUnit: z.string().optional(),
   additionMenuPrice: z.number().nonnegative("Menu price must be non-negative").optional(),
+  additionBaseIngredientId: z.string().optional(),
+  additionBasePortionRatio: z.number().positive("Portion ratio must be positive").optional().default(1.0),
   yieldPercentage: z.number().min(1, "Yield must be at least 1%").max(100, "Yield cannot exceed 100%").optional().default(97),
   parValue: z.number().nonnegative("Par value must be non-negative").optional(),
   currentStock: z.number().nonnegative("Current stock must be non-negative").optional(),

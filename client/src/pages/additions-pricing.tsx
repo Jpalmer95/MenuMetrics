@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Ingredient, InsertIngredient } from "@shared/schema";
@@ -11,8 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, TrendingUp, TrendingDown, Minus, DollarSign, Package, Percent, Check, X, Edit2 } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Minus, DollarSign, Package, Percent, Check, X, Edit2, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+type SortField = "name" | "category" | "portionCost" | "menuPrice" | "margin";
+type SortDirection = "asc" | "desc";
 
 export default function AdditionsPricingPage() {
   const { toast } = useToast();
@@ -22,6 +25,9 @@ export default function AdditionsPricingPage() {
     additionPortionUnit?: string;
     additionMenuPrice?: number;
   }>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const { data: ingredients = [], isLoading } = useQuery<Ingredient[]>({
     queryKey: ["/api/ingredients"],
@@ -137,6 +143,95 @@ export default function AdditionsPricingPage() {
 
     return ((menuPrice - portionCost) / menuPrice) * 100;
   };
+
+  // Toggle sort for a column
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        setSortField(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // Get sort icon for column header
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  // Filter and sort additions
+  const filteredAndSortedAdditions = useMemo(() => {
+    let result = [...additions];
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (ing) =>
+          ing.name.toLowerCase().includes(query) ||
+          ing.category.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply sorting
+    if (sortField) {
+      result.sort((a, b) => {
+        let aValue: string | number | null = null;
+        let bValue: string | number | null = null;
+
+        switch (sortField) {
+          case "name":
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+            break;
+          case "category":
+            aValue = a.category.toLowerCase();
+            bValue = b.category.toLowerCase();
+            break;
+          case "portionCost":
+            aValue = calculatePortionCost(a);
+            bValue = calculatePortionCost(b);
+            break;
+          case "menuPrice":
+            aValue = a.additionMenuPrice;
+            bValue = b.additionMenuPrice;
+            break;
+          case "margin":
+            aValue = calculateMargin(a);
+            bValue = calculateMargin(b);
+            break;
+        }
+
+        // Handle nulls - put them at the end
+        if (aValue === null && bValue === null) return 0;
+        if (aValue === null) return 1;
+        if (bValue === null) return -1;
+
+        // Compare
+        if (typeof aValue === "string" && typeof bValue === "string") {
+          return sortDirection === "asc"
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue);
+        }
+        
+        return sortDirection === "asc"
+          ? (aValue as number) - (bValue as number)
+          : (bValue as number) - (aValue as number);
+      });
+    }
+
+    return result;
+  }, [additions, searchQuery, sortField, sortDirection]);
 
   const startEdit = (ingredient: Ingredient) => {
     setEditingId(ingredient.id);
@@ -258,13 +353,27 @@ export default function AdditionsPricingPage() {
       {/* Main Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Add-In Pricing Details
-          </CardTitle>
-          <CardDescription>
-            Set portion sizes and menu prices for each add-in to calculate margins
-          </CardDescription>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Add-In Pricing Details
+              </CardTitle>
+              <CardDescription>
+                Set portion sizes and menu prices for each add-in to calculate margins
+              </CardDescription>
+            </div>
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search add-ins..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+                data-testid="input-search-addins"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {additions.length === 0 ? (
@@ -280,18 +389,69 @@ export default function AdditionsPricingPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Add-In Name</TableHead>
-                    <TableHead>Category</TableHead>
+                    <TableHead>
+                      <button
+                        onClick={() => toggleSort("name")}
+                        className="flex items-center hover-elevate px-1 py-0.5 rounded -ml-1"
+                        data-testid="sort-name"
+                      >
+                        Add-In Name
+                        {getSortIcon("name")}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button
+                        onClick={() => toggleSort("category")}
+                        className="flex items-center hover-elevate px-1 py-0.5 rounded -ml-1"
+                        data-testid="sort-category"
+                      >
+                        Category
+                        {getSortIcon("category")}
+                      </button>
+                    </TableHead>
                     <TableHead>Purchase Info</TableHead>
                     <TableHead className="text-right">Portion Size</TableHead>
-                    <TableHead className="text-right">Portion Cost</TableHead>
-                    <TableHead className="text-right">Menu Price</TableHead>
-                    <TableHead className="text-right">Margin</TableHead>
+                    <TableHead className="text-right">
+                      <button
+                        onClick={() => toggleSort("portionCost")}
+                        className="flex items-center justify-end hover-elevate px-1 py-0.5 rounded ml-auto"
+                        data-testid="sort-portion-cost"
+                      >
+                        Portion Cost
+                        {getSortIcon("portionCost")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button
+                        onClick={() => toggleSort("menuPrice")}
+                        className="flex items-center justify-end hover-elevate px-1 py-0.5 rounded ml-auto"
+                        data-testid="sort-menu-price"
+                      >
+                        Menu Price
+                        {getSortIcon("menuPrice")}
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button
+                        onClick={() => toggleSort("margin")}
+                        className="flex items-center justify-end hover-elevate px-1 py-0.5 rounded ml-auto"
+                        data-testid="sort-margin"
+                      >
+                        Margin
+                        {getSortIcon("margin")}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {additions.map((ingredient) => {
+                  {filteredAndSortedAdditions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        No add-ins match your search "{searchQuery}"
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredAndSortedAdditions.map((ingredient) => {
                     const isEditing = editingId === ingredient.id;
                     const portionCost = calculatePortionCost(ingredient);
                     const margin = calculateMargin(ingredient);
