@@ -115,6 +115,13 @@ export const ingredients = pgTable("ingredients", {
   // Additions need simple recipes created for pricing calculations
   isAddition: boolean("is_addition").notNull().default(false),
   
+  // Addition pricing fields - only used when isAddition is true
+  // Portion size (e.g., "30g scoop of whey protein" or "1 tbsp MCT oil")
+  additionPortionSize: real("addition_portion_size"),
+  additionPortionUnit: text("addition_portion_unit"),
+  // Menu price charged to customers for this add-in
+  additionMenuPrice: real("addition_menu_price"),
+  
   // Yield percentage - accounts for inedible portions (peels, cores, brine, etc.)
   // Default 97% (3% waste) - for items like bananas use ~65% (35% peel waste)
   // This affects the effective cost: Effective Cost = Purchase Cost ÷ (yieldPercentage / 100)
@@ -173,6 +180,9 @@ export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   densitySource: z.string().optional(),
   isPackaging: z.boolean().optional().default(false),
   isAddition: z.boolean().optional().default(false),
+  additionPortionSize: z.number().positive("Portion size must be positive").optional(),
+  additionPortionUnit: z.string().optional(),
+  additionMenuPrice: z.number().nonnegative("Menu price must be non-negative").optional(),
   yieldPercentage: z.number().min(1, "Yield must be at least 1%").max(100, "Yield cannot exceed 100%").optional().default(97),
   parValue: z.number().nonnegative("Par value must be non-negative").optional(),
   currentStock: z.number().nonnegative("Current stock must be non-negative").optional(),

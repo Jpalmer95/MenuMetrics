@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2, Shield } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2, Shield, Zap } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -27,6 +27,7 @@ import WasteLogPage from "@/pages/waste-log";
 import WasteAnalyticsPage from "@/pages/waste-analytics";
 import TermsOfServicePage from "@/pages/terms-of-service";
 import AdminManagedPricingPage from "@/pages/admin-managed-pricing";
+import AdditionsPricingPage from "@/pages/additions-pricing";
 
 function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
   // Show landing page while loading or when not authenticated
@@ -53,6 +54,7 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
       <Route path="/orders" component={OrdersPage} />
       <Route path="/waste-log" component={WasteLogPage} />
       <Route path="/waste-analytics" component={WasteAnalyticsPage} />
+      <Route path="/add-ins" component={AdditionsPricingPage} />
       <Route path="/ai-agent" component={AIAgentPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/terms-of-service" component={TermsOfServicePage} />
@@ -75,6 +77,7 @@ function AppContent() {
     { path: "/inventory", label: "Count", icon: ClipboardList, testId: "link-inventory" },
     { path: "/orders", label: "Orders", icon: ShoppingCart, testId: "link-orders" },
     { path: "/waste-log", label: "Waste", icon: Trash2, testId: "link-waste" },
+    { path: "/add-ins", label: "Add-Ins", icon: Zap, testId: "link-add-ins" },
     { path: "/densities", label: "Densities", icon: Beaker, testId: "link-densities" },
     { path: "/ai-agent", label: "Mise AI", icon: Sparkles, testId: "link-ai-agent" },
     { path: "/settings", label: "Settings", icon: Settings, testId: "link-settings" },
