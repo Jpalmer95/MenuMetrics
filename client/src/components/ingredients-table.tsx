@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Plus, Search, Check, X, PackagePlus, Sparkles } from "lucide-react";
+import { Trash2, Plus, Search, Check, X, PackagePlus, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,8 +47,9 @@ export function IngredientsTable({
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newIngredient, setNewIngredient] = useState<Partial<InsertIngredient>>({
     isPackaging: false,
+    isAddition: false,
   });
-  const [packagingFilter, setPackagingFilter] = useState<"all" | "ingredients" | "packaging">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "ingredients" | "packaging" | "additions">("all");
 
   const filteredIngredients = ingredients.filter(
     (ing) => {
@@ -57,13 +58,14 @@ export function IngredientsTable({
         ing.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         ing.category.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Apply packaging filter
-      const matchesPackaging =
-        packagingFilter === "all" ||
-        (packagingFilter === "packaging" && ing.isPackaging) ||
-        (packagingFilter === "ingredients" && !ing.isPackaging);
+      // Apply type filter
+      const matchesType =
+        typeFilter === "all" ||
+        (typeFilter === "packaging" && ing.isPackaging) ||
+        (typeFilter === "additions" && ing.isAddition) ||
+        (typeFilter === "ingredients" && !ing.isPackaging && !ing.isAddition);
       
-      return matchesSearch && matchesPackaging;
+      return matchesSearch && matchesType;
     }
   );
 
@@ -144,6 +146,7 @@ export function IngredientsTable({
       purchaseUnit: ingredient.purchaseUnit,
       purchaseCost: ingredient.purchaseCost,
       isPackaging: ingredient.isPackaging,
+      isAddition: ingredient.isAddition,
       pricePerUnit: ingredient.pricePerUnit ?? undefined,
       gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
       densitySource: ingredient.densitySource ?? undefined,
@@ -182,12 +185,12 @@ export function IngredientsTable({
 
   const startAddNew = () => {
     setIsAddingNew(true);
-    setNewIngredient({ isPackaging: false });
+    setNewIngredient({ isPackaging: false, isAddition: false });
   };
 
   const cancelAddNew = () => {
     setIsAddingNew(false);
-    setNewIngredient({ isPackaging: false });
+    setNewIngredient({ isPackaging: false, isAddition: false });
   };
 
   const saveNewIngredient = () => {
@@ -213,7 +216,7 @@ export function IngredientsTable({
       
       onCreate(ingredientData);
       setIsAddingNew(false);
-      setNewIngredient({ isPackaging: false });
+      setNewIngredient({ isPackaging: false, isAddition: false });
     }
   };
 
@@ -272,14 +275,15 @@ export function IngredientsTable({
               data-testid="input-search-ingredients"
             />
           </div>
-          <Select value={packagingFilter} onValueChange={(val) => setPackagingFilter(val as typeof packagingFilter)}>
-            <SelectTrigger className="w-40" data-testid="select-packaging-filter">
+          <Select value={typeFilter} onValueChange={(val) => setTypeFilter(val as typeof typeFilter)}>
+            <SelectTrigger className="w-44" data-testid="select-type-filter">
               <SelectValue placeholder="Filter by..." />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Items</SelectItem>
               <SelectItem value="ingredients">Ingredients Only</SelectItem>
               <SelectItem value="packaging">Packaging Only</SelectItem>
+              <SelectItem value="additions">Add-Ins Only</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -317,7 +321,7 @@ export function IngredientsTable({
                   <span className="ml-1">{sortDirection === "asc" ? "↑" : "↓"}</span>
                 )}
               </TableHead>
-              <TableHead className="font-semibold text-center">Packaging</TableHead>
+              <TableHead className="font-semibold text-center">Type</TableHead>
               <TableHead 
                 className="cursor-pointer font-semibold"
                 onClick={() => handleSort("store")}
@@ -417,11 +421,29 @@ export function IngredientsTable({
                   />
                 </TableCell>
                 <TableCell className="text-center">
-                  <Checkbox
-                    checked={newIngredient.isPackaging || false}
-                    onCheckedChange={(checked) => setNewIngredient({ ...newIngredient, isPackaging: !!checked })}
-                    data-testid="checkbox-new-packaging"
-                  />
+                  <div className="flex items-center justify-center gap-2">
+                    <Select 
+                      value={newIngredient.isPackaging ? "packaging" : newIngredient.isAddition ? "addition" : "ingredient"}
+                      onValueChange={(val) => {
+                        if (val === "packaging") {
+                          setNewIngredient({ ...newIngredient, isPackaging: true, isAddition: false });
+                        } else if (val === "addition") {
+                          setNewIngredient({ ...newIngredient, isPackaging: false, isAddition: true });
+                        } else {
+                          setNewIngredient({ ...newIngredient, isPackaging: false, isAddition: false });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-28" data-testid="select-new-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ingredient">Ingredient</SelectItem>
+                        <SelectItem value="packaging">Packaging</SelectItem>
+                        <SelectItem value="addition">Add-In</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Input
@@ -608,30 +630,38 @@ export function IngredientsTable({
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Checkbox
-                        checked={isEditing ? (editValues.isPackaging || false) : ingredient.isPackaging}
-                        onCheckedChange={(checked) => {
-                          if (isEditing) {
-                            setEditValues({ ...editValues, isPackaging: !!checked });
-                          } else {
-                            // Quick toggle for non-editing mode - preserve all existing fields
-                            onUpdate(ingredient.id, { 
-                              name: ingredient.name,
-                              category: ingredient.category,
-                              purchaseQuantity: ingredient.purchaseQuantity,
-                              purchaseUnit: ingredient.purchaseUnit,
-                              purchaseCost: ingredient.purchaseCost,
-                              isPackaging: !!checked,
-                              store: ingredient.store ?? undefined,
-                              pricePerUnit: ingredient.pricePerUnit ?? undefined,
-                              gramsPerMilliliter: ingredient.gramsPerMilliliter ?? undefined,
-                              densitySource: ingredient.densitySource ?? undefined,
-                              yieldPercentage: ingredient.yieldPercentage ?? 97,
-                            });
-                          }
-                        }}
-                        data-testid={`checkbox-packaging-${ingredient.id}`}
-                      />
+                      {isEditing ? (
+                        <Select 
+                          value={editValues.isPackaging ? "packaging" : editValues.isAddition ? "addition" : "ingredient"}
+                          onValueChange={(val) => {
+                            if (val === "packaging") {
+                              setEditValues({ ...editValues, isPackaging: true, isAddition: false });
+                            } else if (val === "addition") {
+                              setEditValues({ ...editValues, isPackaging: false, isAddition: true });
+                            } else {
+                              setEditValues({ ...editValues, isPackaging: false, isAddition: false });
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-28" data-testid={`select-edit-type-${ingredient.id}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ingredient">Ingredient</SelectItem>
+                            <SelectItem value="packaging">Packaging</SelectItem>
+                            <SelectItem value="addition">Add-In</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        ingredient.isPackaging ? (
+                          <Badge variant="outline" className="text-xs">Packaging</Badge>
+                        ) : ingredient.isAddition ? (
+                          <Badge variant="secondary" className="text-xs">
+                            <Zap className="h-3 w-3 mr-1" />
+                            Add-In
+                          </Badge>
+                        ) : null
+                      )}
                     </TableCell>
                     <TableCell>
                       {isEditing ? (
