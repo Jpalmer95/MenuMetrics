@@ -409,7 +409,10 @@ export default function RecipeDetailPage() {
 
   const ingredientsCost = calculateCost(recipeRegularIngredients);
   const packagingCost = calculateCost(recipePackagingItems);
-  const totalRecipeCost = ingredientsCost + packagingCost;
+  const subRecipesCost = (recipe.subRecipes || []).reduce((sum, sr) => {
+    return sum + (sr.subRecipeDetails.costPerServing * sr.quantity);
+  }, 0);
+  const totalRecipeCost = ingredientsCost + packagingCost + subRecipesCost;
   const costPerServing = recipe.servings > 0 ? totalRecipeCost / recipe.servings : 0;
 
   const profitMargin = calculateProfitMargin(recipe.menuPrice, costPerServing);

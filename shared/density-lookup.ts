@@ -25,11 +25,32 @@ export function findMatchingDensity(
     return null;
   }
 
-  return findBestMatch(ingredientName, densityReferences, {
+  // Map densityReferences to have 'name' property for fuzzy matching
+  // and filter out any invalid entries
+  const refsWithName = densityReferences
+    .filter(ref => ref.ingredientName && ref.ingredientName.trim())
+    .map(ref => ({ ...ref, name: ref.ingredientName }));
+  
+  if (refsWithName.length === 0) {
+    return null;
+  }
+
+  const result = findBestMatch(ingredientName, refsWithName, {
     autoMatchThreshold: 0.75, // Lower threshold for density matching - be more permissive
     minThreshold: 0.6,
     useNormalization: true,
   });
+
+  if (!result) {
+    return null;
+  }
+
+  // Return the original DensityReference (without the added 'name' property)
+  const { name, ...originalRef } = result.match;
+  return {
+    ...result,
+    match: originalRef as DensityReference,
+  };
 }
 
 /**
