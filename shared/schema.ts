@@ -189,7 +189,7 @@ export const insertIngredientSchema = createInsertSchema(ingredients).omit({
   additionPortionSize: z.number().positive("Portion size must be positive").optional(),
   additionPortionUnit: z.string().optional(),
   additionMenuPrice: z.number().nonnegative("Menu price must be non-negative").optional(),
-  additionBaseIngredientId: z.string().optional(),
+  additionBaseIngredientId: z.string().nullable().optional(),
   additionBasePortionRatio: z.number().positive("Portion ratio must be positive").optional().default(1.0),
   yieldPercentage: z.number().min(1, "Yield must be at least 1%").max(100, "Yield cannot exceed 100%").optional().default(97),
   parValue: z.number().nonnegative("Par value must be non-negative").optional(),
