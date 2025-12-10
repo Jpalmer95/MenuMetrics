@@ -143,11 +143,11 @@ function AppContent() {
                           <Menu className="h-5 w-5" />
                         </Button>
                       </SheetTrigger>
-                      <SheetContent side="right">
+                      <SheetContent side="right" className="flex flex-col h-full">
                         <SheetHeader>
                           <SheetTitle>Menu</SheetTitle>
                         </SheetHeader>
-                        <nav className="flex flex-col gap-2 mt-6">
+                        <nav className="flex flex-col gap-2 mt-6 overflow-y-auto flex-1 pb-20">
                           {navItems.map((item) => {
                             const Icon = item.icon;
                             const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
