@@ -151,7 +151,7 @@ export function ChartWidget({
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:px-6 pb-2 sm:pb-6">
-        <div className="h-[220px] sm:h-[300px]">
+        <div className="h-[280px] sm:h-[300px]">
           <ChartRenderer
             chartType={config.chartType as DashboardChartType}
             ingredients={ingredients}
@@ -317,16 +317,22 @@ function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingr
     return <EmptyState message="No ingredients yet. Add ingredients to see category breakdown." />;
   }
 
+  // Calculate responsive radius and label size based on container height
+  const heightNum = typeof height === 'string' ? parseInt(height) : height;
+  const baseRadius = Math.min(heightNum * 0.35, 90);
+  const isMobile = heightNum < 280;
+  const labelFontSize = isMobile ? 11 : 12;
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <PieChart>
+      <PieChart margin={{ top: isMobile ? 10 : 20, right: isMobile ? 10 : 20, bottom: isMobile ? 10 : 20, left: isMobile ? 10 : 20 }}>
         <Pie
           data={categoryData}
           cx="50%"
           cy="50%"
           labelLine={false}
-          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-          outerRadius={80}
+          label={isMobile ? false : ({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+          outerRadius={baseRadius}
           fill="#8884d8"
           dataKey="count"
         >
@@ -338,6 +344,11 @@ function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingr
           contentStyle={tooltipStyle} 
           itemStyle={{ color: "hsl(var(--card-foreground))" }}
           labelStyle={{ color: "hsl(var(--card-foreground))" }}
+          formatter={(value: number, name: string, props: any) => {
+            const categoryItem = props.payload;
+            const percent = ((value as number) / categoryData.reduce((sum, item) => sum + item.count, 0) * 100).toFixed(0);
+            return `${categoryItem.name}: ${value} items (${percent}%)`;
+          }}
         />
       </PieChart>
     </ResponsiveContainer>
