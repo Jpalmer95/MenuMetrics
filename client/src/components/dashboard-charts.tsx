@@ -151,7 +151,7 @@ export function ChartWidget({
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:px-6 pb-2 sm:pb-6">
-        <div className="h-[140px] sm:h-[300px]">
+        <div className="h-[220px] sm:h-[300px]">
           <ChartRenderer
             chartType={config.chartType as DashboardChartType}
             ingredients={ingredients}
