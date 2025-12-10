@@ -5,6 +5,7 @@ import type { Ingredient, Recipe, DashboardChartType, DashboardConfig, WasteLog 
 import { dashboardChartLabels } from "@shared/schema";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   BarChart,
   Bar,
@@ -95,7 +96,8 @@ export function ChartWidget({
     description: "",
   };
 
-  const chartHeight = config.width === "full" ? 350 : 300;
+  const isMobile = useIsMobile();
+  const chartHeight = isMobile ? 160 : (config.width === "full" ? 350 : 300);
 
   return (
     <Card
@@ -106,34 +108,34 @@ export function ChartWidget({
       }`}
       data-testid={`chart-widget-${config.id}`}
     >
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+      <CardHeader className="flex flex-row items-center justify-between gap-1 sm:gap-2 pb-1 sm:pb-2 px-2 sm:px-6 pt-2 sm:pt-6">
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
           <div
             {...dragHandleProps?.attributes}
             {...dragHandleProps?.listeners}
-            className="touch-none select-none cursor-grab active:cursor-grabbing p-1 -m-1 rounded hover:bg-muted/50"
+            className="touch-none select-none cursor-grab active:cursor-grabbing p-0.5 sm:p-1 -m-0.5 sm:-m-1 rounded hover:bg-muted/50"
             data-testid={`drag-handle-${config.id}`}
           >
-            <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+            <GripVertical className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
           </div>
           <div className="min-w-0">
-            <CardTitle className="text-base truncate">{chartInfo.name}</CardTitle>
-            <CardDescription className="text-xs truncate">{chartInfo.description}</CardDescription>
+            <CardTitle className="text-xs sm:text-base truncate">{chartInfo.name}</CardTitle>
+            <CardDescription className="text-[10px] sm:text-xs truncate hidden sm:block">{chartInfo.description}</CardDescription>
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center shrink-0">
           {onToggleWidth && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-5 w-5 sm:h-7 sm:w-7"
               onClick={() => onToggleWidth(config.id)}
               data-testid={`button-toggle-width-${config.id}`}
             >
               {config.width === "full" ? (
-                <Minimize2 className="h-3.5 w-3.5" />
+                <Minimize2 className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
               ) : (
-                <Maximize2 className="h-3.5 w-3.5" />
+                <Maximize2 className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
               )}
             </Button>
           )}
@@ -141,16 +143,16 @@ export function ChartWidget({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="h-5 w-5 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
               onClick={() => onRemove(config.id)}
               data-testid={`button-remove-chart-${config.id}`}
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 sm:px-6 pb-2 sm:pb-6">
         <ChartRenderer
           chartType={config.chartType as DashboardChartType}
           ingredients={ingredients}
