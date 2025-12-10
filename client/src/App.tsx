@@ -186,11 +186,13 @@ function AppContent() {
 
       <footer className="border-t bg-background/50 mt-8">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground" data-testid="text-footer">
-          <div className="mb-3">Built by Jonathan Korstad in Replit, 2025</div>
-          <div className="flex justify-center gap-4">
-            <Link href="/terms-of-service" data-testid="link-terms" className="hover:text-foreground transition-colors">
-              Terms of Service
-            </Link>
+          <div className="mb-3">
+            Built by Jonathan Korstad, 2025
+            <div className="flex justify-center gap-4 mt-3">
+              <Link href="/terms-of-service" data-testid="link-terms" className="hover:text-foreground transition-colors">
+                Terms of Service
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
