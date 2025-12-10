@@ -5,7 +5,6 @@ import type { Ingredient, Recipe, DashboardChartType, DashboardConfig, WasteLog 
 import { dashboardChartLabels } from "@shared/schema";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   BarChart,
   Bar,
@@ -96,8 +95,7 @@ export function ChartWidget({
     description: "",
   };
 
-  const isMobile = useIsMobile();
-  const chartHeight = isMobile ? 160 : (config.width === "full" ? 350 : 300);
+  const chartHeight = config.width === "full" ? 350 : 300;
 
   return (
     <Card
@@ -153,14 +151,16 @@ export function ChartWidget({
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:px-6 pb-2 sm:pb-6">
-        <ChartRenderer
-          chartType={config.chartType as DashboardChartType}
-          ingredients={ingredients}
-          recipes={recipes}
-          wasteLogs={wasteLogs}
-          height={chartHeight}
-          customConfig={config.customConfig}
-        />
+        <div className="h-[140px] sm:h-[300px]">
+          <ChartRenderer
+            chartType={config.chartType as DashboardChartType}
+            ingredients={ingredients}
+            recipes={recipes}
+            wasteLogs={wasteLogs}
+            height="100%"
+            customConfig={config.customConfig}
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -171,7 +171,7 @@ interface ChartRendererProps {
   ingredients: Ingredient[];
   recipes: Recipe[];
   wasteLogs?: WasteLog[];
-  height: number;
+  height: number | string;
   customConfig?: unknown;
 }
 
@@ -223,7 +223,7 @@ const tooltipStyle = {
   color: "hsl(var(--card-foreground))",
 };
 
-function MostExpensiveRecipesChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function MostExpensiveRecipesChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const data = [...recipes]
     .map((r) => ({
       ...r,
@@ -260,7 +260,7 @@ function MostExpensiveRecipesChart({ recipes, height }: { recipes: Recipe[]; hei
   );
 }
 
-function CostEfficientRecipesChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function CostEfficientRecipesChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const data = [...recipes]
     .map((r) => ({
       ...r,
@@ -297,7 +297,7 @@ function CostEfficientRecipesChart({ recipes, height }: { recipes: Recipe[]; hei
   );
 }
 
-function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingredient[]; height: number }) {
+function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingredient[]; height: number | string }) {
   const categoryData = ingredients.reduce((acc, ing) => {
     const existing = acc.find((item) => item.name === ing.category);
     if (existing) {
@@ -344,7 +344,7 @@ function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingr
   );
 }
 
-function MarginAnalysisChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function MarginAnalysisChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const data = [...recipes]
     .filter((r) => r.menuPrice && r.menuPrice > 0)
     .map((r) => ({
@@ -383,7 +383,7 @@ function MarginAnalysisChart({ recipes, height }: { recipes: Recipe[]; height: n
   );
 }
 
-function FoodCostPercentageChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function FoodCostPercentageChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const data = [...recipes]
     .filter((r) => r.menuPrice && r.menuPrice > 0)
     .map((r) => {
@@ -433,7 +433,7 @@ function FoodCostPercentageChart({ recipes, height }: { recipes: Recipe[]; heigh
   );
 }
 
-function MenuEngineeringMatrixChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function MenuEngineeringMatrixChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const recipesWithMetrics = recipes
     .filter((r) => r.menuPrice && r.menuPrice > 0)
     .map((r) => {
@@ -519,7 +519,7 @@ function MenuEngineeringMatrixChart({ recipes, height }: { recipes: Recipe[]; he
   );
 }
 
-function TopRevenueDriversChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function TopRevenueDriversChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const data = [...recipes]
     .filter((r) => r.menuPrice && r.menuPrice > 0)
     .map((r) => {
@@ -574,7 +574,7 @@ function WasteImpactChart({
 }: {
   wasteLogs: WasteLog[];
   ingredients: Ingredient[];
-  height: number;
+  height: number | string;
 }) {
   if (wasteLogs.length === 0) {
     return <EmptyState message="No waste logs yet. Log waste to see impact analysis." />;
@@ -622,7 +622,7 @@ function WasteImpactChart({
   );
 }
 
-function InventoryValueChart({ ingredients, height }: { ingredients: Ingredient[]; height: number }) {
+function InventoryValueChart({ ingredients, height }: { ingredients: Ingredient[]; height: number | string }) {
   const categoryValue = ingredients.reduce((acc, ing) => {
     const value = (ing.costPerUnit || 0) * (ing.currentStock || ing.purchaseQuantity);
     const existing = acc.find((item) => item.name === ing.category);
@@ -667,7 +667,7 @@ function InventoryValueChart({ ingredients, height }: { ingredients: Ingredient[
   );
 }
 
-function IngredientPriceTrendsChart({ ingredients, height }: { ingredients: Ingredient[]; height: number }) {
+function IngredientPriceTrendsChart({ ingredients, height }: { ingredients: Ingredient[]; height: number | string }) {
   // Since we don't have historical price data, show current prices as a snapshot
   const topIngredients = [...ingredients]
     .sort((a, b) => (b.costPerUnit || 0) - (a.costPerUnit || 0))
@@ -704,7 +704,7 @@ function IngredientPriceTrendsChart({ ingredients, height }: { ingredients: Ingr
   );
 }
 
-function ProfitMarginDistributionChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function ProfitMarginDistributionChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const recipesWithMargin = recipes
     .filter((r) => r.menuPrice && r.menuPrice > 0)
     .map((r) => {
@@ -754,7 +754,7 @@ function ProfitMarginDistributionChart({ recipes, height }: { recipes: Recipe[];
   );
 }
 
-function CategoryPerformanceChart({ recipes, height }: { recipes: Recipe[]; height: number }) {
+function CategoryPerformanceChart({ recipes, height }: { recipes: Recipe[]; height: number | string }) {
   const categoryStats = recipes.reduce((acc, r) => {
     const category = r.category || "other";
     const costPerServing = r.servings > 0 ? r.totalCost / r.servings : 0;

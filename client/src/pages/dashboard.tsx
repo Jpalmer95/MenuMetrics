@@ -342,7 +342,7 @@ export default function DashboardPage() {
               items={visibleConfigs.map((c) => c.id)}
               strategy={rectSortingStrategy}
             >
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:gap-6">
                 {visibleConfigs.map((config) => (
                   <SortableChartWidget
                     key={config.id}
