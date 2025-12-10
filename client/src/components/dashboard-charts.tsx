@@ -5,6 +5,7 @@ import type { Ingredient, Recipe, DashboardChartType, DashboardConfig, WasteLog 
 import { dashboardChartLabels } from "@shared/schema";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -90,6 +91,7 @@ export function ChartWidget({
   isDragging,
   isOver,
 }: ChartWidgetProps & { dragHandleProps?: DragHandleProps; isDragging?: boolean; isOver?: boolean }) {
+  const [isActive, setIsActive] = useState(false);
   const chartInfo = dashboardChartLabels[config.chartType as DashboardChartType] || {
     name: "Unknown Chart",
     description: "",
@@ -104,6 +106,10 @@ export function ChartWidget({
       } ${
         isOver ? "ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5" : ""
       }`}
+      style={{ zIndex: isActive ? 50 : 1 }}
+      onClick={() => setIsActive(true)}
+      onBlur={() => setIsActive(false)}
+      onMouseLeave={() => setIsActive(false)}
       data-testid={`chart-widget-${config.id}`}
     >
       <CardHeader className="flex flex-row items-center justify-between gap-1 sm:gap-2 pb-1 sm:pb-2 px-2 sm:px-6 pt-2 sm:pt-6">
@@ -159,6 +165,7 @@ export function ChartWidget({
             wasteLogs={wasteLogs}
             height="100%"
             customConfig={config.customConfig}
+            isActiveChart={isActive}
           />
         </div>
       </CardContent>
@@ -173,16 +180,17 @@ interface ChartRendererProps {
   wasteLogs?: WasteLog[];
   height: number | string;
   customConfig?: unknown;
+  isActiveChart?: boolean;
 }
 
-function ChartRenderer({ chartType, ingredients, recipes, wasteLogs = [], height }: ChartRendererProps) {
+function ChartRenderer({ chartType, ingredients, recipes, wasteLogs = [], height, isActiveChart }: ChartRendererProps) {
   switch (chartType) {
     case "most_expensive_recipes":
       return <MostExpensiveRecipesChart recipes={recipes} height={height} />;
     case "cost_efficient_recipes":
       return <CostEfficientRecipesChart recipes={recipes} height={height} />;
     case "ingredients_by_category":
-      return <IngredientsByCategoryChart ingredients={ingredients} height={height} />;
+      return <IngredientsByCategoryChart ingredients={ingredients} height={height} isActive={isActiveChart} />;
     case "margin_analysis":
       return <MarginAnalysisChart recipes={recipes} height={height} />;
     case "food_cost_percentage":
@@ -297,7 +305,55 @@ function CostEfficientRecipesChart({ recipes, height }: { recipes: Recipe[]; hei
   );
 }
 
-function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingredient[]; height: number | string }) {
+// Custom label renderer that wraps text
+const renderPieLabel = (props: any, isActive: boolean) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, name, percent } = props;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos((midAngle * Math.PI) / 180);
+  const y = cy + radius * Math.sin((midAngle * Math.PI) / 180);
+  
+  const text = `${name} ${(percent * 100).toFixed(0)}%`;
+  const maxCharsPerLine = 12;
+  
+  // Split text into multiple lines if needed
+  let lines: string[] = [];
+  let currentLine = "";
+  
+  for (let i = 0; i < text.length; i++) {
+    if (currentLine.length < maxCharsPerLine) {
+      currentLine += text[i];
+    } else if (text[i] === " ") {
+      lines.push(currentLine.trim());
+      currentLine = "";
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = text[i];
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+
+  return (
+    <g style={{ zIndex: isActive ? 100 : 10 }}>
+      {lines.map((line, index) => (
+        <text
+          key={index}
+          x={x}
+          y={y + (index - (lines.length - 1) / 2) * 12}
+          fill="hsl(var(--foreground))"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize="11"
+          fontWeight="500"
+          style={{ pointerEvents: "none" }}
+        >
+          {line}
+        </text>
+      ))}
+    </g>
+  );
+};
+
+function IngredientsByCategoryChart({ ingredients, height, isActive = false }: { ingredients: Ingredient[]; height: number | string; isActive?: boolean }) {
   const categoryData = ingredients.reduce((acc, ing) => {
     const existing = acc.find((item) => item.name === ing.category);
     if (existing) {
@@ -321,17 +377,19 @@ function IngredientsByCategoryChart({ ingredients, height }: { ingredients: Ingr
   const heightNum = typeof height === 'string' ? parseInt(height) : height;
   const baseRadius = Math.min(heightNum * 0.35, 90);
   const isMobile = heightNum < 280;
-  const labelFontSize = isMobile ? 11 : 12;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <PieChart margin={{ top: isMobile ? 10 : 20, right: isMobile ? 10 : 20, bottom: isMobile ? 10 : 20, left: isMobile ? 10 : 20 }}>
+      <PieChart 
+        margin={{ top: isMobile ? 30 : 40, right: isMobile ? 30 : 60, bottom: isMobile ? 30 : 40, left: isMobile ? 30 : 60 }}
+        style={{ zIndex: isActive ? 100 : 10 }}
+      >
         <Pie
           data={categoryData}
           cx="50%"
           cy="50%"
           labelLine={false}
-          label={isMobile ? false : ({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+          label={isMobile ? false : (props: any) => renderPieLabel(props, isActive)}
           outerRadius={baseRadius}
           fill="#8884d8"
           dataKey="count"
