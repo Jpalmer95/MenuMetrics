@@ -16,7 +16,7 @@ Preferred communication style: Simple, everyday language.
 **Design Philosophy**: Material Design principles, cream-colored theme, Open Sans/Roboto typography, spreadsheet-like clarity, mobile-responsive design.
 **Key UI Components**: `IngredientsTable`, `RecipeBuilder`, `DashboardStats`, Excel import/export dialogs.
 **Main Pages**:
-- **Dashboard** (`/`): Overview with key metrics and quick actions.
+- **Dashboard** (`/`): Overview with key metrics and quick actions. Shows an onboarding welcome page for first-time users with no ingredients, featuring step-by-step guidance, feature showcase, and clear CTAs.
 - **Ingredients** (`/ingredients`): Full ingredient database with cost tracking.
 - **Recipes** (`/recipes`, `/recipes/:id`): Recipe creation and cost analysis.
 - **Inventory Count** (`/inventory`): Quick counting interface grouped by storage type.

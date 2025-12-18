@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DashboardStats } from "@/components/dashboard-stats";
 import { SortableChartWidget, ChartWidget } from "@/components/dashboard-charts";
+import { OnboardingWelcome } from "@/components/onboarding-welcome";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -251,6 +252,11 @@ export default function DashboardPage() {
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  // Show onboarding for first-time users with no ingredients
+  if (ingredients.length === 0) {
+    return <OnboardingWelcome />;
   }
 
   const visibleConfigs = dashboardConfigs
