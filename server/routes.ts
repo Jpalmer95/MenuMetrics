@@ -1,7 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { storage } from "./storage";
 import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier, insertManagedPricingSubscriptionSchema, updateManagedPricingSubscriptionSchema, managedPricingTiers, type ManagedPricingTier } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
