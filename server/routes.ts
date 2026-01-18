@@ -60,8 +60,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Excel template download
   app.get("/api/ingredients/template", isAuthenticated, async (req, res) => {
     try {
-      // Create template with headers and sample data
-      const headers = [
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Ingredients");
+      
+      // Set column widths
+      worksheet.columns = [
+        { width: 20 }, // Ingredient Name
+        { width: 15 }, // Category
+        { width: 18 }, // Purchase Quantity
+        { width: 15 }, // Purchase Unit
+        { width: 15 }, // Purchase Cost
+        { width: 15 }, // Store
+        { width: 22 }, // Price Per Unit
+        { width: 22 }, // Density
+        { width: 18 }, // Density Source
+        { width: 18 }  // Packaging
+      ];
+      
+      // Add instructions row
+      worksheet.addRow([
+        "INSTRUCTIONS:",
+        "1. Fill in your ingredient data starting from row 4",
+        "2. Required columns: Ingredient Name, Category, Purchase Quantity, Purchase Unit, Purchase Cost",
+        "3. Units must be one of: " + measurementUnits.join(", "),
+        "4. For unit-based items (unit='units'): Use 'Price Per Unit' column instead of Density",
+        "5. For weight/volume items: Density is optional but helps with volume↔weight conversions (e.g., 1.03 for milk, 0.5 for flour)",
+        "6. Mark 'Yes' for Packaging column if item is packaging (cups, lids, etc.)",
+        "7. Delete this instructions row before uploading"
+      ]);
+      
+      // Add empty row
+      worksheet.addRow([]);
+      
+      // Add headers
+      worksheet.addRow([
         "Ingredient Name",
         "Category",
         "Purchase Quantity",
@@ -72,9 +104,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Density g/mL (optional, weight/volume only)",
         "Density Source (optional)",
         "Packaging? (Yes/No)"
-      ];
+      ]);
       
-      const sampleRow = [
+      // Add sample row
+      worksheet.addRow([
         "Espresso Beans",
         "Coffee",
         1,
@@ -85,48 +118,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "",
         "",
         "No"
-      ];
-      
-      const instructions = [
-        "INSTRUCTIONS:",
-        "1. Fill in your ingredient data starting from row 4",
-        "2. Required columns: Ingredient Name, Category, Purchase Quantity, Purchase Unit, Purchase Cost",
-        "3. Units must be one of: " + measurementUnits.join(", "),
-        "4. For unit-based items (unit='units'): Use 'Price Per Unit' column instead of Density",
-        "5. For weight/volume items: Density is optional but helps with volume↔weight conversions (e.g., 1.03 for milk, 0.5 for flour)",
-        "6. Mark 'Yes' for Packaging column if item is packaging (cups, lids, etc.)",
-        "7. Delete this instructions row before uploading"
-      ];
-      
-      const worksheet = XLSX.utils.aoa_to_sheet([
-        instructions,
-        [], // Empty row
-        headers,
-        sampleRow
       ]);
       
-      // Set column widths
-      worksheet['!cols'] = [
-        { wch: 20 }, // Ingredient Name
-        { wch: 15 }, // Category
-        { wch: 18 }, // Purchase Quantity
-        { wch: 15 }, // Purchase Unit
-        { wch: 15 }, // Purchase Cost
-        { wch: 15 }, // Store
-        { wch: 22 }, // Price Per Unit
-        { wch: 22 }, // Density
-        { wch: 18 }, // Density Source
-        { wch: 18 }  // Packaging
-      ];
-      
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Ingredients");
-      
-      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      const buffer = await workbook.xlsx.writeBuffer();
       
       res.setHeader("Content-Disposition", "attachment; filename=ingredient-template.xlsx");
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.send(buffer);
+      res.send(Buffer.from(buffer));
     } catch (error) {
       console.error("Template generation error:", error);
       res.status(500).json({ error: "Failed to generate template" });
@@ -138,8 +136,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const ingredients = await storage.getAllIngredients(userId);
       
-      // Map ingredients to export format
-      const headers = [
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Ingredients");
+      
+      // Set column widths
+      worksheet.columns = [
+        { width: 20 }, // Ingredient Name
+        { width: 15 }, // Category
+        { width: 18 }, // Purchase Quantity
+        { width: 15 }, // Purchase Unit
+        { width: 15 }, // Purchase Cost
+        { width: 15 }, // Store
+        { width: 22 }, // Price Per Unit
+        { width: 22 }, // Density
+        { width: 18 }, // Density Source
+        { width: 18 }  // Packaging
+      ];
+      
+      // Add headers
+      worksheet.addRow([
         "Ingredient Name",
         "Category",
         "Purchase Quantity",
@@ -150,46 +165,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Density g/mL (optional, weight/volume only)",
         "Density Source (optional)",
         "Packaging? (Yes/No)"
-      ];
-      
-      const rows = ingredients.map(ing => [
-        ing.name,
-        ing.category,
-        ing.purchaseQuantity,
-        ing.purchaseUnit,
-        ing.purchaseCost,
-        ing.store || "",
-        ing.purchaseUnit === "units" ? (ing.pricePerUnit || "") : "",
-        ing.purchaseUnit !== "units" ? (ing.gramsPerMilliliter || "") : "",
-        ing.densitySource || "",
-        ing.isPackaging ? "Yes" : "No"
       ]);
       
-      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      // Add data rows
+      for (const ing of ingredients) {
+        worksheet.addRow([
+          ing.name,
+          ing.category,
+          ing.purchaseQuantity,
+          ing.purchaseUnit,
+          ing.purchaseCost,
+          ing.store || "",
+          ing.purchaseUnit === "units" ? (ing.pricePerUnit || "") : "",
+          ing.purchaseUnit !== "units" ? (ing.gramsPerMilliliter || "") : "",
+          ing.densitySource || "",
+          ing.isPackaging ? "Yes" : "No"
+        ]);
+      }
       
-      // Set column widths
-      worksheet['!cols'] = [
-        { wch: 20 }, // Ingredient Name
-        { wch: 15 }, // Category
-        { wch: 18 }, // Purchase Quantity
-        { wch: 15 }, // Purchase Unit
-        { wch: 15 }, // Purchase Cost
-        { wch: 15 }, // Store
-        { wch: 22 }, // Price Per Unit
-        { wch: 22 }, // Density
-        { wch: 18 }, // Density Source
-        { wch: 18 }  // Packaging
-      ];
-      
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Ingredients");
-      
-      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      const buffer = await workbook.xlsx.writeBuffer();
       
       const timestamp = new Date().toISOString().split('T')[0];
       res.setHeader("Content-Disposition", `attachment; filename=ingredients-export-${timestamp}.xlsx`);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.send(buffer);
+      res.send(Buffer.from(buffer));
     } catch (error) {
       console.error("Export error:", error);
       res.status(500).json({ error: "Failed to export ingredients" });
