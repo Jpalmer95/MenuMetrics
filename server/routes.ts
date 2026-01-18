@@ -200,8 +200,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const recipes = await storage.getAllRecipes(userId);
       
-      // Map recipes to export format (one row per ingredient)
-      const headers = [
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Recipes");
+      
+      // Set column widths
+      worksheet.columns = [
+        { width: 25 }, // Recipe Name
+        { width: 15 }, // Category
+        { width: 15 }, // Serving Size
+        { width: 12 }, // Menu Price
+        { width: 30 }, // Description
+        { width: 25 }, // Ingredient Name
+        { width: 10 }, // Quantity
+        { width: 12 }  // Unit
+      ];
+      
+      // Add headers
+      worksheet.addRow([
         "Recipe Name",
         "Category",
         "Serving Size",
@@ -210,16 +225,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Ingredient Name",
         "Quantity",
         "Unit"
-      ];
+      ]);
       
-      const rows: any[] = [];
-      
+      // Add data rows
       for (const recipe of recipes) {
         const recipeIngredients = await storage.getRecipeIngredients(recipe.id, userId);
         
         if (recipeIngredients.length === 0) {
-          // Recipe with no ingredients - still export it
-          rows.push([
+          worksheet.addRow([
             recipe.name,
             recipe.category,
             recipe.servings,
@@ -230,9 +243,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ""
           ]);
         } else {
-          // One row per ingredient
           for (const ri of recipeIngredients) {
-            rows.push([
+            worksheet.addRow([
               recipe.name,
               recipe.category,
               recipe.servings,
@@ -246,29 +258,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      
-      // Set column widths
-      worksheet['!cols'] = [
-        { wch: 25 }, // Recipe Name
-        { wch: 15 }, // Category
-        { wch: 15 }, // Serving Size
-        { wch: 12 }, // Menu Price
-        { wch: 30 }, // Description
-        { wch: 25 }, // Ingredient Name
-        { wch: 10 }, // Quantity
-        { wch: 12 }  // Unit
-      ];
-      
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Recipes");
-      
-      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+      const buffer = await workbook.xlsx.writeBuffer();
       
       const timestamp = new Date().toISOString().split('T')[0];
       res.setHeader("Content-Disposition", `attachment; filename=recipes-export-${timestamp}.xlsx`);
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-      res.send(buffer);
+      res.send(Buffer.from(buffer));
     } catch (error) {
       console.error("Recipe export error:", error);
       res.status(500).json({ error: "Failed to export recipes" });
@@ -345,10 +340,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const mapping = req.body.mapping ? JSON.parse(req.body.mapping) : {};
       
-      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+      const worksheet = workbook.worksheets[0];
+      
+      // Convert worksheet to JSON array (similar to xlsx sheet_to_json)
+      const data: any[] = [];
+      const headers: string[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+          row.eachCell((cell, colNumber) => {
+            headers[colNumber - 1] = String(cell.value || '');
+          });
+        } else {
+          const rowData: any = {};
+          row.eachCell((cell, colNumber) => {
+            const header = headers[colNumber - 1];
+            if (header) {
+              rowData[header] = cell.value;
+            }
+          });
+          if (Object.keys(rowData).length > 0) {
+            data.push(rowData);
+          }
+        }
+      });
 
       const results: { success: any[]; errors: any[] } = { success: [], errors: [] };
       
@@ -931,10 +947,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+      const worksheet = workbook.worksheets[0];
+      
+      // Convert worksheet to JSON array
+      const data: any[] = [];
+      const headers: string[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+          row.eachCell((cell, colNumber) => {
+            headers[colNumber - 1] = String(cell.value || '');
+          });
+        } else {
+          const rowData: any = {};
+          row.eachCell((cell, colNumber) => {
+            const header = headers[colNumber - 1];
+            if (header) {
+              rowData[header] = cell.value;
+            }
+          });
+          if (Object.keys(rowData).length > 0) {
+            data.push(rowData);
+          }
+        }
+      });
 
       // Group rows by recipe name
       const recipeGroups = new Map<string, any[]>();
