@@ -3330,10 +3330,14 @@ Return the JSON array now:`;
         subscriptions.map(async (sub) => {
           const ingredients = await storage.getAllIngredients(sub.userId);
           const recipes = await storage.getAllRecipes(sub.userId);
+          const validTiers = ["small", "medium", "large", "enterprise"] as const;
+          const tier = validTiers.includes(sub.tier as typeof validTiers[number]) 
+            ? sub.tier as ManagedPricingTier 
+            : null;
           return {
             ...sub,
             currentItemCount: ingredients.length + recipes.length,
-            tierDetails: managedPricingTiers[sub.tier as ManagedPricingTier],
+            tierDetails: tier ? managedPricingTiers[tier] : null,
           };
         })
       );

@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface ExcelImportDialogProps {
   open: boolean;
@@ -89,13 +89,34 @@ export function ExcelImportDialog({
   const processFile = async (selectedFile: File) => {
     setFile(selectedFile);
     
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = e.target?.result;
-      const workbook = XLSX.read(data, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    try {
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.worksheets[0];
+      
+      // Convert worksheet to JSON array
+      const jsonData: any[] = [];
+      const headers: string[] = [];
+      
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) {
+          row.eachCell((cell, colNumber) => {
+            headers[colNumber - 1] = String(cell.value || '');
+          });
+        } else {
+          const rowData: any = {};
+          row.eachCell((cell, colNumber) => {
+            const header = headers[colNumber - 1];
+            if (header) {
+              rowData[header] = cell.value;
+            }
+          });
+          if (Object.keys(rowData).length > 0) {
+            jsonData.push(rowData);
+          }
+        }
+      });
       
       if (jsonData.length > 0) {
         const columns = Object.keys(jsonData[0] as any);
@@ -116,8 +137,9 @@ export function ExcelImportDialog({
         setColumnMapping(autoMapping);
         setStep("mapping");
       }
-    };
-    reader.readAsBinaryString(selectedFile);
+    } catch (error) {
+      console.error("Error processing Excel file:", error);
+    }
   };
 
   const handleImport = () => {
