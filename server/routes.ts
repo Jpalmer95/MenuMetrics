@@ -347,20 +347,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert worksheet to JSON array (similar to xlsx sheet_to_json)
       const data: any[] = [];
       const headers: string[] = [];
+      let headerCount = 0;
+      
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) {
-          row.eachCell((cell, colNumber) => {
-            headers[colNumber - 1] = String(cell.value || '');
+          // Read headers with includeEmpty to preserve column positions
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            const value = String(cell.value || '').trim();
+            if (value) {
+              headers[colNumber - 1] = value;
+              headerCount = Math.max(headerCount, colNumber);
+            }
           });
         } else {
           const rowData: any = {};
-          row.eachCell((cell, colNumber) => {
-            const header = headers[colNumber - 1];
+          let hasData = false;
+          // Read all cells up to header count to preserve column alignment
+          for (let i = 1; i <= headerCount; i++) {
+            const header = headers[i - 1];
             if (header) {
-              rowData[header] = cell.value;
+              const cell = row.getCell(i);
+              const value = cell.value;
+              if (value !== null && value !== undefined && value !== '') {
+                rowData[header] = value;
+                hasData = true;
+              }
             }
-          });
-          if (Object.keys(rowData).length > 0) {
+          }
+          if (hasData) {
             data.push(rowData);
           }
         }
@@ -954,20 +968,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert worksheet to JSON array
       const data: any[] = [];
       const headers: string[] = [];
+      let headerCount = 0;
+      
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) {
-          row.eachCell((cell, colNumber) => {
-            headers[colNumber - 1] = String(cell.value || '');
+          // Read headers with includeEmpty to preserve column positions
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            const value = String(cell.value || '').trim();
+            if (value) {
+              headers[colNumber - 1] = value;
+              headerCount = Math.max(headerCount, colNumber);
+            }
           });
         } else {
           const rowData: any = {};
-          row.eachCell((cell, colNumber) => {
-            const header = headers[colNumber - 1];
+          let hasData = false;
+          // Read all cells up to header count to preserve column alignment
+          for (let i = 1; i <= headerCount; i++) {
+            const header = headers[i - 1];
             if (header) {
-              rowData[header] = cell.value;
+              const cell = row.getCell(i);
+              const value = cell.value;
+              if (value !== null && value !== undefined && value !== '') {
+                rowData[header] = value;
+                hasData = true;
+              }
             }
-          });
-          if (Object.keys(rowData).length > 0) {
+          }
+          if (hasData) {
             data.push(rowData);
           }
         }
