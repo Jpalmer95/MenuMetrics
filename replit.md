@@ -99,7 +99,7 @@ Preferred communication style: Simple, everyday language.
 - Upgrade prompts appear when users have no subscription or low remaining queries.
 
 **Third-Party Libraries**:
-- **XLSX**: Excel file parsing and generation.
+- **ExcelJS**: Excel file parsing and generation (replaced xlsx for security).
 - **date-fns**: Date formatting.
 - **Recharts**: Data visualization.
 - **p-retry** & **p-limit**: Concurrency control and retry logic.
