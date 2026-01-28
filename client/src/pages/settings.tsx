@@ -21,11 +21,13 @@ import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Chec
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface";
+type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface" | "ollama";
 
 interface AISettings {
   aiProvider?: string | null;
   huggingfaceToken?: string | null;
+  ollamaUrl?: string | null;
+  ollamaModel?: string | null;
 }
 
 interface SubscriptionStatus {
@@ -79,12 +81,18 @@ const providerOptions = [
   { value: "grok", label: "Grok (xAI)", description: "xAI's conversational model", replit: true },
   { value: "deepseek", label: "DeepSeek V3", description: "Chinese AI powerhouse", replit: true },
   { value: "huggingface", label: "HuggingFace (Custom)", description: "Bring your own API key", replit: false },
+  { value: "ollama", label: "Ollama (Local)", description: "Run AI models on your own machine", replit: false },
 ];
 
 function AISettingsTab() {
   const { toast } = useToast();
   const [aiProvider, setAiProvider] = useState<AIProvider>("openai");
   const [huggingfaceToken, setHuggingfaceToken] = useState("");
+  const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434");
+  const [ollamaModel, setOllamaModel] = useState("");
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const { data: settings, isLoading } = useQuery<AISettings>({
     queryKey: ["/api/settings/ai"],
@@ -94,6 +102,8 @@ function AISettingsTab() {
     if (settings) {
       setAiProvider((settings.aiProvider as AIProvider) || "openai");
       setHuggingfaceToken(settings.huggingfaceToken || "");
+      setOllamaUrl(settings.ollamaUrl || "http://localhost:11434");
+      setOllamaModel(settings.ollamaModel || "");
     }
   }, [settings]);
 
@@ -121,10 +131,42 @@ function AISettingsTab() {
     saveMutation.mutate({
       aiProvider,
       huggingfaceToken: huggingfaceToken.trim() || null,
+      ollamaUrl: ollamaUrl.trim() || null,
+      ollamaModel: ollamaModel.trim() || null,
     });
   };
 
+  const testOllamaConnection = async () => {
+    setConnectionStatus("testing");
+    setConnectionError(null);
+    try {
+      const response = await apiRequest("POST", "/api/settings/ai/test-ollama", {
+        url: ollamaUrl.trim(),
+        model: ollamaModel.trim() || undefined,
+      });
+      const result = await response.json();
+      if (result.success) {
+        setConnectionStatus("success");
+        setOllamaModels(result.models || []);
+        toast({
+          title: "Connection successful",
+          description: result.models?.length 
+            ? `Found ${result.models.length} models available` 
+            : "Connected to Ollama server",
+        });
+      } else {
+        setConnectionStatus("error");
+        setConnectionError(result.error || "Connection failed");
+        setOllamaModels(result.models || []);
+      }
+    } catch (error: any) {
+      setConnectionStatus("error");
+      setConnectionError(error.message || "Failed to connect to Ollama");
+    }
+  };
+
   const isHuggingFace = aiProvider === "huggingface";
+  const isOllama = aiProvider === "ollama";
 
   if (isLoading) {
     return (
@@ -167,7 +209,7 @@ function AISettingsTab() {
             </Select>
           </div>
 
-          {!isHuggingFace && (
+          {!isHuggingFace && !isOllama && (
             <Alert>
               <AlertDescription>
                 <strong>{providerOptions.find(p => p.value === aiProvider)?.label}</strong> is powered by Replit AI Integrations.
@@ -202,6 +244,106 @@ function AISettingsTab() {
                   HuggingFace Settings
                 </a>
               </p>
+            </div>
+          )}
+
+          {isOllama && (
+            <div className="space-y-4">
+              <Alert>
+                <AlertDescription>
+                  Connect to your locally running Ollama server. Make sure Ollama is installed and running on your machine.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="space-y-2">
+                <Label htmlFor="ollama-url" className="flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Ollama Server URL
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="ollama-url"
+                    type="text"
+                    placeholder="http://localhost:11434"
+                    value={ollamaUrl}
+                    onChange={(e) => {
+                      setOllamaUrl(e.target.value);
+                      setConnectionStatus("idle");
+                      setOllamaModels([]);
+                    }}
+                    data-testid="input-ollama-url"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={testOllamaConnection}
+                    disabled={connectionStatus === "testing" || !ollamaUrl.trim()}
+                    data-testid="button-test-ollama"
+                  >
+                    {connectionStatus === "testing" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : connectionStatus === "success" ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    <span className="ml-2">Test</span>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Default: http://localhost:11434. Change if your Ollama is running on a different address.
+                </p>
+              </div>
+
+              {connectionStatus === "error" && connectionError && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{connectionError}</AlertDescription>
+                </Alert>
+              )}
+
+              {connectionStatus === "success" && ollamaModels.length > 0 && (
+                <Alert>
+                  <Check className="h-4 w-4 text-green-500" />
+                  <AlertDescription>
+                    Connected! Available models: {ollamaModels.slice(0, 5).join(", ")}
+                    {ollamaModels.length > 5 && ` and ${ollamaModels.length - 5} more`}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="ollama-model" className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Model Name
+                </Label>
+                {ollamaModels.length > 0 ? (
+                  <Select value={ollamaModel} onValueChange={setOllamaModel}>
+                    <SelectTrigger id="ollama-model" data-testid="select-ollama-model">
+                      <SelectValue placeholder="Select a model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ollamaModels.map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="ollama-model"
+                    type="text"
+                    placeholder="llama3, mistral, codellama..."
+                    value={ollamaModel}
+                    onChange={(e) => setOllamaModel(e.target.value)}
+                    data-testid="input-ollama-model"
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Enter the name of the model you want to use. Test connection to see available models.
+                </p>
+              </div>
             </div>
           )}
         </div>

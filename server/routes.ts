@@ -5,7 +5,7 @@ import ExcelJS from "exceljs";
 import { storage } from "./storage";
 import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier, insertManagedPricingSubscriptionSchema, updateManagedPricingSubscriptionSchema, managedPricingTiers, type ManagedPricingTier } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
-import { callAI, type AIProvider } from "./ai-providers";
+import { callAI, testOllamaConnection, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { findBestMatch } from "@shared/fuzzy-matcher";
 import type { Ingredient } from "@shared/schema";
@@ -1274,16 +1274,26 @@ Rules:
 
       let parsedRecipes: any[];
 
-      // Get HuggingFace API key if using that provider
+      // Get provider-specific settings (HuggingFace API key or Ollama settings)
       let customApiKey: string | undefined;
+      let ollamaUrl: string | undefined;
+      let ollamaModel: string | undefined;
+      
       if (aiProvider === "huggingface") {
-        const aiSettings = await storage.getAISettings(userId);
         if (!aiSettings?.huggingfaceToken) {
           return res.status(400).json({ 
             error: "HuggingFace requires an API key. Please configure it in Settings." 
           });
         }
         customApiKey = aiSettings.huggingfaceToken;
+      } else if (aiProvider === "ollama") {
+        if (!aiSettings?.ollamaUrl) {
+          return res.status(400).json({ 
+            error: "Ollama requires a server URL. Please configure it in Settings." 
+          });
+        }
+        ollamaUrl = aiSettings.ollamaUrl;
+        ollamaModel = aiSettings.ollamaModel || undefined;
       }
 
       // Call AI using shared helper that supports all providers
@@ -1292,6 +1302,8 @@ Rules:
         systemPrompt,
         prompt: text,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
 
       if (!content) {
@@ -1574,6 +1586,8 @@ Rules:
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
 
       // Get all ingredients for context
       const ingredients = await storage.getAllIngredients(userId);
@@ -1624,6 +1638,8 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
         prompt,
         systemPrompt,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
 
       // Try to parse JSON response, clean up markdown code blocks if present
@@ -1735,6 +1751,8 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
 
       // Check if provider supports vision for image requests
       if (imageFile && provider !== "openai" && provider !== "gemini") {
@@ -1782,6 +1800,8 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
         systemPrompt,
         customApiKey,
         imageUrl,
+        ollamaUrl,
+        ollamaModel,
       });
 
       // Parse JSON response with robust error handling
@@ -1834,6 +1854,8 @@ CRITICAL: Return ONLY valid JSON, no markdown code blocks or explanations.`;
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
 
       // Get all recipes for context
       const recipes = await storage.getAllRecipes(userId);
@@ -1873,6 +1895,8 @@ Format your response clearly with numbered sections.`;
         prompt,
         systemPrompt,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
 
       res.json({ response });
@@ -1891,6 +1915,8 @@ Format your response clearly with numbered sections.`;
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
 
       const ingredients = await storage.getAllIngredients(userId);
       const recipes = await storage.getAllRecipes(userId);
@@ -1946,6 +1972,8 @@ Mark inInventory as true if the ingredient exists in the available inventory lis
         prompt,
         systemPrompt,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
 
       let suggestions;
@@ -1978,6 +2006,8 @@ Mark inInventory as true if the ingredient exists in the available inventory lis
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
 
       const recipes = await storage.getAllRecipes(userId);
       
@@ -2030,6 +2060,8 @@ Format your response clearly with headers and bullet points for easy reading.`;
         prompt,
         systemPrompt,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
 
       res.json({ analysis: response, recommendations: [] });
@@ -2048,6 +2080,8 @@ Format your response clearly with headers and bullet points for easy reading.`;
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
 
       const ingredients = await storage.getAllIngredients(userId);
       const recipes = await storage.getAllRecipes(userId);
@@ -2118,6 +2152,8 @@ Be specific and actionable. Provide concrete examples and price points where rel
         prompt,
         systemPrompt,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
 
       res.json({ advice: response });
@@ -2140,6 +2176,8 @@ Be specific and actionable. Provide concrete examples and price points where rel
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
 
       const ingredients = await storage.getAllIngredients(userId);
       const recipes = await storage.getAllRecipes(userId);
@@ -2245,6 +2283,8 @@ If suggesting a chart, remember to add the [SUGGEST_CHARTS: ...] marker at the e
         prompt,
         systemPrompt,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
 
       // Parse the response to extract chart suggestions
@@ -2290,6 +2330,8 @@ If suggesting a chart, remember to add the [SUGGEST_CHARTS: ...] marker at the e
       const settings = await storage.getAISettings(userId);
       const provider = (settings?.aiProvider || "openai") as AIProvider;
       const customApiKey = settings?.huggingfaceToken || undefined;
+      const ollamaUrl = settings?.ollamaUrl || undefined;
+      const ollamaModel = settings?.ollamaModel || undefined;
       console.log(`[DENSITY] Using AI provider: ${provider}`);
 
       // Get all user's ingredients
@@ -2356,6 +2398,8 @@ Return the JSON array now:`;
         prompt,
         systemPrompt,
         customApiKey,
+        ollamaUrl,
+        ollamaModel,
       });
       console.log(`[DENSITY] AI response received, length: ${response.length} chars`);
 
@@ -2459,6 +2503,21 @@ Return the JSON array now:`;
     } catch (error: any) {
       console.error("Save AI settings error:", error);
       res.status(400).json({ error: error.message || "Failed to save AI settings" });
+    }
+  });
+
+  // Ollama connection test endpoint
+  app.post("/api/settings/ai/test-ollama", isAuthenticated, async (req: any, res) => {
+    try {
+      const { url, model } = req.body;
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      const result = await testOllamaConnection(url, model);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Test Ollama connection error:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to test connection" });
     }
   });
 

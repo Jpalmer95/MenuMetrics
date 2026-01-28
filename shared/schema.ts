@@ -386,8 +386,11 @@ export type CategoryPricingSettings = typeof categoryPricingSettings.$inferSelec
 export const aiSettings = pgTable("ai_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  aiProvider: varchar("ai_provider").default("openai"), // openai, gemini, grok, huggingface
+  aiProvider: varchar("ai_provider").default("openai"), // openai, gemini, grok, huggingface, ollama
   huggingfaceToken: text("huggingface_token"),
+  // Ollama local inference settings
+  ollamaUrl: text("ollama_url"), // e.g., http://localhost:11434
+  ollamaModel: text("ollama_model"), // e.g., llama3, mistral, codellama
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

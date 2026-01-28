@@ -6,7 +6,7 @@ import pRetry from "p-retry";
 // OpenAI, Gemini, and OpenRouter (for various models) are available via Replit AI Integrations
 // No API keys required - charges billed to Replit credits
 
-export type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface";
+export type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface" | "ollama";
 
 // OpenRouter model mappings for different providers (verified from OpenRouter API)
 export const openRouterModels: Record<string, string> = {
@@ -26,6 +26,7 @@ export const providerDisplayNames: Record<string, string> = {
   "mistral": "Mistral Large",
   "deepseek": "DeepSeek V3",
   "huggingface": "HuggingFace (Custom)",
+  "ollama": "Ollama (Local)",
 };
 
 interface AIRequest {
@@ -34,6 +35,9 @@ interface AIRequest {
   systemPrompt?: string;
   customApiKey?: string;
   imageUrl?: string; // Optional image URL for vision requests
+  // Ollama-specific settings
+  ollamaUrl?: string;
+  ollamaModel?: string;
 }
 
 function isRateLimitError(error: any): boolean {
@@ -63,6 +67,8 @@ export async function callAI(request: AIRequest): Promise<string> {
             return await callOpenRouter(request);
           case "huggingface":
             return await callHuggingFace(request);
+          case "ollama":
+            return await callOllama(request);
           default:
             throw new Error(`Unsupported provider: ${request.provider}`);
         }
@@ -218,4 +224,109 @@ async function callHuggingFace(request: AIRequest): Promise<string> {
 
   const data = await response.json();
   return data[0]?.generated_text || "";
+}
+
+async function callOllama(request: AIRequest): Promise<string> {
+  const baseUrl = request.ollamaUrl || "http://localhost:11434";
+  const model = request.ollamaModel || "llama3";
+
+  if (!baseUrl) {
+    throw new Error("Ollama requires a URL. Please configure your Ollama server URL in settings.");
+  }
+
+  // Validate URL for SSRF protection
+  const validation = isValidOllamaUrl(baseUrl);
+  if (!validation.valid) {
+    throw new Error(validation.error || "Invalid Ollama URL");
+  }
+
+  const messages: Array<{ role: string; content: string }> = [];
+  if (request.systemPrompt) {
+    messages.push({ role: "system", content: request.systemPrompt });
+  }
+  messages.push({ role: "user", content: request.prompt });
+
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Ollama API error: Check that the model is installed and Ollama is running.");
+  }
+
+  const data = await response.json();
+  return data.message?.content || "";
+}
+
+// Validate Ollama URL to prevent SSRF - only allow localhost/127.0.0.1/::1
+export function isValidOllamaUrl(url: string): { valid: boolean; error?: string } {
+  try {
+    const parsed = new URL(url);
+    
+    // Only allow http or https
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { valid: false, error: "Only HTTP and HTTPS protocols are allowed" };
+    }
+    
+    // Only allow localhost addresses for security (SSRF protection)
+    const allowedHosts = ['localhost', '127.0.0.1', '::1', '[::1]'];
+    const hostname = parsed.hostname.toLowerCase();
+    
+    if (!allowedHosts.includes(hostname)) {
+      return { 
+        valid: false, 
+        error: "For security reasons, Ollama URL must be localhost (127.0.0.1, ::1, or localhost)" 
+      };
+    }
+    
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: "Invalid URL format" };
+  }
+}
+
+// Test Ollama connection - exported for use in routes
+export async function testOllamaConnection(url: string, model?: string): Promise<{ success: boolean; models?: string[]; error?: string }> {
+  // Validate URL for SSRF protection
+  const validation = isValidOllamaUrl(url);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+
+  try {
+    // First, try to list available models
+    const tagsResponse = await fetch(`${url}/api/tags`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!tagsResponse.ok) {
+      return { success: false, error: "Cannot connect to Ollama server. Make sure Ollama is running." };
+    }
+
+    const tagsData = await tagsResponse.json();
+    const availableModels = tagsData.models?.map((m: any) => m.name) || [];
+
+    // If a model is specified, check if it exists
+    if (model && !availableModels.some((m: string) => m.startsWith(model))) {
+      return { 
+        success: false, 
+        models: availableModels, 
+        error: `Model "${model}" not found. Available models: ${availableModels.join(", ")}` 
+      };
+    }
+
+    return { success: true, models: availableModels };
+  } catch (error: any) {
+    // Don't expose internal error details
+    return { success: false, error: "Failed to connect to Ollama. Check that the server is running and accessible." };
+  }
 }
