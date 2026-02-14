@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle, DollarSign, Users, Package, Phone, FileText, X, RefreshCw, Download, Upload, Database, FileJson } from "lucide-react";
+import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle, DollarSign, Users, Package, Phone, FileText, X, RefreshCw, Download, Upload, Database, FileJson, Heart, Copy, Wallet, Coffee } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -1221,6 +1221,99 @@ function DataTab() {
   );
 }
 
+function SupportTab() {
+  const { toast } = useToast();
+  const walletAddress = "0x0Ba2D788A7D3E944a849052e872CE3976fda396A";
+
+  const copyWalletAddress = () => {
+    navigator.clipboard.writeText(walletAddress);
+    toast({
+      title: "Copied!",
+      description: "Wallet address copied to clipboard.",
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Heart className="h-5 w-5 text-red-500" />
+            <CardTitle>Support the Developer</CardTitle>
+          </div>
+          <CardDescription>
+            This app is built and maintained by a solo developer. If you find it useful,
+            consider supporting its continued development. Every contribution helps keep the project alive and growing.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <Card className="border-amber-200 dark:border-amber-800">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-lg bg-amber-100 dark:bg-amber-900/30 shrink-0">
+                    <Coffee className="h-6 w-6 text-amber-700 dark:text-amber-400" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h3 className="font-semibold">Buy Me a Coffee</h3>
+                    <p className="text-sm text-muted-foreground">
+                      A quick and easy way to show your appreciation. Even a small coffee goes a long way!
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => window.open("https://buymeacoffee.com/jkorstad", "_blank")}
+                      data-testid="button-buy-coffee"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      buymeacoffee.com/jkorstad
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 rounded-lg bg-muted shrink-0">
+                    <Wallet className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h3 className="font-semibold">Crypto Donation</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Send any cryptocurrency (DOGE, ETH, or any EVM-compatible token) to the wallet address below.
+                    </p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <code className="text-xs bg-muted px-3 py-2 rounded-md break-all font-mono" data-testid="text-wallet-address">
+                        {walletAddress}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={copyWalletAddress}
+                        data-testid="button-copy-wallet"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="text-center pt-4 border-t">
+            <p className="text-sm text-muted-foreground">
+              Thank you for using and supporting this project. Your generosity is truly appreciated!
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [location] = useLocation();
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
@@ -1273,7 +1366,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue={initialTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="ai" data-testid="tab-ai">
             <Sparkles className="h-4 w-4 mr-2" />
             AI Provider
@@ -1286,6 +1379,10 @@ export default function SettingsPage() {
             <Database className="h-4 w-4 mr-2" />
             Data
           </TabsTrigger>
+          <TabsTrigger value="support" data-testid="tab-support">
+            <Heart className="h-4 w-4 mr-2" />
+            Support
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="ai" className="mt-6">
           <AISettingsTab />
@@ -1295,6 +1392,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="data" className="mt-6">
           <DataTab />
+        </TabsContent>
+        <TabsContent value="support" className="mt-6">
+          <SupportTab />
         </TabsContent>
       </Tabs>
     </div>

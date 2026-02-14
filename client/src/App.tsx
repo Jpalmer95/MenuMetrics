@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2, Shield, Zap } from "lucide-react";
+import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2, Shield, Zap, Heart } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -188,9 +188,13 @@ function AppContent() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground" data-testid="text-footer">
           <div className="mb-3">
             Built by Jonathan Korstad, 2025
-            <div className="flex justify-center gap-4 mt-3">
+            <div className="flex justify-center flex-wrap gap-4 mt-3">
               <Link href="/terms-of-service" data-testid="link-terms" className="hover:text-foreground transition-colors">
                 Terms of Service
+              </Link>
+              <Link href="/settings?tab=support" data-testid="link-support-dev" className="hover:text-foreground transition-colors inline-flex items-center gap-1">
+                <Heart className="h-3 w-3" />
+                Support the Developer
               </Link>
             </div>
           </div>
