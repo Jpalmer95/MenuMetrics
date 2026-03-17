@@ -654,11 +654,11 @@ export default function PricingPlaygroundPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {/* Rounding Direction */}
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2 xl:col-span-1">
               <Label>Rounding Direction</Label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   variant={roundingDirection === "up" ? "default" : "outline"}
                   size="sm"
