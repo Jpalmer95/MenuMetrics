@@ -1,16 +1,14 @@
-// REPLIT AUTH INTEGRATION
-import { Switch, Route, Link, useLocation } from "wouter";
+import { Switch, Route, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Coffee, Package, ChefHat, BarChart3, Sparkles, Settings, Menu, LogOut, Beaker, Calculator, ClipboardList, ShoppingCart, Trash2, Shield, Zap, Heart } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
+import { Heart } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import DashboardPage from "@/pages/dashboard";
 import IngredientsPage from "@/pages/ingredients";
@@ -30,7 +28,6 @@ import AdminManagedPricingPage from "@/pages/admin-managed-pricing";
 import AdditionsPricingPage from "@/pages/additions-pricing";
 
 function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
-  // Show landing page while loading or when not authenticated
   if (isLoading || !isAuthenticated) {
     return (
       <Switch>
@@ -41,7 +38,6 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
     );
   }
 
-  // Show protected routes when authenticated
   return (
     <Switch>
       <Route path="/" component={DashboardPage} />
@@ -65,142 +61,63 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
 }
 
 function AppContent() {
-  const [location] = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isAuthenticated, isLoading, user } = useAuth();
 
-  const navItems = [
-    { path: "/", label: "Dashboard", icon: BarChart3, testId: "link-dashboard" },
-    { path: "/ingredients", label: "Ingredients", icon: Package, testId: "link-ingredients" },
-    { path: "/recipes", label: "Recipes", icon: ChefHat, testId: "link-recipes" },
-    { path: "/pricing", label: "Pricing", icon: Calculator, testId: "link-pricing" },
-    { path: "/inventory", label: "Count", icon: ClipboardList, testId: "link-inventory" },
-    { path: "/orders", label: "Orders", icon: ShoppingCart, testId: "link-orders" },
-    { path: "/waste-log", label: "Waste", icon: Trash2, testId: "link-waste" },
-    { path: "/add-ins", label: "Add-Ins", icon: Zap, testId: "link-add-ins" },
-    { path: "/densities", label: "Densities", icon: Beaker, testId: "link-densities" },
-    { path: "/ai-agent", label: "Mise AI", icon: Sparkles, testId: "link-ai-agent" },
-    { path: "/settings", label: "Settings", icon: Settings, testId: "link-settings" },
-    ...(user?.role === "admin" ? [{ path: "/admin/managed-pricing", label: "Admin", icon: Shield, testId: "link-admin" }] : []),
-  ];
+  if (!isLoading && !isAuthenticated) {
+    return (
+      <Router isAuthenticated={false} isLoading={false} />
+    );
+  }
 
-  const handleLogout = () => {
-    window.location.href = "/api/logout";
-  };
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const sidebarStyle = {
+    "--sidebar-width": "15rem",
+    "--sidebar-width-icon": "3.5rem",
+  } as React.CSSProperties;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Only show header when authenticated */}
-      {!isLoading && isAuthenticated && (
-        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex h-16 items-center justify-between">
-                  <div className="flex items-center gap-6">
-                    <Link href="/" className="flex items-center gap-2 hover-elevate rounded-md px-3 py-2" data-testid="link-home">
-                      <Coffee className="h-6 w-6 text-primary" />
-                      <span className="font-bold text-xl">MenuMetrics</span>
-                    </Link>
-                    <nav className="hidden md:flex items-center gap-1">
-                      {navItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
-                        return (
-                          <Link key={item.path} href={item.path} data-testid={item.testId}>
-                            <div
-                              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors hover-elevate ${
-                                isActive
-                                  ? "bg-primary/10 text-primary"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              <Icon className="h-4 w-4" />
-                              {item.label}
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </nav>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={handleLogout}
-                      data-testid="button-logout"
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Log Out
-                    </Button>
-                    <ThemeToggle />
-                    <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                      <SheetTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="md:hidden"
-                          data-testid="button-mobile-menu"
-                        >
-                          <Menu className="h-5 w-5" />
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent side="right" className="flex flex-col h-full">
-                        <SheetHeader>
-                          <SheetTitle>Menu</SheetTitle>
-                        </SheetHeader>
-                        <nav className="flex flex-col gap-2 mt-6 overflow-y-auto flex-1 pb-20">
-                          {navItems.map((item) => {
-                            const Icon = item.icon;
-                            const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
-                            return (
-                              <Link
-                                key={item.path}
-                                href={item.path}
-                                data-testid={`mobile-${item.testId}`}
-                                onClick={() => setMobileMenuOpen(false)}
-                              >
-                                <div
-                                  className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors hover-elevate ${
-                                    isActive
-                                      ? "bg-primary/10 text-primary"
-                                      : "text-muted-foreground"
-                                  }`}
-                                >
-                                  <Icon className="h-5 w-5" />
-                                  {item.label}
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </nav>
-                      </SheetContent>
-                    </Sheet>
-                  </div>
-                </div>
-              </div>
-        </header>
-      )}
-
-      <main className={!isLoading && isAuthenticated ? "container mx-auto px-4 sm:px-6 lg:px-8 py-8" : ""}>
-        <Router isAuthenticated={isAuthenticated} isLoading={isLoading} />
-      </main>
-
-      <footer className="border-t bg-background/50 mt-8">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground" data-testid="text-footer">
-          <div className="mb-3">
-            Built by Jonathan Korstad, 2025
-            <div className="flex justify-center flex-wrap gap-4 mt-3">
+    <SidebarProvider style={sidebarStyle}>
+      <div className="flex h-screen w-full overflow-hidden bg-background">
+        <AppSidebar userRole={user?.role} />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <header className="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-border/60 bg-background/80 backdrop-blur-md px-4">
+            <SidebarTrigger data-testid="button-sidebar-toggle" className="-ml-1" />
+            <div className="h-4 w-px bg-border" />
+            <div className="flex-1" />
+            <ThemeToggle />
+          </header>
+          <main className="flex-1 overflow-y-auto">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-7xl">
+              <Router isAuthenticated={isAuthenticated} isLoading={isLoading} />
+            </div>
+          </main>
+          <footer className="border-t border-border/50 bg-background/50 shrink-0">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-muted-foreground">
+              <span>Built by Jonathan Korstad, 2025</span>
+              <span className="mx-2">·</span>
               <Link href="/terms-of-service" data-testid="link-terms" className="hover:text-foreground transition-colors">
                 Terms of Service
               </Link>
+              <span className="mx-2">·</span>
               <Link href="/settings?tab=support" data-testid="link-support-dev" className="hover:text-foreground transition-colors inline-flex items-center gap-1">
                 <Heart className="h-3 w-3" />
                 Support the Developer
               </Link>
             </div>
-          </div>
+          </footer>
         </div>
-      </footer>
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }
 

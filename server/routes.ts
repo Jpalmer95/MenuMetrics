@@ -2929,6 +2929,137 @@ Return the JSON array now:`;
     }
   });
 
+  // Autonomous ordering - AI-powered product search term generation
+  app.post("/api/inventory/autonomous-order", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { items, vendor } = req.body;
+
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "items array is required" });
+      }
+
+      // Build vendor-specific cart URL generators
+      const vendorConfigs: Record<string, { name: string; searchUrl: (q: string) => string; cartNote?: string }> = {
+        heb: {
+          name: "H-E-B",
+          searchUrl: (q) => `https://www.heb.com/search/?q=${encodeURIComponent(q)}`,
+          cartNote: "Opens H-E-B product search",
+        },
+        heb_instacart: {
+          name: "H-E-B via Instacart",
+          searchUrl: (q) => `https://www.instacart.com/store/heb/search_v3?query=${encodeURIComponent(q)}`,
+          cartNote: "Orders via Instacart delivery",
+        },
+        central_market: {
+          name: "Central Market",
+          searchUrl: (q) => `https://www.centralmarket.com/search?searchTerm=${encodeURIComponent(q)}`,
+          cartNote: "H-E-B's specialty grocery store",
+        },
+        sprouts: {
+          name: "Sprouts Farmers Market",
+          searchUrl: (q) => `https://www.sprouts.com/search/?query=${encodeURIComponent(q)}`,
+        },
+        walmart: {
+          name: "Walmart Grocery",
+          searchUrl: (q) => `https://www.walmart.com/search?q=${encodeURIComponent(q)}&facet=fulfillment_method%3ADelivery`,
+        },
+        target: {
+          name: "Target",
+          searchUrl: (q) => `https://www.target.com/s?searchTerm=${encodeURIComponent(q)}`,
+        },
+        amazon_fresh: {
+          name: "Amazon Fresh",
+          searchUrl: (q) => `https://www.amazon.com/s?k=${encodeURIComponent(q)}&i=amazonfresh`,
+        },
+        whole_foods: {
+          name: "Whole Foods Market",
+          searchUrl: (q) => `https://www.wholefoodsmarket.com/search?text=${encodeURIComponent(q)}`,
+        },
+        costco: {
+          name: "Costco",
+          searchUrl: (q) => `https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(q)}`,
+        },
+      };
+
+      const vendorConfig = vendorConfigs[vendor] || vendorConfigs["heb"];
+
+      // Use AI to generate optimized search terms for each ingredient
+      const aiSettings = await storage.getAISettings(userId);
+      const provider = (aiSettings?.aiProvider || "openai") as AIProvider;
+
+      const itemList = items.map((item: any, i: number) =>
+        `${i + 1}. "${item.name}" (need ${item.quantity} ${item.unit}, category: ${item.category})`
+      ).join("\n");
+
+      const prompt = `You are a grocery shopping assistant for a restaurant/cafe. Convert these ingredient names into optimized grocery store search terms for ${vendorConfig.name}.
+
+Ingredients to order:
+${itemList}
+
+For each ingredient, generate:
+1. The best search term to find the right grocery product (clean, specific, e.g. "whole milk gallon" not "milk")
+2. A suggested product size/form that makes sense for restaurant use
+
+Return a JSON array with exactly ${items.length} objects:
+[
+  {
+    "index": 1,
+    "originalName": "...",
+    "searchTerm": "optimized search term",
+    "suggestedForm": "e.g. gallon, 5lb bag, case of 12",
+    "searchUrl": ""
+  }
+]
+
+Only return valid JSON, no other text.`;
+
+      let processedItems = items.map((item: any, i: number) => ({
+        ...item,
+        searchTerm: item.name,
+        suggestedForm: `${item.quantity} ${item.unit}`,
+        searchUrl: vendorConfig.searchUrl(item.name),
+      }));
+
+      try {
+        const aiResponse = await callAI({
+          provider,
+          prompt,
+          userId,
+          systemPrompt: "You are a grocery search optimization assistant. Return only valid JSON arrays.",
+        });
+
+        const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const aiItems = JSON.parse(jsonMatch[0]);
+          processedItems = items.map((item: any, i: number) => {
+            const aiItem = aiItems.find((a: any) => a.index === i + 1) || aiItems[i];
+            const searchTerm = aiItem?.searchTerm || item.name;
+            return {
+              ...item,
+              searchTerm,
+              suggestedForm: aiItem?.suggestedForm || `${item.quantity} ${item.unit}`,
+              searchUrl: vendorConfig.searchUrl(searchTerm),
+            };
+          });
+        }
+      } catch (aiError) {
+        console.error("AI optimization failed, using raw names:", aiError);
+      }
+
+      res.json({
+        vendor: vendorConfig.name,
+        vendorKey: vendor,
+        cartNote: vendorConfig.cartNote,
+        items: processedItems,
+        totalItems: processedItems.length,
+      });
+    } catch (error: any) {
+      console.error("Autonomous order error:", error);
+      res.status(500).json({ error: "Failed to generate autonomous order" });
+    }
+  });
+
   // Dashboard configuration routes
   app.get("/api/dashboard-configs", isAuthenticated, async (req: any, res) => {
     try {
