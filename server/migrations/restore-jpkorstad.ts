@@ -7,6 +7,8 @@
  *
  * Safe to run multiple times — all inserts use ON CONFLICT DO NOTHING.
  * Uses a completion gate (checks ALL target tables) to avoid skip-on-partial-failure.
+ *
+ * Set env var SKIP_RESTORE_JPKORSTAD=true to bypass after the one-time restore is confirmed.
  */
 
 import pg from "pg";
@@ -14,6 +16,7 @@ import pg from "pg";
 const { Pool } = pg;
 const JPKORSTAD_USER_ID = "12346030";
 const KYNDACOFFEE_USER_ID = "49824742";
+const KYNDACOFFEE_EXPECTED_INGREDIENTS = 166;
 
 interface RestorationCounts {
   ingredients: number;
@@ -55,6 +58,12 @@ function isComplete(dest: RestorationCounts, src: RestorationCounts): boolean {
 }
 
 export async function restoreJpkorstad(): Promise<void> {
+  // Allow one-time skip once the restore is confirmed successful
+  if (process.env.SKIP_RESTORE_JPKORSTAD === "true") {
+    console.log("[migration] SKIP_RESTORE_JPKORSTAD=true — restore disabled");
+    return;
+  }
+
   const neonUrl = process.env.NEON_DATABASE_URL;
   const localUrl = process.env.DATABASE_URL;
 
@@ -77,13 +86,22 @@ export async function restoreJpkorstad(): Promise<void> {
       return;
     }
 
-    // --- Pre-flight: guard kyndacoffee data (must remain 166) ---
+    // --- Pre-flight: guard kyndacoffee data —
+    //     In production, kyndacoffee should have exactly 166 ingredients.
+    //     In dev, they have 0 (no data). Log both cases without failing.
     const kyndaBefore = await destPool.query(
       "SELECT COUNT(*)::int AS n FROM ingredients WHERE user_id = $1",
       [KYNDACOFFEE_USER_ID]
     );
     const kyndaBeforeCount: number = kyndaBefore.rows[0].n;
-    console.log(`[migration] kyndacoffee ingredients (pre-check): ${kyndaBeforeCount}`);
+
+    if (kyndaBeforeCount > 0 && kyndaBeforeCount !== KYNDACOFFEE_EXPECTED_INGREDIENTS) {
+      console.warn(
+        `[migration] WARNING: kyndacoffee has ${kyndaBeforeCount} ingredients (expected ${KYNDACOFFEE_EXPECTED_INGREDIENTS}). Data may have changed.`
+      );
+    } else {
+      console.log(`[migration] kyndacoffee ingredients (pre-check): ${kyndaBeforeCount}`);
+    }
 
     // Connect to NEON source
     const neonPool = new Pool({
@@ -100,13 +118,19 @@ export async function restoreJpkorstad(): Promise<void> {
       const destCountsBefore = await getUserCounts(destPool, JPKORSTAD_USER_ID);
       console.log("[migration] Destination (prod) counts BEFORE:", destCountsBefore);
 
-      // --- Completion gate: skip only if ALL tables are already at or above source counts ---
-      if (isComplete(destCountsBefore, srcCounts)) {
+      // --- Log explicit pre-condition check: expected 0 in production ---
+      if (destCountsBefore.ingredients === 0 && destCountsBefore.recipes === 0) {
+        console.log("[migration] Pre-condition confirmed: jpkorstad has 0 ingredients and 0 recipes — proceeding with full restore");
+      } else if (isComplete(destCountsBefore, srcCounts)) {
         console.log("[migration] All data already present in production — skipping restore");
+        console.log("[migration] TIP: Set SKIP_RESTORE_JPKORSTAD=true to skip this check on future boots");
         return;
+      } else {
+        console.log(
+          `[migration] Partial data detected (${destCountsBefore.ingredients} ingredients, ` +
+          `${destCountsBefore.recipes} recipes) — resuming restore for missing rows`
+        );
       }
-
-      console.log("[migration] Incomplete or missing data detected — running restore...");
 
       await copyData(neonPool, destPool, srcCounts);
 
@@ -120,9 +144,14 @@ export async function restoreJpkorstad(): Promise<void> {
         [KYNDACOFFEE_USER_ID]
       );
       const kyndaAfterCount: number = kyndaAfter.rows[0].n;
+
       if (kyndaAfterCount !== kyndaBeforeCount) {
         console.error(
-          `[migration] WARNING: kyndacoffee ingredient count changed! ${kyndaBeforeCount} → ${kyndaAfterCount}`
+          `[migration] ERROR: kyndacoffee ingredient count changed! ${kyndaBeforeCount} → ${kyndaAfterCount}`
+        );
+      } else if (kyndaBeforeCount > 0 && kyndaAfterCount !== KYNDACOFFEE_EXPECTED_INGREDIENTS) {
+        console.warn(
+          `[migration] WARNING: kyndacoffee has ${kyndaAfterCount} ingredients (expected ${KYNDACOFFEE_EXPECTED_INGREDIENTS})`
         );
       } else {
         console.log(`[migration] kyndacoffee ingredients preserved: ${kyndaAfterCount} (unchanged)`);
@@ -130,16 +159,25 @@ export async function restoreJpkorstad(): Promise<void> {
 
       // --- Final summary ---
       console.log("[migration] === RESTORATION SUMMARY ===");
-      const tables = ["ingredients", "recipes", "recipeIngredients", "recipeSubIngredients", "categoryPricingSettings", "wasteLogs"] as const;
-      for (const table of tables) {
-        const inserted = (destCountsAfter[table] as number) - (destCountsBefore[table] as number);
-        console.log(`[migration]   ${table}: ${destCountsBefore[table]} → ${destCountsAfter[table]} (+${inserted} inserted)`);
+      const tableKeys = [
+        "ingredients", "recipes", "recipeIngredients",
+        "recipeSubIngredients", "categoryPricingSettings", "wasteLogs"
+      ] as const;
+
+      for (const table of tableKeys) {
+        const before = destCountsBefore[table] as number;
+        const after = destCountsAfter[table] as number;
+        const inserted = after - before;
+        const expected = srcCounts[table] as number;
+        const status = after >= expected ? "OK" : "INCOMPLETE";
+        console.log(`[migration]   ${table}: ${before} → ${after} (+${inserted} inserted) [expected ${expected}] ${status}`);
       }
 
       if (isComplete(destCountsAfter, srcCounts)) {
         console.log("[migration] COMPLETE — all jpkorstad data successfully restored to production");
+        console.log("[migration] TIP: Set SKIP_RESTORE_JPKORSTAD=true to skip this migration on future server boots");
       } else {
-        console.error("[migration] PARTIAL — some counts did not reach expected values. May need manual review.");
+        console.error("[migration] PARTIAL — some counts did not reach expected values. Review logs above.");
       }
     } finally {
       await neonPool.end();
@@ -150,6 +188,8 @@ export async function restoreJpkorstad(): Promise<void> {
 }
 
 async function copyData(src: pg.Pool, dest: pg.Pool, srcCounts: RestorationCounts): Promise<void> {
+  console.log(`[migration] Starting copy of ${JSON.stringify(srcCounts)}`);
+
   // --- Fetch all source data ---
   const ingredients = await src.query<{
     id: string; user_id: string; name: string; category: string; store: string | null;
@@ -182,9 +222,11 @@ async function copyData(src: pg.Pool, dest: pg.Pool, srcCounts: RestorationCount
   );
 
   const recipeIds = recipes.rows.map((r) => r.id);
+
   let recipeIngredients: pg.QueryResult<{
     id: string; user_id: string; recipe_id: string; ingredient_id: string; quantity: number; unit: string;
   }> = { rows: [], command: "", rowCount: 0, oid: 0, fields: [] };
+
   let recipeSubIngredients: pg.QueryResult<{
     id: string; user_id: string; recipe_id: string; sub_recipe_id: string; quantity: number;
   }> = { rows: [], command: "", rowCount: 0, oid: 0, fields: [] };
@@ -217,7 +259,7 @@ async function copyData(src: pg.Pool, dest: pg.Pool, srcCounts: RestorationCount
     [JPKORSTAD_USER_ID]
   );
 
-  // Density heuristics: only copy rows missing from destination
+  // Density heuristics: only insert rows missing from destination (non-destructive merge)
   const srcDensities = await src.query<{
     id: string; ingredient_name: string; grams_per_milliliter: number;
     category: string | null; notes: string | null; last_updated: Date;
@@ -229,10 +271,13 @@ async function copyData(src: pg.Pool, dest: pg.Pool, srcCounts: RestorationCount
   const destDensityNameSet = new Set(destDensityNames.rows.map((r) => r.ingredient_name));
   const missingDensities = srcDensities.rows.filter((r) => !destDensityNameSet.has(r.ingredient_name));
 
-  console.log(`[migration] Data to copy: ${ingredients.rows.length} ingredients, ${recipes.rows.length} recipes, ` +
-    `${recipeIngredients.rows.length} recipe_ingredients, ${recipeSubIngredients.rows.length} recipe_sub_ingredients, ` +
-    `${categorySettings.rows.length} category_pricing_settings, ${wasteLogs.rows.length} waste_logs, ` +
-    `${missingDensities.length} missing density_heuristics`);
+  console.log(
+    `[migration] Rows to insert: ${ingredients.rows.length} ingredients, ` +
+    `${recipes.rows.length} recipes, ${recipeIngredients.rows.length} recipe_ingredients, ` +
+    `${recipeSubIngredients.rows.length} recipe_sub_ingredients, ` +
+    `${categorySettings.rows.length} category_pricing_settings, ` +
+    `${wasteLogs.rows.length} waste_logs, ${missingDensities.length} missing density_heuristics`
+  );
 
   // --- Insert density_heuristics (missing only) ---
   let densityInserted = 0;
@@ -247,15 +292,10 @@ async function copyData(src: pg.Pool, dest: pg.Pool, srcCounts: RestorationCount
   }
   console.log(`[migration] density_heuristics: inserted ${densityInserted}`);
 
-  // --- Insert ingredients (two passes for self-referential FK) ---
-  const sortedIngredients = [...ingredients.rows].sort((a, b) => {
-    if (a.addition_base_ingredient_id && !b.addition_base_ingredient_id) return 1;
-    if (!a.addition_base_ingredient_id && b.addition_base_ingredient_id) return -1;
-    return 0;
-  });
-
+  // --- Insert ingredients — two passes for self-referential FK ---
+  // Pass 1: insert all rows with addition_base_ingredient_id = NULL
   let ingInserted = 0;
-  for (const ing of sortedIngredients) {
+  for (const ing of ingredients.rows) {
     const result = await dest.query(
       `INSERT INTO ingredients (
         id, user_id, name, category, store,
@@ -303,15 +343,17 @@ async function copyData(src: pg.Pool, dest: pg.Pool, srcCounts: RestorationCount
     if (result.rowCount && result.rowCount > 0) ingInserted++;
   }
 
-  // Second pass: restore self-referential addition_base_ingredient_id
+  // Pass 2: restore self-referential addition_base_ingredient_id links
   const withBaseRef = ingredients.rows.filter((i) => i.addition_base_ingredient_id !== null);
+  let baseRefUpdated = 0;
   for (const ing of withBaseRef) {
-    await dest.query(
+    const result = await dest.query(
       "UPDATE ingredients SET addition_base_ingredient_id = $1 WHERE id = $2 AND user_id = $3",
       [ing.addition_base_ingredient_id, ing.id, JPKORSTAD_USER_ID]
     );
+    if (result.rowCount && result.rowCount > 0) baseRefUpdated++;
   }
-  console.log(`[migration] ingredients: inserted ${ingInserted} (${withBaseRef.length} self-refs updated)`);
+  console.log(`[migration] ingredients: inserted ${ingInserted}, self-refs updated ${baseRefUpdated}`);
 
   // --- Insert recipes ---
   let recInserted = 0;
@@ -391,6 +433,4 @@ async function copyData(src: pg.Pool, dest: pg.Pool, srcCounts: RestorationCount
     if (result.rowCount && result.rowCount > 0) wlInserted++;
   }
   console.log(`[migration] waste_logs: inserted ${wlInserted}`);
-
-  console.log(`[migration] All source counts: ${JSON.stringify(srcCounts)}`);
 }
