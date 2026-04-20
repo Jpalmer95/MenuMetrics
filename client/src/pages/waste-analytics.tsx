@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from "date-fns";
 import { 
@@ -11,8 +11,10 @@ import {
   Loader2,
   ArrowDownRight,
   ArrowUpRight,
-  Package
+  Package,
+  Download,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -95,19 +97,21 @@ function StatCard({
 }
 
 export default function WasteAnalyticsPage() {
+  const [timePeriod, setTimePeriod] = useState<number>(30);
+
   const { data: wasteLogs = [], isLoading } = useQuery<WasteLogWithIngredient[]>({
     queryKey: ["/api/waste-logs"],
   });
 
   const analytics = useMemo(() => {
     const now = new Date();
-    const thirtyDaysAgo = subDays(now, 30);
-    const sixtyDaysAgo = subDays(now, 60);
+    const periodStart = subDays(now, timePeriod);
+    const prevPeriodStart = subDays(periodStart, timePeriod);
     
-    const currentPeriodLogs = wasteLogs.filter(log => new Date(log.wastedAt) >= thirtyDaysAgo);
+    const currentPeriodLogs = wasteLogs.filter(log => new Date(log.wastedAt) >= periodStart);
     const previousPeriodLogs = wasteLogs.filter(log => {
       const date = new Date(log.wastedAt);
-      return date >= sixtyDaysAgo && date < thirtyDaysAgo;
+      return date >= prevPeriodStart && date < periodStart;
     });
 
     const currentTotal = currentPeriodLogs.reduce((sum, log) => sum + log.costAtTime, 0);
@@ -122,6 +126,7 @@ export default function WasteAnalyticsPage() {
 
     const byReason: Record<string, { count: number; cost: number }> = {};
     const byIngredient: Record<string, { name: string; count: number; cost: number }> = {};
+    const byEmployee: Record<string, { name: string; count: number; cost: number }> = {};
     
     currentPeriodLogs.forEach(log => {
       if (!byReason[log.reason]) {
@@ -135,6 +140,14 @@ export default function WasteAnalyticsPage() {
       }
       byIngredient[log.ingredientId].count++;
       byIngredient[log.ingredientId].cost += log.costAtTime;
+
+      // Employee breakdown
+      const empName = (log as any).employeeName || "Unassigned";
+      if (!byEmployee[empName]) {
+        byEmployee[empName] = { name: empName, count: 0, cost: 0 };
+      }
+      byEmployee[empName].count++;
+      byEmployee[empName].cost += log.costAtTime;
     });
 
     const reasonData = Object.entries(byReason)
@@ -150,20 +163,23 @@ export default function WasteAnalyticsPage() {
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 10);
 
-    const days = eachDayOfInterval({ start: thirtyDaysAgo, end: now });
+    const employeeBreakdown = Object.values(byEmployee)
+      .sort((a, b) => b.cost - a.cost);
+
+    const days = eachDayOfInterval({ start: periodStart, end: now });
     const dailyData = days.map(day => {
       const dayStr = format(day, "yyyy-MM-dd");
       const dayLogs = currentPeriodLogs.filter(log => 
         format(new Date(log.wastedAt), "yyyy-MM-dd") === dayStr
       );
       return {
-        date: format(day, "MMM d"),
+        date: format(day, timePeriod <= 30 ? "MMM d" : "MMM"),
         cost: dayLogs.reduce((sum, log) => sum + log.costAtTime, 0),
         count: dayLogs.length,
       };
     });
 
-    const avgDailyCost = currentTotal / 30;
+    const avgDailyCost = timePeriod > 0 ? currentTotal / timePeriod : 0;
     const avgPerEntry = currentPeriodLogs.length > 0 
       ? currentTotal / currentPeriodLogs.length 
       : 0;
@@ -175,13 +191,14 @@ export default function WasteAnalyticsPage() {
       trendPercent: Math.abs(trendPercent),
       reasonData,
       topWastedItems,
+      employeeBreakdown,
       dailyData,
       entryCount: currentPeriodLogs.length,
       avgDailyCost,
       avgPerEntry,
       allTimeTotal: wasteLogs.reduce((sum, log) => sum + log.costAtTime, 0),
     };
-  }, [wasteLogs]);
+  }, [wasteLogs, timePeriod]);
 
   if (isLoading) {
     return (
@@ -218,19 +235,56 @@ export default function WasteAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <TrendingDown className="h-8 w-8 text-primary" />
-          Waste Analytics
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Analyze waste patterns to identify cost-saving opportunities
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <TrendingDown className="h-8 w-8 text-primary" />
+            Waste Analytics
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Analyze waste patterns to identify cost-saving opportunities
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {[7, 30, 90, 365].map((days) => (
+              <Button
+                key={days}
+                variant={timePeriod === days ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTimePeriod(days)}
+                data-testid={`button-period-${days}`}
+              >
+                {days === 7 ? "7D" : days === 30 ? "30D" : days === 90 ? "90D" : "1Y"}
+              </Button>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const csv = ["Date,Ingredient,Quantity,Unit,Reason,Cost,Employee"].concat(
+                wasteLogs
+                  .filter(l => new Date(l.wastedAt) >= subDays(new Date(), timePeriod))
+                  .map(l => `${format(new Date(l.wastedAt), "yyyy-MM-dd")},${l.ingredient.name},${l.quantity},${l.unit},${l.reason},${l.costAtTime.toFixed(2)},${(l as any).employeeName || ""}`)
+              ).join("\n");
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `waste-report-${format(new Date(), "yyyy-MM-dd")}.csv`;
+              a.click();
+            }}
+            data-testid="button-export-csv"
+          >
+            <Download className="h-4 w-4 mr-1" /> CSV
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Last 30 Days"
+          title={`Last ${timePeriod} Days`}
           value={formatCurrency(analytics.currentTotal)}
           icon={Calendar}
           trend={analytics.trend}
@@ -245,7 +299,7 @@ export default function WasteAnalyticsPage() {
         <StatCard
           title="Waste Entries"
           value={analytics.entryCount.toString()}
-          subtitle="last 30 days"
+          subtitle={`last ${timePeriod} days`}
           icon={Package}
         />
         <StatCard

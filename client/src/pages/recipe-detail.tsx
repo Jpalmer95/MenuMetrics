@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, DollarSign, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, DollarSign, Pencil, Check, X, Calculator, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RecipeBuilder } from "@/components/recipe-builder";
@@ -698,9 +698,23 @@ export default function RecipeDetailPage() {
         </Card>
       </div>
 
-      <RecipeBuilder
-        ingredients={ingredients}
-        recipeIngredients={recipe.ingredients || []}
+      {/* Recipe Scaling Calculator */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calculator className="h-4 w-4" />
+            Scale Recipe
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RecipeScalingWidget recipe={recipe} />
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <RecipeBuilder
+          ingredients={ingredients}
+          recipeIngredients={recipe.ingredients || []}
         onAddIngredient={handleAddIngredient}
         onRemoveIngredient={handleRemoveIngredient}
         onUpdateQuantity={handleUpdateQuantity}
@@ -715,6 +729,79 @@ export default function RecipeDetailPage() {
         onRemoveAllPackaging={handleRemoveAllPackaging}
         onRemoveAllSubRecipes={handleRemoveAllSubRecipes}
       />
+    </div>
+  );
+}
+
+function RecipeScalingWidget({ recipe }: { recipe: RecipeWithIngredients }) {
+  const [scaleMultiplier, setScaleMultiplier] = useState(1);
+
+  const scaledServings = recipe.servings * scaleMultiplier;
+  const scaledCost = recipe.totalCost * scaleMultiplier;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Scale to:</span>
+          <Input
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={scaleMultiplier}
+            onChange={(e) => setScaleMultiplier(Math.max(0.1, parseFloat(e.target.value) || 1))}
+            className="w-20 h-8"
+            data-testid="input-scale-multiplier"
+          />
+          <span className="text-sm text-muted-foreground">x</span>
+        </div>
+        <div className="flex gap-1">
+          {[1, 2, 5, 10].map((m) => (
+            <Button
+              key={m}
+              variant={scaleMultiplier === m ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setScaleMultiplier(m)}
+              data-testid={`button-scale-${m}x`}
+            >
+              {m}x
+            </Button>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => window.print()} className="ml-auto">
+          <Printer className="h-3 w-3 mr-1" /> Print
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-6 text-sm">
+        <div>
+          <span className="text-muted-foreground">Servings: </span>
+          <span className="font-semibold">{scaledServings}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Total Cost: </span>
+          <span className="font-semibold">${scaledCost.toFixed(2)}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Per Serving: </span>
+          <span className="font-semibold">${(recipe.servings > 0 ? scaledCost / scaledServings : 0).toFixed(2)}</span>
+        </div>
+      </div>
+
+      {scaleMultiplier !== 1 && recipe.ingredients && recipe.ingredients.length > 0 && (
+        <div className="border rounded-md p-3 bg-muted/30">
+          <p className="text-sm font-medium mb-2">Scaled Ingredients:</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+            {recipe.ingredients.map((ri) => (
+              <div key={ri.id} className="flex justify-between">
+                <span className="text-muted-foreground">{ri.ingredientDetails.name}</span>
+                <span className="font-mono">{(ri.quantity * scaleMultiplier).toFixed(2)} {ri.unit}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

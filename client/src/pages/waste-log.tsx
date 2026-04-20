@@ -68,7 +68,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Ingredient, WasteLogWithIngredient } from "@shared/schema";
+import type { Ingredient, WasteLogWithIngredient, Employee } from "@shared/schema";
 import { wasteReasonLabels, type WasteReason } from "@shared/schema";
 
 const wasteFormSchema = z.object({
@@ -78,6 +78,8 @@ const wasteFormSchema = z.object({
   reason: z.enum(["expired", "broken", "misordered", "overproduction", "spillage", "other"]),
   notes: z.string().optional(),
   wastedAt: z.string().optional(),
+  employeeId: z.string().nullable().optional(),
+  employeeName: z.string().optional(),
 });
 
 type WasteFormData = z.infer<typeof wasteFormSchema>;
@@ -126,6 +128,9 @@ function WasteLogRow({
         <Badge variant="secondary" className={getReasonColor(log.reason)}>
           {wasteReasonLabels[log.reason as WasteReason] || log.reason}
         </Badge>
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        {(log as any).employeeName || "—"}
       </TableCell>
       <TableCell className="text-right font-medium text-destructive">
         {formatCurrency(log.costAtTime)}
@@ -180,6 +185,13 @@ function AddWasteDialog({
   const [estimatedCost, setEstimatedCost] = useState<number>(0);
   const { toast } = useToast();
 
+  // Fetch employees for business tier (will 403 gracefully for non-business)
+  const { data: employees = [] } = useQuery<Employee[]>({
+    queryKey: ["/api/employees"],
+    enabled: open,
+    retry: false,
+  });
+
   const form = useForm<WasteFormData>({
     resolver: zodResolver(wasteFormSchema),
     defaultValues: {
@@ -203,6 +215,8 @@ function AddWasteDialog({
         ...data,
         costAtTime,
         wastedAt: data.wastedAt ? new Date(data.wastedAt).toISOString() : new Date().toISOString(),
+        employeeId: data.employeeId || null,
+        employeeName: data.employeeName || null,
       });
     },
     onSuccess: () => {
@@ -387,6 +401,41 @@ function AddWasteDialog({
                 </FormItem>
               )}
             />
+
+            {employees.length > 0 && (
+              <FormField
+                control={form.control}
+                name="employeeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Logged By (Optional)</FormLabel>
+                    <Select
+                      value={field.value || ""}
+                      onValueChange={(val) => {
+                        const emp = employees.find(e => e.id === val);
+                        field.onChange(val || null);
+                        form.setValue("employeeName", emp?.name || undefined);
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-employee">
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {employees.filter(e => e.isActive).map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {emp.name}{emp.role ? ` (${emp.role})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {estimatedCost > 0 && (
               <Card className="bg-destructive/5 border-destructive/20">
@@ -602,6 +651,7 @@ export default function WasteLogPage() {
                   <TableHead>Ingredient</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Reason</TableHead>
+                  <TableHead>Logged By</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Notes</TableHead>

@@ -10,8 +10,10 @@ import {
   Check,
   X,
   ClipboardList,
-  Loader2
+  Loader2,
+  ShoppingCart,
 } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -317,6 +319,14 @@ export default function InventoryCountPage() {
             <div className={`text-2xl font-bold ${lowStockCount > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}>
               {lowStockCount}
             </div>
+            {lowStockCount > 0 && (
+              <Link href="/orders">
+                <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-1" data-testid="link-order-low-stock">
+                  <ShoppingCart className="h-3 w-3 mr-1" />
+                  Create Order
+                </Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
         <Card>
