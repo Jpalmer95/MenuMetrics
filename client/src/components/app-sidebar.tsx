@@ -15,6 +15,8 @@ import {
   Coffee,
   TrendingDown,
   LogOut,
+  Users,
+  Target,
 } from "lucide-react";
 import {
   Sidebar,
@@ -39,16 +41,18 @@ const coreNav = [
   { path: "/recipes", label: "Recipes", icon: ChefHat, testId: "link-recipes" },
 ];
 
-const opsNav = [
-  { path: "/inventory", label: "Count", icon: ClipboardList, testId: "link-inventory" },
-  { path: "/orders", label: "Orders", icon: ShoppingCart, testId: "link-orders" },
+const opsNav: Array<{ path: string; label: string; icon: React.ComponentType<{ className?: string }>; testId: string; businessOnly?: boolean }> = [
+  { path: "/inventory", label: "Inventory Count", icon: ClipboardList, testId: "link-inventory" },
+  { path: "/orders", label: "Purchase Orders", icon: ShoppingCart, testId: "link-orders" },
   { path: "/waste-log", label: "Waste Log", icon: Trash2, testId: "link-waste" },
+  { path: "/employees", label: "Employees", icon: Users, testId: "link-employees", businessOnly: true },
 ];
 
 const toolsNav = [
   { path: "/pricing", label: "Pricing", icon: Calculator, testId: "link-pricing" },
   { path: "/add-ins", label: "Add-Ins", icon: Zap, testId: "link-add-ins" },
   { path: "/densities", label: "Densities", icon: Beaker, testId: "link-densities" },
+  { path: "/break-even", label: "Break-Even", icon: Target, testId: "link-break-even" },
   { path: "/ai-agent", label: "Mise AI", icon: Sparkles, testId: "link-ai-agent" },
 ];
 
@@ -124,9 +128,11 @@ export function AppSidebar({ userRole }: { userRole?: string }) {
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {opsNav.map((item) => (
-                <NavItem key={item.path} item={item} isActive={isActive(item.path)} />
-              ))}
+              {opsNav
+                .filter((item) => !('businessOnly' in item && item.businessOnly) || (user as any)?.subscriptionTier === "business")
+                .map((item) => (
+                  <NavItem key={item.path} item={item} isActive={isActive(item.path)} />
+                ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

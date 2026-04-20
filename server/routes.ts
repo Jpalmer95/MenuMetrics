@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import ExcelJS from "exceljs";
 import { storage } from "./storage";
-import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier, insertManagedPricingSubscriptionSchema, updateManagedPricingSubscriptionSchema, managedPricingTiers, type ManagedPricingTier } from "@shared/schema";
+import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier, insertManagedPricingSubscriptionSchema, updateManagedPricingSubscriptionSchema, managedPricingTiers, type ManagedPricingTier, insertEmployeeSchema, insertPurchaseOrderSchema, insertPurchaseOrderItemSchema, insertRecipeSalesSchema, type User, users } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, testOllamaConnection, type AIProvider } from "./ai-providers";
 import { setupAuth, isAuthenticated } from "./replitAuth";
@@ -12,7 +12,8 @@ import type { Ingredient } from "@shared/schema";
 import { registerBillingRoutes } from "./billingRoutes";
 import { aiUsageMiddleware } from "./aiUsageMiddleware";
 import { getUncachableStripeClient } from "./stripeClient";
-import { pool } from "./db";
+import { pool, db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -307,11 +308,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/ingredients/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      // Get existing ingredient to record old price before update
+      const existing = await storage.getIngredient(req.params.id, userId);
       const validatedData = insertIngredientSchema.parse(req.body);
+
       const ingredient = await storage.updateIngredient(req.params.id, validatedData, userId);
       if (!ingredient) {
         return res.status(404).json({ error: "Ingredient not found" });
       }
+
+      // Record price history if cost or quantity changed
+      if (existing && (
+        existing.purchaseCost !== validatedData.purchaseCost ||
+        existing.purchaseQuantity !== validatedData.purchaseQuantity
+      )) {
+        try {
+          await storage.recordPriceSnapshot(ingredient, userId);
+        } catch (historyError) {
+          console.error("Failed to record price history:", historyError);
+          // Don't fail the request if history recording fails
+        }
+      }
+
       res.json(ingredient);
     } catch (error) {
       res.status(400).json({ error: "Invalid ingredient data" });
@@ -3954,6 +3972,433 @@ Only return valid JSON, no other text.`;
     } catch (error) {
       console.error("Import data error:", error);
       res.status(500).json({ error: "Failed to import data" });
+    }
+  });
+
+  // ===== EMPLOYEE MANAGEMENT ROUTES (Business Tier) =====
+
+  // Helper to check business tier
+  function isBusinessTier(user: User): boolean {
+    return user.subscriptionTier === "business" && user.subscriptionStatus === "active";
+  }
+
+  // List employees
+  app.get("/api/employees", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || !isBusinessTier(user)) {
+        return res.status(403).json({ error: "Employee management requires Business tier subscription" });
+      }
+      const employeesList = await storage.getEmployees(userId);
+      res.json(employeesList);
+    } catch (error) {
+      console.error("Get employees error:", error);
+      res.status(500).json({ error: "Failed to fetch employees" });
+    }
+  });
+
+  // Create employee
+  app.post("/api/employees", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || !isBusinessTier(user)) {
+        return res.status(403).json({ error: "Employee management requires Business tier subscription" });
+      }
+      const validatedData = insertEmployeeSchema.parse(req.body);
+      const employee = await storage.createEmployee(validatedData, userId);
+      res.status(201).json(employee);
+    } catch (error) {
+      console.error("Create employee error:", error);
+      res.status(400).json({ error: "Failed to create employee" });
+    }
+  });
+
+  // Update employee
+  app.patch("/api/employees/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || !isBusinessTier(user)) {
+        return res.status(403).json({ error: "Employee management requires Business tier subscription" });
+      }
+      const updates = insertEmployeeSchema.partial().parse(req.body);
+      const employee = await storage.updateEmployee(req.params.id, updates, userId);
+      if (!employee) return res.status(404).json({ error: "Employee not found" });
+      res.json(employee);
+    } catch (error) {
+      console.error("Update employee error:", error);
+      res.status(400).json({ error: "Failed to update employee" });
+    }
+  });
+
+  // Delete employee
+  app.delete("/api/employees/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || !isBusinessTier(user)) {
+        return res.status(403).json({ error: "Employee management requires Business tier subscription" });
+      }
+      const deleted = await storage.deleteEmployee(req.params.id, userId);
+      if (!deleted) return res.status(404).json({ error: "Employee not found" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete employee error:", error);
+      res.status(500).json({ error: "Failed to delete employee" });
+    }
+  });
+
+  // ===== PURCHASE ORDER ROUTES =====
+
+  // List purchase orders
+  app.get("/api/purchase-orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const orders = await storage.getPurchaseOrders(userId);
+      res.json(orders);
+    } catch (error) {
+      console.error("Get purchase orders error:", error);
+      res.status(500).json({ error: "Failed to fetch purchase orders" });
+    }
+  });
+
+  // Get single purchase order with items
+  app.get("/api/purchase-orders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getPurchaseOrderWithItems(req.params.id, userId);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      res.json(order);
+    } catch (error) {
+      console.error("Get purchase order error:", error);
+      res.status(500).json({ error: "Failed to fetch purchase order" });
+    }
+  });
+
+  // Create purchase order
+  app.post("/api/purchase-orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = insertPurchaseOrderSchema.parse(req.body);
+      const order = await storage.createPurchaseOrder(validatedData, userId);
+      res.status(201).json(order);
+    } catch (error) {
+      console.error("Create purchase order error:", error);
+      res.status(400).json({ error: "Failed to create purchase order" });
+    }
+  });
+
+  // Update purchase order status
+  app.patch("/api/purchase-orders/:id/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { status } = req.body;
+      if (!["draft", "submitted", "received", "canceled"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      const order = await storage.updatePurchaseOrderStatus(req.params.id, status, userId);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      res.json(order);
+    } catch (error) {
+      console.error("Update purchase order status error:", error);
+      res.status(400).json({ error: "Failed to update order status" });
+    }
+  });
+
+  // Delete purchase order
+  app.delete("/api/purchase-orders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deletePurchaseOrder(req.params.id, userId);
+      if (!deleted) return res.status(404).json({ error: "Order not found" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete purchase order error:", error);
+      res.status(500).json({ error: "Failed to delete purchase order" });
+    }
+  });
+
+  // Add item to purchase order
+  app.post("/api/purchase-orders/:id/items", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Verify order belongs to user
+      const order = await storage.getPurchaseOrderWithItems(req.params.id, userId);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      if (order.status !== "draft") return res.status(400).json({ error: "Can only modify draft orders" });
+
+      const validatedData = insertPurchaseOrderItemSchema.parse(req.body);
+      const item = await storage.addPurchaseOrderItem(req.params.id, validatedData);
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Add purchase order item error:", error);
+      res.status(400).json({ error: "Failed to add item to order" });
+    }
+  });
+
+  // Remove item from purchase order
+  app.delete("/api/purchase-orders/:orderId/items/:itemId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const order = await storage.getPurchaseOrderWithItems(req.params.orderId, userId);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      if (order.status !== "draft") return res.status(400).json({ error: "Can only modify draft orders" });
+
+      const deleted = await storage.removePurchaseOrderItem(req.params.itemId);
+      if (!deleted) return res.status(404).json({ error: "Item not found" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Remove purchase order item error:", error);
+      res.status(500).json({ error: "Failed to remove item" });
+    }
+  });
+
+  // Generate purchase order from low stock items
+  app.post("/api/purchase-orders/generate-from-low-stock", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { vendor, notes } = req.body;
+
+      // Get all ingredients where stock is below par
+      const allIngredients = await storage.getAllIngredients(userId);
+      const lowStockItems = allIngredients.filter(
+        i => i.parValue !== null && i.currentStock !== null && i.currentStock < i.parValue
+      );
+
+      if (lowStockItems.length === 0) {
+        return res.status(400).json({ error: "No items below par level" });
+      }
+
+      // Create draft order
+      const order = await storage.createPurchaseOrder({
+        vendor: vendor || null,
+        notes: notes || "Auto-generated from low stock items",
+        status: "draft",
+      }, userId);
+
+      // Add each low stock item
+      for (const item of lowStockItems) {
+        const orderQuantity = (item.parValue || 0) - (item.currentStock || 0);
+        const estimatedCost = (item.purchaseCost / item.purchaseQuantity) * orderQuantity;
+
+        await storage.addPurchaseOrderItem(order.id, {
+          ingredientId: item.id,
+          quantity: orderQuantity,
+          unit: item.purchaseUnit,
+          estimatedUnitCost: item.purchaseCost / item.purchaseQuantity,
+          estimatedTotalCost: estimatedCost,
+        });
+      }
+
+      // Return order with items
+      const fullOrder = await storage.getPurchaseOrderWithItems(order.id, userId);
+      res.status(201).json(fullOrder);
+    } catch (error) {
+      console.error("Generate order from low stock error:", error);
+      res.status(500).json({ error: "Failed to generate order" });
+    }
+  });
+
+  // ===== PRICE HISTORY ROUTES =====
+
+  // Get price history for an ingredient
+  app.get("/api/ingredients/:id/price-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      // Verify ingredient belongs to user
+      const ingredient = await storage.getIngredient(req.params.id, userId);
+      if (!ingredient) return res.status(404).json({ error: "Ingredient not found" });
+
+      const history = await storage.getPriceHistory(req.params.id);
+      res.json(history);
+    } catch (error) {
+      console.error("Get price history error:", error);
+      res.status(500).json({ error: "Failed to fetch price history" });
+    }
+  });
+
+  // ===== RECIPE SALES & MENU ENGINEERING ROUTES =====
+
+  // Get sales for a recipe
+  app.get("/api/recipes/:id/sales", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const recipe = await storage.getRecipe(req.params.id, userId);
+      if (!recipe) return res.status(404).json({ error: "Recipe not found" });
+
+      const weeks = req.query.weeks ? parseInt(req.query.weeks as string) : 12;
+      const sales = await storage.getRecipeSales(req.params.id, weeks);
+      res.json(sales);
+    } catch (error) {
+      console.error("Get recipe sales error:", error);
+      res.status(500).json({ error: "Failed to fetch sales data" });
+    }
+  });
+
+  // Upsert weekly sales for a recipe
+  app.post("/api/recipes/:id/sales", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const recipe = await storage.getRecipe(req.params.id, userId);
+      if (!recipe) return res.status(404).json({ error: "Recipe not found" });
+
+      const validatedData = insertRecipeSalesSchema.parse({
+        ...req.body,
+        recipeId: req.params.id,
+        userId,
+      });
+      const sales = await storage.upsertWeeklySales(validatedData);
+      res.status(201).json(sales);
+    } catch (error) {
+      console.error("Upsert recipe sales error:", error);
+      res.status(400).json({ error: "Failed to save sales data" });
+    }
+  });
+
+  // Get menu engineering matrix data
+  app.get("/api/menu-engineering", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = await storage.getMenuEngineeringData(userId);
+      res.json(data);
+    } catch (error) {
+      console.error("Get menu engineering data error:", error);
+      res.status(500).json({ error: "Failed to fetch menu engineering data" });
+    }
+  });
+
+  // ===== SMART NOTIFICATIONS ROUTE =====
+
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const notifications = [];
+
+      // Check low stock items
+      const allIngredients = await storage.getAllIngredients(userId);
+      const lowStock = allIngredients.filter(
+        i => i.parValue !== null && i.currentStock !== null && i.currentStock < i.parValue
+      );
+      if (lowStock.length > 0) {
+        notifications.push({
+          type: "low_stock",
+          severity: "warning",
+          title: "Low Stock Alert",
+          message: `${lowStock.length} item${lowStock.length > 1 ? "s" : ""} below par level`,
+          items: lowStock.map(i => ({ id: i.id, name: i.name, current: i.currentStock, par: i.parValue })),
+          link: "/inventory",
+        });
+      }
+
+      // Check recent price increases (last 30 days)
+      for (const ingredient of allIngredients.slice(0, 50)) { // Limit check to avoid overload
+        const history = await storage.getPriceHistory(ingredient.id);
+        if (history.length >= 2) {
+          const latest = history[history.length - 1];
+          const previous = history[history.length - 2];
+          const changePct = ((latest.costPerGram || 0) - (previous.costPerGram || 0)) / (previous.costPerGram || 1) * 100;
+          if (changePct > 15) {
+            notifications.push({
+              type: "price_increase",
+              severity: "info",
+              title: "Price Increase",
+              message: `${ingredient.name} cost increased ${changePct.toFixed(0)}%`,
+              link: `/ingredients`,
+            });
+          }
+        }
+      }
+
+      // Check waste spike (this week vs 4-week average)
+      const wasteLogs = await storage.getWasteLogs(userId, 200);
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+      const thisWeekCost = wasteLogs
+        .filter(l => new Date(l.wastedAt) >= weekAgo)
+        .reduce((sum, l) => sum + l.costAtTime, 0);
+      const prevWeeksAvg = wasteLogs
+        .filter(l => new Date(l.wastedAt) >= fourWeeksAgo && new Date(l.wastedAt) < weekAgo)
+        .reduce((sum, l) => sum + l.costAtTime, 0) / 4;
+
+      if (prevWeeksAvg > 0 && thisWeekCost > prevWeeksAvg * 1.5) {
+        notifications.push({
+          type: "waste_spike",
+          severity: "warning",
+          title: "Waste Spike Detected",
+          message: `This week's waste ($${thisWeekCost.toFixed(2)}) is ${((thisWeekCost / prevWeeksAvg - 1) * 100).toFixed(0)}% above average`,
+          link: "/waste-analytics",
+        });
+      }
+
+      res.json(notifications);
+    } catch (error) {
+      console.error("Get notifications error:", error);
+      res.status(500).json({ error: "Failed to compute notifications" });
+    }
+  });
+
+  // ===== BREAK-EVEN ANALYSIS ROUTE =====
+
+  app.get("/api/break-even", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const recipes = await storage.getAllRecipes(userId);
+
+      const fixedCosts = (user as any).monthlyFixedCosts || { rent: 0, labor: 0, utilities: 0, other: 0 };
+      const totalFixed = (fixedCosts.rent || 0) + (fixedCosts.labor || 0) + (fixedCosts.utilities || 0) + (fixedCosts.other || 0);
+
+      const analysis = recipes
+        .filter(r => r.menuPrice && r.menuPrice > 0 && r.costPerServing > 0)
+        .map(r => {
+          const contributionMargin = (r.menuPrice || 0) - r.costPerServing;
+          const breakEvenUnits = contributionMargin > 0 ? Math.ceil(totalFixed / contributionMargin) : Infinity;
+          return {
+            recipeId: r.id,
+            recipeName: r.name,
+            menuPrice: r.menuPrice,
+            costPerServing: r.costPerServing,
+            contributionMargin,
+            breakEvenUnits: breakEvenUnits === Infinity ? null : breakEvenUnits,
+          };
+        })
+        .sort((a, b) => (a.breakEvenUnits || Infinity) - (b.breakEvenUnits || Infinity));
+
+      res.json({
+        fixedCosts,
+        totalFixed,
+        recipes: analysis,
+      });
+    } catch (error) {
+      console.error("Break-even analysis error:", error);
+      res.status(500).json({ error: "Failed to compute break-even analysis" });
+    }
+  });
+
+  // Save fixed costs
+  app.post("/api/settings/fixed-costs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { rent, labor, utilities, other } = req.body;
+
+      // Update user's monthlyFixedCosts
+      const [updated] = await db
+        .update(users)
+        .set({
+          monthlyFixedCosts: { rent: rent || 0, labor: labor || 0, utilities: utilities || 0, other: other || 0 },
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+      res.json(updated?.monthlyFixedCosts || { rent: 0, labor: 0, utilities: 0, other: 0 });
+    } catch (error) {
+      console.error("Save fixed costs error:", error);
+      res.status(500).json({ error: "Failed to save fixed costs" });
     }
   });
 

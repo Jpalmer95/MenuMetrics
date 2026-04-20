@@ -421,6 +421,29 @@ export const insertDensityHeuristicSchema = createInsertSchema(densityHeuristics
 export type InsertDensityHeuristic = z.infer<typeof insertDensityHeuristicSchema>;
 export type DensityHeuristic = typeof densityHeuristics.$inferSelect;
 
+// Employees table - for business tier multi-user waste logging
+export const employees = pgTable("employees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  role: text("role"), // "cook", "barista", "manager", etc.
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertEmployeeSchema = createInsertSchema(employees).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+}).extend({
+  name: z.string().min(1, "Employee name is required").max(100),
+  role: z.string().max(50).optional(),
+  isActive: z.boolean().optional().default(true),
+});
+
+export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
+export type Employee = typeof employees.$inferSelect;
+
 // Waste reasons for tracking different types of loss
 export const wasteReasons = [
   "expired",
@@ -458,6 +481,8 @@ export const wasteLogs = pgTable("waste_logs", {
   reason: text("reason").notNull(), // one of wasteReasons
   notes: text("notes"),
   costAtTime: real("cost_at_time").notNull(), // Calculated cost at time of waste
+  employeeId: varchar("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  employeeName: text("employee_name"), // Denormalized for display even if employee deleted
   wastedAt: timestamp("wasted_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -472,6 +497,8 @@ export const insertWasteLogSchema = createInsertSchema(wasteLogs).omit({
   notes: z.string().optional(),
   costAtTime: z.number().nonnegative("Cost must be non-negative"),
   wastedAt: z.date().optional(),
+  employeeId: z.string().nullable().optional(),
+  employeeName: z.string().optional(),
 });
 
 export type InsertWasteLog = z.infer<typeof insertWasteLogSchema>;
@@ -732,3 +759,99 @@ export const insertPricingSnapshotSchema = createInsertSchema(pricingSnapshots).
 
 export type InsertPricingSnapshot = z.infer<typeof insertPricingSnapshotSchema>;
 export type PricingSnapshot = typeof pricingSnapshots.$inferSelect;
+
+// Purchase orders - saved order carts
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("draft"), // "draft", "submitted", "received", "canceled"
+  vendor: text("vendor"), // store name or vendor key
+  notes: text("notes"),
+  totalEstimatedCost: real("total_estimated_cost").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  submittedAt: timestamp("submitted_at"),
+});
+
+export const purchaseOrderItems = pgTable("purchase_order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+  ingredientId: varchar("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
+  quantity: real("quantity").notNull(),
+  unit: text("unit").notNull(),
+  estimatedUnitCost: real("estimated_unit_cost"),
+  estimatedTotalCost: real("estimated_total_cost"),
+  notes: text("notes"),
+});
+
+export const insertPurchaseOrderSchema = createInsertSchema(purchaseOrders).omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+  totalEstimatedCost: true,
+}).extend({
+  status: z.enum(["draft", "submitted", "received", "canceled"]).optional().default("draft"),
+  vendor: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export const insertPurchaseOrderItemSchema = createInsertSchema(purchaseOrderItems).omit({
+  id: true,
+}).extend({
+  quantity: z.number().positive("Quantity must be positive"),
+  estimatedUnitCost: z.number().nonnegative().optional(),
+  estimatedTotalCost: z.number().nonnegative().optional(),
+});
+
+export type InsertPurchaseOrder = z.infer<typeof insertPurchaseOrderSchema>;
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrderItem = z.infer<typeof insertPurchaseOrderItemSchema>;
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+
+export interface PurchaseOrderWithItems extends PurchaseOrder {
+  items: Array<PurchaseOrderItem & { ingredient: Ingredient }>;
+}
+
+// Price history - tracks ingredient cost changes over time
+export const priceHistory = pgTable("price_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ingredientId: varchar("ingredient_id").notNull().references(() => ingredients.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  purchaseCost: real("purchase_cost").notNull(),
+  purchaseQuantity: real("purchase_quantity").notNull(),
+  purchaseUnit: text("purchase_unit").notNull(),
+  costPerGram: real("cost_per_gram"),
+  store: text("store"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+});
+
+export const insertPriceHistorySchema = createInsertSchema(priceHistory).omit({
+  id: true,
+  recordedAt: true,
+});
+
+export type InsertPriceHistory = z.infer<typeof insertPriceHistorySchema>;
+export type PriceHistory = typeof priceHistory.$inferSelect;
+
+// Recipe sales - weekly sales estimates for menu engineering
+export const recipeSales = pgTable("recipe_sales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recipeId: varchar("recipe_id").notNull().references(() => recipes.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  weekStartDate: timestamp("week_start_date").notNull(),
+  unitsSold: real("units_sold").notNull().default(0),
+  revenue: real("revenue").default(0),
+  source: text("source").default("manual"), // "manual", "import", "pos_webhook"
+});
+
+export const insertRecipeSalesSchema = createInsertSchema(recipeSales).omit({
+  id: true,
+}).extend({
+  unitsSold: z.number().nonnegative().default(0),
+  revenue: z.number().nonnegative().optional(),
+  source: z.enum(["manual", "import", "pos_webhook"]).optional().default("manual"),
+});
+
+export type InsertRecipeSales = z.infer<typeof insertRecipeSalesSchema>;
+export type RecipeSales = typeof recipeSales.$inferSelect;

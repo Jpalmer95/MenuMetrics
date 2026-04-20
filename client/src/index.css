@@ -327,3 +327,49 @@
     border-radius: inherit;
   }
 }
+
+/* Print styles for recipe cards and inventory sheets */
+@media print {
+  .no-print,
+  aside,
+  header,
+  footer,
+  [data-testid="button-sidebar-toggle"],
+  [data-testid="button-notifications"] {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .recipe-card {
+    page-break-inside: avoid;
+    border: 1px solid #ccc;
+    margin-bottom: 1rem;
+    padding: 1rem;
+  }
+
+  .inventory-sheet {
+    font-size: 12px;
+  }
+
+  .inventory-sheet tr {
+    page-break-inside: avoid;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  a {
+    text-decoration: none;
+    color: black !important;
+  }
+}

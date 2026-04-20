@@ -34,6 +34,17 @@ import {
   type ManagedPricingTier,
   type PricingSnapshot,
   type InsertPricingSnapshot,
+  type Employee,
+  type InsertEmployee,
+  type PurchaseOrder,
+  type InsertPurchaseOrder,
+  type PurchaseOrderItem,
+  type InsertPurchaseOrderItem,
+  type PurchaseOrderWithItems,
+  type PriceHistory,
+  type InsertPriceHistory,
+  type RecipeSales,
+  type InsertRecipeSales,
   subscriptionTiers,
   ingredients,
   recipes,
@@ -49,6 +60,11 @@ import {
   dashboardConfigs,
   managedPricingSubscriptions,
   pricingSnapshots,
+  employees,
+  purchaseOrders,
+  purchaseOrderItems,
+  priceHistory,
+  recipeSales,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -158,6 +174,37 @@ export interface IStorage {
   createPricingSnapshot(snapshot: InsertPricingSnapshot, userId: string): Promise<PricingSnapshot>;
   deletePricingSnapshot(id: string, userId: string): Promise<boolean>;
   applyPricingSnapshot(id: string, userId: string): Promise<{ updatedRecipes: number; updatedCategories: number }>;
+
+  // Employee operations (business tier)
+  getEmployees(userId: string): Promise<Employee[]>;
+  createEmployee(employee: InsertEmployee, userId: string): Promise<Employee>;
+  updateEmployee(id: string, employee: Partial<InsertEmployee>, userId: string): Promise<Employee | undefined>;
+  deleteEmployee(id: string, userId: string): Promise<boolean>;
+
+  // Purchase Order operations
+  getPurchaseOrders(userId: string): Promise<PurchaseOrder[]>;
+  getPurchaseOrderWithItems(orderId: string, userId: string): Promise<PurchaseOrderWithItems | undefined>;
+  createPurchaseOrder(order: InsertPurchaseOrder, userId: string): Promise<PurchaseOrder>;
+  updatePurchaseOrderStatus(orderId: string, status: string, userId: string): Promise<PurchaseOrder | undefined>;
+  deletePurchaseOrder(orderId: string, userId: string): Promise<boolean>;
+  addPurchaseOrderItem(orderId: string, item: InsertPurchaseOrderItem): Promise<PurchaseOrderItem>;
+  removePurchaseOrderItem(itemId: string): Promise<boolean>;
+
+  // Price History operations
+  getPriceHistory(ingredientId: string): Promise<PriceHistory[]>;
+  recordPriceSnapshot(ingredient: Ingredient, userId: string): Promise<PriceHistory>;
+
+  // Recipe Sales operations
+  getRecipeSales(recipeId: string, weeks?: number): Promise<RecipeSales[]>;
+  upsertWeeklySales(data: InsertRecipeSales): Promise<RecipeSales>;
+  getMenuEngineeringData(userId: string): Promise<Array<{
+    recipeId: string;
+    recipeName: string;
+    avgWeeklyUnits: number;
+    totalRevenue: number;
+    contributionMargin: number;
+    classification: "star" | "puzzle" | "plowhorse" | "dog";
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1341,6 +1388,274 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { updatedRecipes, updatedCategories };
+  }
+
+  // Employee operations (business tier)
+  async getEmployees(userId: string): Promise<Employee[]> {
+    return await db.select().from(employees)
+      .where(eq(employees.userId, userId))
+      .orderBy(employees.name);
+  }
+
+  async createEmployee(employee: InsertEmployee, userId: string): Promise<Employee> {
+    const [created] = await db
+      .insert(employees)
+      .values({ ...employee, userId })
+      .returning();
+    return created;
+  }
+
+  async updateEmployee(id: string, updates: Partial<InsertEmployee>, userId: string): Promise<Employee | undefined> {
+    const [updated] = await db
+      .update(employees)
+      .set(updates)
+      .where(and(eq(employees.id, id), eq(employees.userId, userId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteEmployee(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(employees)
+      .where(and(eq(employees.id, id), eq(employees.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Purchase Order operations
+  async getPurchaseOrders(userId: string): Promise<PurchaseOrder[]> {
+    return await db.select().from(purchaseOrders)
+      .where(eq(purchaseOrders.userId, userId))
+      .orderBy(purchaseOrders.createdAt);
+  }
+
+  async getPurchaseOrderWithItems(orderId: string, userId: string): Promise<PurchaseOrderWithItems | undefined> {
+    const [order] = await db
+      .select()
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.id, orderId), eq(purchaseOrders.userId, userId)));
+    if (!order) return undefined;
+
+    const items = await db
+      .select()
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.orderId, orderId));
+
+    const itemsWithIngredients = [];
+    for (const item of items) {
+      const ingredient = await this.getIngredient(item.ingredientId, userId);
+      if (ingredient) {
+        itemsWithIngredients.push({ ...item, ingredient });
+      }
+    }
+
+    return { ...order, items: itemsWithIngredients };
+  }
+
+  async createPurchaseOrder(order: InsertPurchaseOrder, userId: string): Promise<PurchaseOrder> {
+    const [created] = await db
+      .insert(purchaseOrders)
+      .values({ ...order, userId })
+      .returning();
+    return created;
+  }
+
+  async updatePurchaseOrderStatus(orderId: string, status: string, userId: string): Promise<PurchaseOrder | undefined> {
+    const updateData: any = { status, updatedAt: new Date() };
+    if (status === "submitted") updateData.submittedAt = new Date();
+
+    const [updated] = await db
+      .update(purchaseOrders)
+      .set(updateData)
+      .where(and(eq(purchaseOrders.id, orderId), eq(purchaseOrders.userId, userId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deletePurchaseOrder(orderId: string, userId: string): Promise<boolean> {
+    // Delete items first
+    await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.orderId, orderId));
+    const result = await db
+      .delete(purchaseOrders)
+      .where(and(eq(purchaseOrders.id, orderId), eq(purchaseOrders.userId, userId)));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async addPurchaseOrderItem(orderId: string, item: InsertPurchaseOrderItem): Promise<PurchaseOrderItem> {
+    const [created] = await db
+      .insert(purchaseOrderItems)
+      .values({ ...item, orderId })
+      .returning();
+
+    // Update order total
+    const items = await db
+      .select()
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.orderId, orderId));
+    const total = items.reduce((sum, i) => sum + (i.estimatedTotalCost || 0), 0);
+    await db
+      .update(purchaseOrders)
+      .set({ totalEstimatedCost: total, updatedAt: new Date() })
+      .where(eq(purchaseOrders.id, orderId));
+
+    return created;
+  }
+
+  async removePurchaseOrderItem(itemId: string): Promise<boolean> {
+    const [item] = await db
+      .select()
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.id, itemId));
+
+    const result = await db
+      .delete(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.id, itemId));
+
+    if (item && result.rowCount && result.rowCount > 0) {
+      // Update order total
+      const items = await db
+        .select()
+        .from(purchaseOrderItems)
+        .where(eq(purchaseOrderItems.orderId, item.orderId));
+      const total = items.reduce((sum, i) => sum + (i.estimatedTotalCost || 0), 0);
+      await db
+        .update(purchaseOrders)
+        .set({ totalEstimatedCost: total, updatedAt: new Date() })
+        .where(eq(purchaseOrders.id, item.orderId));
+      return true;
+    }
+    return false;
+  }
+
+  // Price History operations
+  async getPriceHistory(ingredientId: string): Promise<PriceHistory[]> {
+    return await db
+      .select()
+      .from(priceHistory)
+      .where(eq(priceHistory.ingredientId, ingredientId))
+      .orderBy(priceHistory.recordedAt);
+  }
+
+  async recordPriceSnapshot(ingredient: Ingredient, userId: string): Promise<PriceHistory> {
+    const [record] = await db
+      .insert(priceHistory)
+      .values({
+        ingredientId: ingredient.id,
+        userId,
+        purchaseCost: ingredient.purchaseCost,
+        purchaseQuantity: ingredient.purchaseQuantity,
+        purchaseUnit: ingredient.purchaseUnit,
+        costPerGram: ingredient.costPerGram,
+        store: ingredient.store,
+      })
+      .returning();
+    return record;
+  }
+
+  // Recipe Sales operations
+  async getRecipeSales(recipeId: string, weeks = 12): Promise<RecipeSales[]> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - weeks * 7);
+
+    return await db
+      .select()
+      .from(recipeSales)
+      .where(and(
+        eq(recipeSales.recipeId, recipeId),
+      ))
+      .orderBy(recipeSales.weekStartDate);
+  }
+
+  async upsertWeeklySales(data: InsertRecipeSales): Promise<RecipeSales> {
+    // Check for existing record for same recipe + week
+    const weekStart = new Date(data.weekStartDate);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const [existing] = await db
+      .select()
+      .from(recipeSales)
+      .where(and(
+        eq(recipeSales.recipeId, data.recipeId),
+      ));
+
+    if (existing) {
+      const [updated] = await db
+        .update(recipeSales)
+        .set({
+          unitsSold: data.unitsSold,
+          revenue: data.revenue,
+          source: data.source,
+        })
+        .where(eq(recipeSales.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(recipeSales)
+      .values(data)
+      .returning();
+    return created;
+  }
+
+  async getMenuEngineeringData(userId: string): Promise<Array<{
+    recipeId: string;
+    recipeName: string;
+    avgWeeklyUnits: number;
+    totalRevenue: number;
+    contributionMargin: number;
+    classification: "star" | "puzzle" | "plowhorse" | "dog";
+  }>> {
+    const allRecipes = await this.getAllRecipes(userId);
+    const results = [];
+
+    for (const recipe of allRecipes) {
+      const sales = await this.getRecipeSales(recipe.id);
+      if (sales.length === 0) continue;
+
+      const totalUnits = sales.reduce((sum, s) => sum + s.unitsSold, 0);
+      const totalRevenue = sales.reduce((sum, s) => sum + (s.revenue || 0), 0);
+      const avgWeeklyUnits = totalUnits / sales.length;
+      const contributionMargin = recipe.menuPrice
+        ? (recipe.menuPrice - recipe.costPerServing)
+        : 0;
+
+      results.push({
+        recipeId: recipe.id,
+        recipeName: recipe.name,
+        avgWeeklyUnits,
+        totalRevenue,
+        contributionMargin,
+        classification: "star" as const, // placeholder, will compute below
+      });
+    }
+
+    if (results.length === 0) return results;
+
+    // Compute medians for quadrant boundaries
+    const unitsSorted = [...results].sort((a, b) => a.avgWeeklyUnits - b.avgWeeklyUnits);
+    const marginSorted = [...results].sort((a, b) => a.contributionMargin - b.contributionMargin);
+    const medianUnits = unitsSorted[Math.floor(unitsSorted.length / 2)]?.avgWeeklyUnits || 0;
+    const medianMargin = marginSorted[Math.floor(marginSorted.length / 2)]?.contributionMargin || 0;
+
+    // Classify each item
+    for (const item of results) {
+      const highPopularity = item.avgWeeklyUnits >= medianUnits;
+      const highMargin = item.contributionMargin >= medianMargin;
+
+      if (highPopularity && highMargin) {
+        item.classification = "star";
+      } else if (!highPopularity && highMargin) {
+        item.classification = "puzzle";
+      } else if (highPopularity && !highMargin) {
+        item.classification = "plowhorse";
+      } else {
+        item.classification = "dog";
+      }
+    }
+
+    return results;
   }
 }
 

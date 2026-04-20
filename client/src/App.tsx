@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { NotificationBell } from "@/components/notification-bell";
 import { useAuth } from "@/hooks/useAuth";
 import { Heart } from "lucide-react";
 import NotFound from "@/pages/not-found";
@@ -21,11 +22,14 @@ import DensitiesPage from "@/pages/densities";
 import PricingPlaygroundPage from "@/pages/pricing-playground";
 import InventoryCountPage from "@/pages/inventory-count";
 import OrdersPage from "@/pages/orders";
+import PurchaseOrdersPage from "@/pages/purchase-orders";
 import WasteLogPage from "@/pages/waste-log";
 import WasteAnalyticsPage from "@/pages/waste-analytics";
 import TermsOfServicePage from "@/pages/terms-of-service";
 import AdminManagedPricingPage from "@/pages/admin-managed-pricing";
 import AdditionsPricingPage from "@/pages/additions-pricing";
+import EmployeesPage from "@/pages/employees";
+import BreakEvenPage from "@/pages/break-even";
 
 function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLoading: boolean }) {
   if (isLoading || !isAuthenticated) {
@@ -47,11 +51,14 @@ function Router({ isAuthenticated, isLoading }: { isAuthenticated: boolean; isLo
       <Route path="/pricing" component={PricingPlaygroundPage} />
       <Route path="/densities" component={DensitiesPage} />
       <Route path="/inventory" component={InventoryCountPage} />
-      <Route path="/orders" component={OrdersPage} />
+      <Route path="/orders" component={PurchaseOrdersPage} />
+      <Route path="/orders/legacy" component={OrdersPage} />
       <Route path="/waste-log" component={WasteLogPage} />
       <Route path="/waste-analytics" component={WasteAnalyticsPage} />
       <Route path="/add-ins" component={AdditionsPricingPage} />
       <Route path="/ai-agent" component={AIAgentPage} />
+      <Route path="/employees" component={EmployeesPage} />
+      <Route path="/break-even" component={BreakEvenPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/terms-of-service" component={TermsOfServicePage} />
       <Route path="/admin/managed-pricing" component={AdminManagedPricingPage} />
@@ -88,12 +95,13 @@ function AppContent() {
   return (
     <SidebarProvider style={sidebarStyle}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
-        <AppSidebar userRole={user?.role} />
+        <AppSidebar userRole={user?.role ?? undefined} />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <header className="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-border/60 bg-background/80 backdrop-blur-md px-4">
             <SidebarTrigger data-testid="button-sidebar-toggle" className="-ml-1" />
             <div className="h-4 w-px bg-border" />
             <div className="flex-1" />
+            <NotificationBell />
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-y-auto">
