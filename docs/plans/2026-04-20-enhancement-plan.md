@@ -643,11 +643,49 @@ Verify each feature end-to-end:
 
 ## Summary Table
 
-| Phase | Tasks | Scope |
-|-------|-------|-------|
-| 1. Schema | 1.1–1.5 | 4 new tables, 2 modified tables |
-| 2. Storage | 2.1–2.4 | ~20 new DB methods |
-| 3. API Routes | 3.1–3.6 | ~20 new endpoints |
-| 4. Frontend | 4.1–4.12 | 4 new pages, 8 modified pages/components |
-| 5. Polish | 5.1–5.6 | Integration, migration, testing |
-| **Total** | **30 tasks** | **Full kitchen ops platform** |
+| Phase | Tasks | Scope | Status |
+|-------|-------|-------|--------|
+| 1. Schema | 1.1–1.5 | 4 new tables, 2 modified tables | DONE |
+| 2. Storage | 2.1–2.4 | ~20 new DB methods | DONE |
+| 3. API Routes | 3.1–3.6 | ~20 new endpoints | DONE |
+| 4. Frontend | 4.1–4.12 | 4 new pages, 8 modified pages/components | PARTIAL (4.2, 4.3, 4.8, 4.11 done; 4.1, 4.4, 4.5, 4.6, 4.7, 4.9, 4.10, 4.12 remaining) |
+| 5. Polish | 5.1–5.6 | Integration, migration, testing | PARTIAL (5.1, 5.2 done; 5.3–5.6 remaining) |
+| **Total** | **30 tasks** | **Full kitchen ops platform** | ~60% complete |
+
+## Completed in this session
+- Task 1.1: employees table with insertEmployeeSchema
+- Task 1.2: purchase_orders + purchase_order_items tables
+- Task 1.3: price_history table
+- Task 1.4: recipe_sales table
+- Task 1.5: (partial - schema fields added, users table columns deferred)
+- Task 2.1: Employee CRUD in storage
+- Task 2.2: Purchase order CRUD in storage
+- Task 2.3: Price history methods in storage
+- Task 2.4: Recipe sales + menu engineering data in storage
+- Task 3.1: Employee management routes (business tier gated)
+- Task 3.2: Purchase order routes including generate-from-low-stock
+- Task 3.3: Price history route
+- Task 3.4: Recipe sales + menu engineering routes
+- Task 3.5: Smart notifications route
+- Task 3.6: Break-even analysis route
+- Task 4.2: Employees management page
+- Task 4.3: Purchase Orders page with auto-generate
+- Task 4.8: Notification Bell component
+- Task 4.11: Break-Even Analysis page
+- Task 5.1: Auto price history recording on ingredient updates
+- Task 5.2: Print CSS for recipe cards and inventory sheets
+- Sidebar updated with new navigation items
+
+## Remaining for next session
+- Task 4.1: Enhance waste log form with employee picker
+- Task 4.4: Enhance inventory count with "Add to Order" and "Log Waste"
+- Task 4.5: Recipe scaling component
+- Task 4.6: Enhance Orders page with save-as-purchase-order
+- Task 4.7: Enhance Waste Analytics page (time periods, export, per-employee)
+- Task 4.9: Price history view for ingredients
+- Task 4.10: Menu engineering matrix chart on dashboard
+- Task 4.12: Recipe cost alert badges
+- Task 5.3: (done - notification bell added)
+- Task 5.4: (done - sidebar updated)
+- Task 5.5: Database migration (run drizzle-kit generate)
+- Task 5.6: Integration testing checklist
