@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { Trash2, Plus, Search, Check, X, PackagePlus, Sparkles, Zap } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Trash2, Plus, Search, Check, X, PackagePlus, Sparkles, Zap, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -50,6 +54,7 @@ export function IngredientsTable({
     isAddition: false,
   });
   const [typeFilter, setTypeFilter] = useState<"all" | "ingredients" | "packaging" | "additions">("all");
+  const [priceHistoryIngredient, setPriceHistoryIngredient] = useState<Ingredient | null>(null);
 
   const filteredIngredients = ingredients.filter(
     (ing) => {
@@ -718,7 +723,21 @@ export function IngredientsTable({
                           data-testid={`input-edit-cost-${ingredient.id}`}
                         />
                       ) : (
-                        `$${ingredient.purchaseCost.toFixed(2)}`
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="tabular-nums">
+                            `$${ingredient.purchaseCost.toFixed(2)}`
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => setPriceHistoryIngredient(ingredient)}
+                            title="View price history"
+                            data-testid={`button-price-history-${ingredient.id}`}
+                          >
+                            <TrendingUp className="h-3 w-3" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
@@ -866,6 +885,71 @@ export function IngredientsTable({
       <div className="text-sm text-muted-foreground">
         Showing {sortedIngredients.length} of {ingredients.length} ingredients • Double-click any row to edit inline • Cost per unit is auto-calculated
       </div>
+
+      <PriceHistoryDialog
+        ingredientId={priceHistoryIngredient?.id || ""}
+        ingredientName={priceHistoryIngredient?.name || ""}
+        open={!!priceHistoryIngredient}
+        onOpenChange={(open) => !open && setPriceHistoryIngredient(null)}
+      />
     </div>
+  );
+}
+
+function PriceHistoryDialog({
+  ingredientId,
+  ingredientName,
+  open,
+  onOpenChange,
+}: {
+  ingredientId: string;
+  ingredientName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { data: history = [] } = useQuery<Array<{
+    id: string;
+    purchaseCost: number;
+    purchaseQuantity: number;
+    purchaseUnit: string;
+    costPerGram: number | null;
+    store: string | null;
+    recordedAt: string;
+  }>>({
+    queryKey: [`/api/ingredients/${ingredientId}/price-history`],
+    enabled: open && !!ingredientId,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Price History: {ingredientName}
+          </DialogTitle>
+        </DialogHeader>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">
+            No price history yet. Changes will be recorded automatically.
+          </p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {history.map((record) => (
+              <div key={record.id} className="flex items-center justify-between p-2 rounded bg-muted/50">
+                <div>
+                  <span className="font-medium">${record.purchaseCost.toFixed(2)}</span>
+                  <span className="text-muted-foreground text-sm"> / {record.purchaseQuantity} {record.purchaseUnit}</span>
+                </div>
+                <div className="text-right text-sm text-muted-foreground">
+                  {format(new Date(record.recordedAt), "MMM d, yyyy")}
+                  {record.store && <span className="ml-2">({record.store})</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
