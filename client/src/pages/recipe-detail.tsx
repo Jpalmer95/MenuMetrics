@@ -729,6 +729,7 @@ export default function RecipeDetailPage() {
         onRemoveAllPackaging={handleRemoveAllPackaging}
         onRemoveAllSubRecipes={handleRemoveAllSubRecipes}
       />
+      </div>
     </div>
   );
 }
