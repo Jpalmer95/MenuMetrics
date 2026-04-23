@@ -4,3 +4,7 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+.local/
+.config/
+install-debuntu.sh
+install-debuntu.sh.sha256sum
