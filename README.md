@@ -1,3 +1,8 @@
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-menu.167.99.125.127.sslip.io-green?style=flat-square)](https://menu.167.99.125.127.sslip.io)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
+[![Drizzle](https://img.shields.io/badge/Drizzle-ORM-C5F74F?style=flat-square)](https://orm.drizzle.team)
+
 # MenuMetrics
 
 Recipe cost analysis, inventory tracking, and small business operations software built for restaurants, cafes, and food-service teams who need to know their true margins.
