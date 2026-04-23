@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { subscriptionTiers, type SubscriptionTier } from "@shared/schema";
-import { isAuthenticated } from "./replitAuth";
+import { isAuthenticated } from "./localAuth";
 import { pool } from "./db";
 
 const STRIPE_PRICE_IDS: Record<string, string> = {};

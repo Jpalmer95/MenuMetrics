@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { insertIngredientSchema, insertRecipeSchema, insertRecipeIngredientSchema, insertRecipeSubIngredientSchema, insertAISettingsSchema, updateRecipePricingSchema, insertDensityHeuristicSchema, measurementUnits, insertCategoryPricingSettingsSchema, recipeCategories, insertWasteLogSchema, insertInventoryCountSchema, insertDashboardConfigSchema, dashboardChartTypes, dashboardChartLabels, type RecipeCategory, subscriptionTiers, type SubscriptionTier, insertManagedPricingSubscriptionSchema, updateManagedPricingSubscriptionSchema, managedPricingTiers, type ManagedPricingTier, insertEmployeeSchema, insertPurchaseOrderSchema, insertPurchaseOrderItemSchema, insertRecipeSalesSchema, type User, users } from "@shared/schema";
 import { parseQuantityUnit, normalizeUnit } from "@shared/unit-parser";
 import { callAI, testOllamaConnection, type AIProvider } from "./ai-providers";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./localAuth";
 import { findBestMatch } from "@shared/fuzzy-matcher";
 import type { Ingredient } from "@shared/schema";
 import { registerBillingRoutes } from "./billingRoutes";
@@ -46,17 +46,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
   
   registerBillingRoutes(app);
-
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
 
   // Excel template download
   app.get("/api/ingredients/template", isAuthenticated, async (req, res) => {

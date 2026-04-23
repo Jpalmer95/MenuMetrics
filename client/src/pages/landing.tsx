@@ -1,11 +1,51 @@
-// REPLIT AUTH INTEGRATION: Landing page for logged-out users
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Coffee, DollarSign, TrendingUp, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Coffee, DollarSign, TrendingUp, Sparkles, Loader2 } from "lucide-react";
 
 export default function LandingPage() {
-  const handleLogin = () => {
-    window.location.href = "/api/login";
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
+      const body: any = { email, password };
+      if (mode === "register") {
+        body.firstName = firstName;
+        body.lastName = lastName;
+      }
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Authentication failed");
+        setLoading(false);
+        return;
+      }
+
+      // Reload to enter the app
+      window.location.href = "/";
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
+      setLoading(false);
+    }
   };
 
   return (
@@ -16,16 +56,94 @@ export default function LandingPage() {
             <Coffee className="h-12 w-12 text-primary" />
             <h1 className="text-5xl font-bold">MenuMetrics</h1>
           </div>
-          
+
           <p className="text-xl text-muted-foreground mb-8">
             Professional recipe cost analysis for coffee shops and cafes
           </p>
 
-          <div className="flex gap-4 justify-center mb-16">
-            <Button size="lg" onClick={handleLogin} data-testid="button-login">
-              Log In
-            </Button>
-          </div>
+          <Card className="max-w-md mx-auto p-6 mb-16 text-left">
+            <h2 className="text-2xl font-bold mb-4 text-center">
+              {mode === "login" ? "Welcome Back" : "Create Account"}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                />
+              </div>
+              {mode === "register" && (
+                <>
+                  <div>
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Jane"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Doe"
+                    />
+                  </div>
+                </>
+              )}
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
+              <Button type="submit" className="w-full" disabled={loading} data-testid="button-login">
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {mode === "login" ? "Log In" : "Create Account"}
+              </Button>
+            </form>
+            <div className="mt-4 text-center text-sm">
+              {mode === "login" ? (
+                <span>
+                  Don't have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setMode("register")}
+                    className="text-primary hover:underline"
+                  >
+                    Sign up
+                  </button>
+                </span>
+              ) : (
+                <span>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className="text-primary hover:underline"
+                  >
+                    Log in
+                  </button>
+                </span>
+              )}
+            </div>
+          </Card>
 
           <div className="grid md:grid-cols-3 gap-6 mt-12">
             <Card className="p-6">
@@ -51,10 +169,6 @@ export default function LandingPage() {
                 Get recipe suggestions and menu pricing strategies from AI
               </p>
             </Card>
-          </div>
-
-          <div className="mt-16 text-sm text-muted-foreground">
-            <p>Supports email/password, Google, GitHub, and more authentication options</p>
           </div>
         </div>
       </div>
