@@ -1,3 +1,4 @@
+import { registerAgentBridge } from "./agentBridge";
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
@@ -46,6 +47,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
   
   registerBillingRoutes(app);
+  registerAgentBridge(app);
 
   // Excel template download
   app.get("/api/ingredients/template", isAuthenticated, async (req, res) => {

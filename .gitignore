@@ -8,3 +8,5 @@ vite.config.ts.*
 .config/
 install-debuntu.sh
 install-debuntu.sh.sha256sum
+.agent-bridge-token
+.env
