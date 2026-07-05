@@ -1,4 +1,4 @@
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-menu.167.99.125.127.sslip.io-green?style=flat-square)](https://menu.167.99.125.127.sslip.io)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-menumetrics.org-green?style=flat-square)](https://menumetrics.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
 [![Drizzle](https://img.shields.io/badge/Drizzle-ORM-C5F74F?style=flat-square)](https://orm.drizzle.team)
