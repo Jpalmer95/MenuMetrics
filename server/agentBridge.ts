@@ -625,7 +625,7 @@ export function registerAgentBridge(app: Express) {
       const parsed = insertIngredientSchema.parse({
         name: String(b.name ?? "").trim(),
         category: String(b.category ?? "other").trim(),
-        store: b.store != null ? String(b.store) : null,
+        ...(b.store != null ? { store: String(b.store) } : {}),
         purchaseQuantity: Number(b.purchase_quantity),
         purchaseUnit: canonicalUnit(b.purchase_unit),
         purchaseCost: Number(b.purchase_cost_cents ?? 0) / 100,
@@ -658,7 +658,7 @@ export function registerAgentBridge(app: Express) {
           const parsed = insertIngredientSchema.parse({
             name: String(b.name ?? "").trim(),
             category: String(b.category ?? "other").trim(),
-            store: b.store != null ? String(b.store) : null,
+            ...(b.store != null ? { store: String(b.store) } : {}),
             purchaseQuantity: Number(b.purchase_quantity),
             purchaseUnit: canonicalUnit(b.purchase_unit),
             purchaseCost: Number(b.purchase_cost_cents ?? 0) / 100,
@@ -719,7 +719,7 @@ export function registerAgentBridge(app: Express) {
           const parsed = insertIngredientSchema.parse({
             name: m.name,
             category: String(m.category ?? "other"),
-            store: m.store ?? null,
+            ...(m.store ? { store: m.store } : {}),
             purchaseQuantity,
             purchaseUnit,
             purchaseCost: m.purchaseCost,
