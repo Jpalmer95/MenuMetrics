@@ -2,24 +2,77 @@ import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import pRetry from "p-retry";
 
-// AI Provider Integration using Replit AI Integrations
-// OpenAI, Gemini, and OpenRouter (for various models) are available via Replit AI Integrations
-// No API keys required - charges billed to Replit credits
+// ── Provider configuration (modernized 2026) ───────────────────────────────
+// Standard, deployment-agnostic env vars are preferred. The legacy Replit AI
+// Integrations variables (AI_INTEGRATIONS_*) are honored as fallbacks so
+// existing deployments keep working without changes.
+//
+//   OpenAI:   OPENAI_API_KEY            (base URL: OPENAI_BASE_URL)
+//   Gemini:   GEMINI_API_KEY            (base URL: GEMINI_BASE_URL)
+//   OpenRouter: OPENROUTER_API_KEY      (base URL: OPENROUTER_BASE_URL)
+//   Models:   AI_OPENAI_MODEL, AI_GEMINI_MODEL, AI_OPENROUTER_MODEL
+//             (defaults below are current best general-purpose models)
+//
+// Per-user overrides (ai_settings table) still win where the UI exposes them
+// (provider choice, HuggingFace token, Ollama URL/model).
 
-export type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface" | "ollama";
+function pick(...names: Array<string | undefined>): string | undefined {
+  for (const n of names) {
+    if (n && n.trim().length > 0) return n;
+  }
+  return undefined;
+}
 
-// OpenRouter model mappings for different providers (verified from OpenRouter API)
+export const openaiConfig = {
+  apiKey: pick(process.env.OPENAI_API_KEY, process.env.AI_INTEGRATIONS_OPENAI_API_KEY),
+  baseURL:
+    pick(process.env.OPENAI_BASE_URL, process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) ||
+    "https://api.openai.com/v1",
+  model: process.env.AI_OPENAI_MODEL || "gpt-5",
+};
+
+export const geminiConfig = {
+  apiKey: pick(process.env.GEMINI_API_KEY, process.env.AI_INTEGRATIONS_GEMINI_API_KEY),
+  baseURL:
+    pick(process.env.GEMINI_BASE_URL, process.env.AI_INTEGRATIONS_GEMINI_BASE_URL) ||
+    "https://generativelanguage.googleapis.com",
+  model: process.env.AI_GEMINI_MODEL || "gemini-2.5-flash",
+};
+
+export const openrouterConfig = {
+  apiKey: pick(process.env.OPENROUTER_API_KEY, process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY),
+  baseURL:
+    pick(process.env.OPENROUTER_BASE_URL, process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL) ||
+    "https://openrouter.ai/api/v1",
+  model: process.env.AI_OPENROUTER_MODEL || "x-ai/grok-4.1-fast",
+};
+
+export type AIProvider =
+  | "openai"
+  | "gemini"
+  | "grok"
+  | "claude"
+  | "llama"
+  | "mistral"
+  | "deepseek"
+  | "huggingface"
+  | "ollama"
+  | "openrouter";
+
+// OpenRouter model mappings for the named providers (verified from the
+// OpenRouter catalog). `openrouter` uses the AI_OPENROUTER_MODEL default.
 export const openRouterModels: Record<string, string> = {
   "grok": "x-ai/grok-4.1-fast",
   "claude": "anthropic/claude-haiku-4.5",
   "llama": "meta-llama/llama-3.3-70b-instruct",
   "mistral": "mistralai/mistral-large-2512",
   "deepseek": "deepseek/deepseek-v3.2",
+  "openrouter": openrouterConfig.model,
 };
 
 export const providerDisplayNames: Record<string, string> = {
-  "openai": "OpenAI GPT-5",
-  "gemini": "Google Gemini 2.5 Flash",
+  "openai": `OpenAI (${openaiConfig.model})`,
+  "gemini": `Google Gemini (${geminiConfig.model})`,
   "grok": "Grok (xAI)",
   "claude": "Claude Haiku (Anthropic)",
   "llama": "Llama 3.3 70B (Meta)",
@@ -27,6 +80,7 @@ export const providerDisplayNames: Record<string, string> = {
   "deepseek": "DeepSeek V3",
   "huggingface": "HuggingFace (Custom)",
   "ollama": "Ollama (Local)",
+  "openrouter": `OpenRouter (${openrouterConfig.model})`,
 };
 
 interface AIRequest {
@@ -64,6 +118,7 @@ export async function callAI(request: AIRequest): Promise<string> {
           case "llama":
           case "mistral":
           case "deepseek":
+          case "openrouter":
             return await callOpenRouter(request);
           case "huggingface":
             return await callHuggingFace(request);
@@ -93,32 +148,37 @@ export async function callAI(request: AIRequest): Promise<string> {
 }
 
 async function callOpenAI(request: AIRequest): Promise<string> {
-  // Using Replit AI Integrations for OpenAI - no API key required
+  const apiKey = request.customApiKey || openaiConfig.apiKey;
+  if (!apiKey) {
+    throw new Error(
+      "OpenAI is not configured. Set OPENAI_API_KEY (or AI_INTEGRATIONS_OPENAI_API_KEY on Replit) in the environment."
+    );
+  }
   const client = new OpenAI({
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    baseURL: openaiConfig.baseURL,
+    apiKey,
   });
 
   const messages: any[] = [];
   if (request.systemPrompt) {
     messages.push({ role: "system", content: request.systemPrompt });
   }
-  
+
   // Support vision if image URL provided
   if (request.imageUrl) {
     messages.push({
       role: "user",
       content: [
         { type: "text", text: request.prompt },
-        { type: "image_url", image_url: { url: request.imageUrl } }
-      ]
+        { type: "image_url", image_url: { url: request.imageUrl } },
+      ],
     });
   } else {
     messages.push({ role: "user", content: request.prompt });
   }
 
   const response = await client.chat.completions.create({
-    model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+    model: openaiConfig.model,
     messages,
     max_completion_tokens: 8192,
   });
@@ -127,12 +187,17 @@ async function callOpenAI(request: AIRequest): Promise<string> {
 }
 
 async function callGemini(request: AIRequest): Promise<string> {
-  // Using Replit AI Integrations for Gemini - no API key required
+  const apiKey = request.customApiKey || geminiConfig.apiKey;
+  if (!apiKey) {
+    throw new Error(
+      "Gemini is not configured. Set GEMINI_API_KEY (or AI_INTEGRATIONS_GEMINI_API_KEY on Replit) in the environment."
+    );
+  }
   const ai = new GoogleGenAI({
-    apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
+    apiKey,
     httpOptions: {
       apiVersion: "",
-      baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+      baseUrl: geminiConfig.baseURL,
     },
   });
 
@@ -144,7 +209,7 @@ async function callGemini(request: AIRequest): Promise<string> {
   // Support vision if image URL provided
   if (request.imageUrl) {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: geminiConfig.model,
       contents: [
         { text: prompt },
         {
@@ -159,7 +224,7 @@ async function callGemini(request: AIRequest): Promise<string> {
   }
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: geminiConfig.model,
     contents: prompt,
   });
 
@@ -167,11 +232,15 @@ async function callGemini(request: AIRequest): Promise<string> {
 }
 
 async function callOpenRouter(request: AIRequest): Promise<string> {
-  // Using Replit AI Integrations for OpenRouter - no API key required
-  // Supports: Grok, Claude, Llama, Mistral, DeepSeek and more
+  const apiKey = request.customApiKey || openrouterConfig.apiKey;
+  if (!apiKey) {
+    throw new Error(
+      "OpenRouter is not configured. Set OPENROUTER_API_KEY (or AI_INTEGRATIONS_OPENROUTER_API_KEY on Replit) in the environment."
+    );
+  }
   const client = new OpenAI({
-    baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL,
-    apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
+    baseURL: openrouterConfig.baseURL,
+    apiKey,
   });
 
   const messages: any[] = [];
@@ -181,7 +250,7 @@ async function callOpenRouter(request: AIRequest): Promise<string> {
   messages.push({ role: "user", content: request.prompt });
 
   // Get the correct model for this provider
-  const model = openRouterModels[request.provider] || "x-ai/grok-2-1212";
+  const model = openRouterModels[request.provider] || openrouterConfig.model;
 
   const response = await client.chat.completions.create({
     model,
@@ -270,23 +339,23 @@ async function callOllama(request: AIRequest): Promise<string> {
 export function isValidOllamaUrl(url: string): { valid: boolean; error?: string } {
   try {
     const parsed = new URL(url);
-    
+
     // Only allow http or https
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
+    if (!["http:", "https:"].includes(parsed.protocol)) {
       return { valid: false, error: "Only HTTP and HTTPS protocols are allowed" };
     }
-    
+
     // Only allow localhost addresses for security (SSRF protection)
-    const allowedHosts = ['localhost', '127.0.0.1', '::1', '[::1]'];
+    const allowedHosts = ["localhost", "127.0.0.1", "::1", "[::1]"];
     const hostname = parsed.hostname.toLowerCase();
-    
+
     if (!allowedHosts.includes(hostname)) {
-      return { 
-        valid: false, 
-        error: "For security reasons, Ollama URL must be localhost (127.0.0.1, ::1, or localhost)" 
+      return {
+        valid: false,
+        error: "For security reasons, Ollama URL must be localhost (127.0.0.1, ::1, or localhost)",
       };
     }
-    
+
     return { valid: true };
   } catch (error) {
     return { valid: false, error: "Invalid URL format" };
@@ -294,7 +363,10 @@ export function isValidOllamaUrl(url: string): { valid: boolean; error?: string 
 }
 
 // Test Ollama connection - exported for use in routes
-export async function testOllamaConnection(url: string, model?: string): Promise<{ success: boolean; models?: string[]; error?: string }> {
+export async function testOllamaConnection(
+  url: string,
+  model?: string
+): Promise<{ success: boolean; models?: string[]; error?: string }> {
   // Validate URL for SSRF protection
   const validation = isValidOllamaUrl(url);
   if (!validation.valid) {
@@ -317,10 +389,10 @@ export async function testOllamaConnection(url: string, model?: string): Promise
 
     // If a model is specified, check if it exists
     if (model && !availableModels.some((m: string) => m.startsWith(model))) {
-      return { 
-        success: false, 
-        models: availableModels, 
-        error: `Model "${model}" not found. Available models: ${availableModels.join(", ")}` 
+      return {
+        success: false,
+        models: availableModels,
+        error: `Model "${model}" not found. Available models: ${availableModels.join(", ")}`,
       };
     }
 

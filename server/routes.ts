@@ -49,6 +49,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerBillingRoutes(app);
   registerAgentBridge(app);
 
+  // ── Agent API key management (session-authenticated UI) ─────────────────
+  // GET    /api/agent-keys           list my keys (prefix, name, last used)
+  // POST   /api/agent-keys           create a key → returns the full token ONCE
+  // DELETE /api/agent-keys/:id       revoke a key
+  app.get("/api/agent-keys", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const keys = await storage.getAgentApiKeys(userId);
+      res.json(
+        keys.map((k: any) => ({
+          id: k.id,
+          name: k.name,
+          key_prefix: k.keyPrefix,
+          scopes: k.scopes,
+          last_used_at: k.lastUsedAt ? k.lastUsedAt.toISOString?.() ?? String(k.lastUsedAt) : null,
+          created_at: k.createdAt ? k.createdAt.toISOString?.() ?? String(k.createdAt) : null,
+          revoked: Boolean(k.revokedAt),
+        }))
+      );
+    } catch (error: any) {
+      console.error("List agent keys error:", error);
+      res.status(500).json({ error: "Failed to list agent keys" });
+    }
+  });
+
+  app.post("/api/agent-keys", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const name = String(req.body?.name ?? "").trim();
+      if (!name) return res.status(400).json({ error: "Key name is required" });
+      const { generateAgentToken } = await import("./agentBridge");
+      const { prefix, secret, token, tokenHash } = generateAgentToken();
+      const key = await storage.createAgentApiKey(
+        { name: name.slice(0, 100), keyPrefix: prefix, tokenHash, scopes: "read,write" },
+        userId
+      );
+      // The full token is returned exactly once — it is not stored.
+      res.status(201).json({
+        id: key.id,
+        name: key.name,
+        key_prefix: prefix,
+        token,
+        scopes: key.scopes,
+        note: "Store this token securely — it will not be shown again.",
+      });
+    } catch (error: any) {
+      console.error("Create agent key error:", error);
+      res.status(500).json({ error: "Failed to create agent key" });
+    }
+  });
+
+  app.delete("/api/agent-keys/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ok = await storage.revokeAgentApiKey(req.params.id, userId);
+      if (!ok) return res.status(404).json({ error: "Key not found" });
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("Revoke agent key error:", error);
+      res.status(500).json({ error: "Failed to revoke agent key" });
+    }
+  });
+
   // Excel template download
   app.get("/api/ingredients/template", isAuthenticated, async (req, res) => {
     try {

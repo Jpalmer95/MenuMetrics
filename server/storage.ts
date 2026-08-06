@@ -45,6 +45,8 @@ import {
   type InsertPriceHistory,
   type RecipeSales,
   type InsertRecipeSales,
+  type AgentApiKey,
+  type InsertAgentApiKey,
   subscriptionTiers,
   ingredients,
   recipes,
@@ -65,6 +67,7 @@ import {
   purchaseOrderItems,
   priceHistory,
   recipeSales,
+  agentApiKeys,
 } from "@shared/schema";
 import { calculateAllUnitCosts, calculateCostPerUnit } from "@shared/cost-calculator";
 import { db } from "./db";
@@ -117,6 +120,14 @@ export interface IStorage {
   getAllDensityHeuristics(): Promise<DensityHeuristic[]>;
   updateDensityHeuristic(id: string, updates: Partial<InsertDensityHeuristic>): Promise<DensityHeuristic | undefined>;
   createDensityHeuristic(heuristic: InsertDensityHeuristic): Promise<DensityHeuristic>;
+  upsertDensityHeuristicByName(name: string, gramsPerMilliliter: number, category?: string, notes?: string): Promise<DensityHeuristic>;
+
+  // Agent API keys (per-user tokens for the Agent Bridge)
+  createAgentApiKey(key: InsertAgentApiKey, userId: string): Promise<AgentApiKey>;
+  getAgentApiKeys(userId: string): Promise<AgentApiKey[]>;
+  getAgentApiKeyByHash(tokenHash: string): Promise<AgentApiKey | undefined>;
+  revokeAgentApiKey(id: string, userId: string): Promise<boolean>;
+  touchAgentApiKey(id: string): Promise<void>;
   
   // Category pricing settings
   getCategoryPricingSettings(userId: string): Promise<CategoryPricingSettings[]>;
@@ -852,6 +863,68 @@ export class DatabaseStorage implements IStorage {
       .values(heuristic)
       .returning();
     return created;
+  }
+
+  async upsertDensityHeuristicByName(name: string, gramsPerMilliliter: number, category?: string, notes?: string): Promise<DensityHeuristic> {
+    const existing = await db
+      .select()
+      .from(densityHeuristics)
+      .where(eq(densityHeuristics.ingredientName, name))
+      .limit(1);
+    if (existing[0]) {
+      const [updated] = await db
+        .update(densityHeuristics)
+        .set({ gramsPerMilliliter, category: category ?? existing[0].category, notes: notes ?? existing[0].notes, lastUpdated: new Date() })
+        .where(eq(densityHeuristics.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(densityHeuristics)
+      .values({ ingredientName: name, gramsPerMilliliter, category: category ?? null, notes: notes ?? null })
+      .returning();
+    return created;
+  }
+
+  // ── Agent API keys ────────────────────────────────────────────────────────
+  async createAgentApiKey(key: InsertAgentApiKey, userId: string): Promise<AgentApiKey> {
+    const [created] = await db
+      .insert(agentApiKeys)
+      .values({ ...key, userId })
+      .returning();
+    return created;
+  }
+
+  async getAgentApiKeys(userId: string): Promise<AgentApiKey[]> {
+    return await db
+      .select()
+      .from(agentApiKeys)
+      .where(eq(agentApiKeys.userId, userId));
+  }
+
+  async getAgentApiKeyByHash(tokenHash: string): Promise<AgentApiKey | undefined> {
+    const [found] = await db
+      .select()
+      .from(agentApiKeys)
+      .where(eq(agentApiKeys.tokenHash, tokenHash))
+      .limit(1);
+    return found || undefined;
+  }
+
+  async revokeAgentApiKey(id: string, userId: string): Promise<boolean> {
+    const [updated] = await db
+      .update(agentApiKeys)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(agentApiKeys.id, id), eq(agentApiKeys.userId, userId)))
+      .returning();
+    return Boolean(updated);
+  }
+
+  async touchAgentApiKey(id: string): Promise<void> {
+    await db
+      .update(agentApiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(agentApiKeys.id, id));
   }
 
   async getCategoryPricingSettings(userId: string): Promise<CategoryPricingSettings[]> {

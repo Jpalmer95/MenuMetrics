@@ -166,7 +166,41 @@ export default function LandingPage() {
               <Sparkles className="h-10 w-10 text-primary mx-auto mb-4" />
               <h3 className="font-semibold text-lg mb-2">AI-Powered Insights</h3>
               <p className="text-sm text-muted-foreground">
-                Get recipe suggestions and menu pricing strategies from AI
+                Get recipe suggestions, seasonal features, and menu pricing strategies from AI
+              </p>
+            </Card>
+          </div>
+
+          <div className="mt-10 max-w-3xl mx-auto">
+            <Card className="p-6 border-primary/40 bg-primary/5">
+              <h3 className="font-semibold text-lg mb-2 flex items-center justify-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Agent-Native — Your AI Agent Does the Setup
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                MenuMetrics ships with an open Agent API and companion skills for Hermes Agent.
+                Hand your agent your ingredient spreadsheet or a photo of your menu and it can:
+              </p>
+              <div className="grid md:grid-cols-2 gap-3 text-left text-sm">
+                <div className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">→</span>
+                  <span>Import ingredients from Excel (auto-detects columns)</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">→</span>
+                  <span>Fill in densities from known reference values (USDA, labels, web)</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">→</span>
+                  <span>Import full recipes — missing ingredients are created automatically</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">→</span>
+                  <span>Calculate true costs and surface pricing, waste, and seasonal recommendations</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-4">
+                Generate an agent key from Settings → Agent API. Open source (Apache-2.0) — self-host or use the hosted app.
               </p>
             </Card>
           </div>

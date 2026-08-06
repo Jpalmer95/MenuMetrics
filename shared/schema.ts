@@ -68,6 +68,39 @@ export const insertAiUsageSchema = createInsertSchema(aiUsage).omit({
 export type InsertAiUsage = z.infer<typeof insertAiUsageSchema>;
 export type AiUsage = typeof aiUsage.$inferSelect;
 
+// ── Agent API keys ─────────────────────────────────────────────────────────
+// Per-user tokens that let external agents (Hermes, Claude, custom bots) talk
+// to the Agent Bridge (/api/agent/*). Tokens are shown once at creation:
+//   mm_<prefix>_<secret>  →  store sha256(secret) + a short display prefix.
+// Revoking sets revokedAt; lookups ignore revoked keys. A global
+// AGENT_BRIDGE_TOKEN env var remains supported for self-hosted single-tenant
+// deployments (see server/agentBridge.ts).
+export const agentApiKeys = pgTable("agent_api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "Hermes Agent", "Kynda sync"
+  keyPrefix: varchar("key_prefix").notNull(), // e.g. "mm_live_a1b2" (display only)
+  tokenHash: varchar("token_hash").notNull().unique(), // sha256 hex of full secret
+  scopes: text("scopes").notNull().default("read,write"), // comma-separated: read, write
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  revokedAt: timestamp("revoked_at"),
+});
+
+export const insertAgentApiKeySchema = createInsertSchema(agentApiKeys).omit({
+  id: true,
+  userId: true,
+  lastUsedAt: true,
+  createdAt: true,
+  revokedAt: true,
+}).extend({
+  name: z.string().min(1, "Key name is required").max(100),
+  scopes: z.string().optional().default("read,write"),
+});
+
+export type InsertAgentApiKey = z.infer<typeof insertAgentApiKeySchema>;
+export type AgentApiKey = typeof agentApiKeys.$inferSelect;
+
 export const measurementUnits = [
   "cups",
   "ounces",

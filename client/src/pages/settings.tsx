@@ -17,11 +17,11 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle, DollarSign, Users, Package, Phone, FileText, X, RefreshCw, Download, Upload, Database, FileJson, Heart, Copy, Wallet, Coffee } from "lucide-react";
+import { Loader2, Settings as SettingsIcon, Key, Sparkles, CreditCard, Zap, Check, Crown, ExternalLink, AlertTriangle, DollarSign, Users, Package, Phone, FileText, X, RefreshCw, Download, Upload, Database, FileJson, Heart, Copy, Wallet, Coffee, Bot, Trash2, Terminal } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface" | "ollama";
+type AIProvider = "openai" | "gemini" | "grok" | "claude" | "llama" | "mistral" | "deepseek" | "huggingface" | "ollama" | "openrouter";
 
 interface AISettings {
   aiProvider?: string | null;
@@ -73,13 +73,14 @@ interface ManagedPricingSubscription {
 }
 
 const providerOptions = [
-  { value: "openai", label: "OpenAI GPT-5", description: "Latest GPT model for general tasks", replit: true },
-  { value: "gemini", label: "Google Gemini 2.5 Flash", description: "Fast and cost-effective", replit: true },
-  { value: "claude", label: "Claude Haiku (Anthropic)", description: "Excellent for detailed analysis", replit: true },
-  { value: "llama", label: "Llama 3.3 70B (Meta)", description: "Open-source, high quality", replit: true },
-  { value: "mistral", label: "Mistral Large", description: "European AI leader", replit: true },
-  { value: "grok", label: "Grok (xAI)", description: "xAI's conversational model", replit: true },
-  { value: "deepseek", label: "DeepSeek V3", description: "Chinese AI powerhouse", replit: true },
+  { value: "openai", label: "OpenAI", description: "Powered by OPENAI_API_KEY (or Replit AI Integrations)", replit: true },
+  { value: "gemini", label: "Google Gemini", description: "Powered by GEMINI_API_KEY (or Replit AI Integrations)", replit: true },
+  { value: "openrouter", label: "OpenRouter", description: "One key for many models (Grok, Claude, Llama, DeepSeek…)", replit: true },
+  { value: "claude", label: "Claude Haiku (Anthropic)", description: "Via OpenRouter", replit: true },
+  { value: "llama", label: "Llama 3.3 70B (Meta)", description: "Via OpenRouter", replit: true },
+  { value: "mistral", label: "Mistral Large", description: "Via OpenRouter", replit: true },
+  { value: "grok", label: "Grok (xAI)", description: "Via OpenRouter", replit: true },
+  { value: "deepseek", label: "DeepSeek V3", description: "Via OpenRouter", replit: true },
   { value: "huggingface", label: "HuggingFace (Custom)", description: "Bring your own API key", replit: false },
   { value: "ollama", label: "Ollama (Local)", description: "Run AI models on your own machine", replit: false },
 ];
@@ -184,8 +185,9 @@ function AISettingsTab() {
           <CardTitle>AI Provider Configuration</CardTitle>
         </div>
         <CardDescription>
-          Configure API keys for AI providers. Some providers use Replit AI Integrations
-          and don't require keys.
+          Choose which AI provider powers the built-in AI features. Keys come from the
+          deployment's environment (OPENAI_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY)
+          or your own token below.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -212,8 +214,11 @@ function AISettingsTab() {
           {!isHuggingFace && !isOllama && (
             <Alert>
               <AlertDescription>
-                <strong>{providerOptions.find(p => p.value === aiProvider)?.label}</strong> is powered by Replit AI Integrations.
-                No API key required - charges will be billed to your Replit credits.
+                <strong>{providerOptions.find(p => p.value === aiProvider)?.label}</strong> uses the deployment's
+                configured API key. Self-hosting? Set <code className="font-mono">OPENAI_API_KEY</code>,{" "}
+                <code className="font-mono">GEMINI_API_KEY</code>, or{" "}
+                <code className="font-mono">OPENROUTER_API_KEY</code> in your environment (model overrides:{" "}
+                <code className="font-mono">AI_OPENAI_MODEL</code>, <code className="font-mono">AI_GEMINI_MODEL</code>).
               </AlertDescription>
             </Alert>
           )}
@@ -1314,6 +1319,218 @@ function SupportTab() {
   );
 }
 
+interface AgentApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string;
+  last_used_at: string | null;
+  created_at: string | null;
+  revoked: boolean;
+}
+
+function AgentApiTab() {
+  const { toast } = useToast();
+  const [keyName, setKeyName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newToken, setNewToken] = useState<{ token: string; name: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const { data: keys, isLoading } = useQuery<AgentApiKey[]>({
+    queryKey: ["/api/agent-keys"],
+  });
+
+  const createKey = async () => {
+    if (!keyName.trim()) {
+      toast({ title: "Name required", description: "Give this key a name (e.g. 'Hermes Agent').", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await apiRequest("POST", "/api/agent-keys", { name: keyName.trim() });
+      const data = await res.json();
+      setNewToken({ token: data.token, name: data.name });
+      setKeyName("");
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-keys"] });
+      toast({ title: "Key created", description: "Copy the token now — it will never be shown again." });
+    } catch (error: any) {
+      toast({ title: "Failed to create key", description: error.message || "Try again.", variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const revokeKey = async (id: string, name: string) => {
+    if (!window.confirm(`Revoke agent key "${name}"? Agents using it will be immediately locked out.`)) return;
+    try {
+      await apiRequest("DELETE", `/api/agent-keys/${id}`);
+      queryClient.invalidateQueries({ queryKey: ["/api/agent-keys"] });
+      toast({ title: "Key revoked", description: `"${name}" can no longer access the API.` });
+    } catch (error: any) {
+      toast({ title: "Failed to revoke key", description: error.message || "Try again.", variant: "destructive" });
+    }
+  };
+
+  const copyToken = async () => {
+    if (!newToken) return;
+    try {
+      await navigator.clipboard.writeText(newToken.token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "Copy failed", description: "Select the token manually and copy it.", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot className="h-5 w-5 text-primary" />
+            Agent API Keys
+          </CardTitle>
+          <CardDescription>
+            Let your own AI agent (Hermes Agent, Claude, custom bots) read your costs and
+            write ingredients, recipes, and densities on your behalf. Keys are shown once
+            at creation and only the hash is stored.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Key name (e.g. Hermes Agent)"
+              value={keyName}
+              onChange={(e) => setKeyName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createKey()}
+              className="max-w-xs"
+            />
+            <Button onClick={createKey} disabled={creating}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
+              Create Key
+            </Button>
+          </div>
+
+          {newToken && (
+            <Alert className="border-primary">
+              <AlertDescription className="space-y-3">
+                <p className="font-semibold">Your new token for "{newToken.name}" — copy it now:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-muted p-2 text-sm break-all font-mono">{newToken.token}</code>
+                  <Button size="sm" variant="outline" onClick={copyToken}>
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  It will not be displayed again. Use it as <code className="font-mono">Authorization: Bearer {newToken.token.slice(0, 10)}…</code>
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (keys || []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No agent keys yet. Create one above to connect your agent.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {(keys || []).map((k) => (
+                <div key={k.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{k.name}</span>
+                      {k.revoked && <Badge variant="destructive">Revoked</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground font-mono">{k.key_prefix}…</p>
+                    <p className="text-xs text-muted-foreground">
+                      Created {k.created_at ? new Date(k.created_at).toLocaleDateString() : "—"}
+                      {k.last_used_at ? ` · Last used ${new Date(k.last_used_at).toLocaleString()}` : " · Never used"}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive"
+                    disabled={k.revoked}
+                    onClick={() => revokeKey(k.id, k.name)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Revoke
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Terminal className="h-5 w-5 text-primary" />
+            Quick Start
+          </CardTitle>
+          <CardDescription>
+            Any agent (or script) can use these calls. Money is in cents; units are canonical
+            (grams, cups, units, …). Full reference: <code className="font-mono">/api/agent/openapi.json</code>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div>
+            <p className="font-medium mb-1">1 · Check your data is complete (missing densities, unpriced recipes)</p>
+            <pre className="rounded bg-muted p-3 overflow-x-auto font-mono text-xs">
+{`curl -H "Authorization: Bearer YOUR_TOKEN" ${window.location.origin}/api/agent/me`}
+            </pre>
+          </div>
+          <div>
+            <p className="font-medium mb-1">2 · Import your ingredients spreadsheet (.xlsx)</p>
+            <pre className="rounded bg-muted p-3 overflow-x-auto font-mono text-xs">
+{`curl -H "Authorization: Bearer YOUR_TOKEN" \\
+  -F "file=@ingredients.xlsx" \\
+  ${window.location.origin}/api/agent/ingredients/import`}
+            </pre>
+          </div>
+          <div>
+            <p className="font-medium mb-1">3 · Bulk-apply densities your agent researched (USDA, labels, web)</p>
+            <pre className="rounded bg-muted p-3 overflow-x-auto font-mono text-xs">
+{`curl -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"densities":[{"name":"Whole Milk","grams_per_milliliter":1.03,"source":"USDA"}]}' \\
+  ${window.location.origin}/api/agent/ingredients/densities`}
+            </pre>
+          </div>
+          <div>
+            <p className="font-medium mb-1">4 · Import your recipes (auto-creates missing ingredients)</p>
+            <pre className="rounded bg-muted p-3 overflow-x-auto font-mono text-xs">
+{`curl -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"recipes":[{"name":"Vanilla Latte","category":"drink","ingredients":[{"name":"Whole Milk","quantity":8,"unit":"oz"},{"name":"Espresso","quantity":2,"unit":"oz"}]}]}' \\
+  ${window.location.origin}/api/agent/recipes/import`}
+            </pre>
+          </div>
+          <div>
+            <p className="font-medium mb-1">5 · Get business insights (deterministic + AI narrative)</p>
+            <pre className="rounded bg-muted p-3 overflow-x-auto font-mono text-xs">
+{`curl -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"focus":"all","include_narrative":true}' \\
+  ${window.location.origin}/api/agent/insights`}
+            </pre>
+          </div>
+          <p className="text-muted-foreground">
+            Hermes Agent users: load the <code className="font-mono">menumetrics-agent</code> companion skill for
+            step-by-step onboarding workflows. Open source — self-host anytime.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [location] = useLocation();
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
@@ -1366,7 +1583,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue={initialTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="ai" data-testid="tab-ai">
             <Sparkles className="h-4 w-4 mr-2" />
             AI Provider
@@ -1374,6 +1591,10 @@ export default function SettingsPage() {
           <TabsTrigger value="billing" data-testid="tab-billing">
             <CreditCard className="h-4 w-4 mr-2" />
             Subscription
+          </TabsTrigger>
+          <TabsTrigger value="agent" data-testid="tab-agent">
+            <Bot className="h-4 w-4 mr-2" />
+            Agent API
           </TabsTrigger>
           <TabsTrigger value="data" data-testid="tab-data">
             <Database className="h-4 w-4 mr-2" />
@@ -1389,6 +1610,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="billing" className="mt-6">
           <BillingTab />
+        </TabsContent>
+        <TabsContent value="agent" className="mt-6">
+          <AgentApiTab />
         </TabsContent>
         <TabsContent value="data" className="mt-6">
           <DataTab />
