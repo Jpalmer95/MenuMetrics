@@ -1,6 +1,8 @@
 import type { Express, Request, Response } from "express";
+import type Stripe from "stripe";
 import { storage } from "./storage";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { WebhookHandlers } from "./webhookHandlers";
 import { subscriptionTiers, type SubscriptionTier } from "@shared/schema";
 import { isAuthenticated } from "./localAuth";
 import { pool } from "./db";
@@ -181,11 +183,9 @@ export function registerBillingRoutes(app: Express) {
         await storage.updateUserStripeInfo(userId, { stripeCustomerId: customerId });
       }
 
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'http://localhost:5000';
+      const baseUrl = process.env.APP_URL
+        ? process.env.APP_URL
+        : `https://${req.get('host') || 'localhost:5000'}`;
 
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
@@ -229,11 +229,9 @@ export function registerBillingRoutes(app: Express) {
 
       const stripe = await getUncachableStripeClient();
       
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'http://localhost:5000';
+      const baseUrl = process.env.APP_URL
+        ? process.env.APP_URL
+        : `https://${req.get('host') || 'localhost:5000'}`;
 
       const session = await stripe.billingPortal.sessions.create({
         customer: user.stripeCustomerId,
@@ -260,12 +258,20 @@ export function registerBillingRoutes(app: Express) {
 
   app.post('/api/billing/webhook', async (req: Request, res: Response) => {
     try {
-      const event = req.body;
-      
+      // Verify the Stripe signature against the raw body (captured by index.ts).
+      const signature = String(req.headers['stripe-signature'] || '');
+      let event: Stripe.Event;
+      try {
+        event = await WebhookHandlers.verifyAndParse(Buffer.from((req as any).rawBody ?? ''), signature);
+      } catch (verifyError) {
+        console.error('Stripe webhook signature verification failed:', verifyError);
+        return res.status(400).json({ message: 'Invalid webhook signature' });
+      }
+
       switch (event.type) {
         case 'customer.subscription.created':
         case 'customer.subscription.updated': {
-          const subscription = event.data.object;
+          const subscription: any = event.data.object;
           const customerId = subscription.customer;
           const tier = subscription.metadata?.tier || 'starter';
           const status = subscription.status;

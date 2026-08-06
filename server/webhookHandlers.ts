@@ -1,26 +1,27 @@
-import { getStripeSync } from './stripeClient';
+import Stripe from 'stripe';
+import { getStripeSecretKey } from './stripeClient';
 import { db } from './db';
 import { users } from '@shared/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+
+// Native Stripe webhook handling — verifies signatures locally with the
+// STRIPE_WEBHOOK_SECRET and processes subscription lifecycle events.
+// (Signature-verified, host-agnostic.)
 
 export class WebhookHandlers {
-  static async processWebhook(payload: Buffer, signature: string, uuid: string): Promise<void> {
-    if (!Buffer.isBuffer(payload)) {
-      throw new Error(
-        'STRIPE WEBHOOK ERROR: Payload must be a Buffer. ' +
-        'Received type: ' + typeof payload + '. ' +
-        'This usually means express.json() parsed the body before reaching this handler. ' +
-        'FIX: Ensure webhook route is registered BEFORE app.use(express.json()).'
-      );
+  /** Verify the Stripe signature and return the parsed event. Throws on mismatch. */
+  static async verifyAndParse(payload: Buffer, signature: string): Promise<Stripe.Event> {
+    const secret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!secret) {
+      throw new Error('STRIPE_WEBHOOK_SECRET is not configured');
     }
-
-    const sync = await getStripeSync();
-    await sync.processWebhook(payload, signature, uuid);
+    const stripe = new Stripe(await getStripeSecretKey());
+    return stripe.webhooks.constructEvent(payload, signature, secret);
   }
 
   static async handleSubscriptionUpdated(subscriptionId: string, customerId: string, status: string, currentPeriodEnd: Date | null, priceId: string | null) {
     const tierFromPrice = priceId ? WebhookHandlers.getTierFromPriceId(priceId) : 'free';
-    
+
     await db.update(users)
       .set({
         subscriptionStatus: status,

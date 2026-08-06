@@ -40,8 +40,8 @@ Recipe cost analysis, inventory tracking, and small business operations software
 
 ## AI Provider Configuration
 
-Modern deployments use standard environment variables (legacy Replit AI
-Integrations variables still work as fallbacks):
+Modern deployments use standard environment variables (legacy AI_INTEGRATIONS_*
+variables still work as fallbacks):
 
 ```bash
 # OpenAI

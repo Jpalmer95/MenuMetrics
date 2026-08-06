@@ -1,7 +1,7 @@
 /**
  * Database connection.
  *
- * Originally used @neondatabase/serverless (Replit/Neon hosting), which
+ * Originally used @neondatabase/serverless (Neon serverless hosting), which
  * tunnels Postgres over WebSockets — that crashes against a plain self-hosted
  * Postgres (ws "Unexpected server response: 503" → process exit). Self-hosted
  * deployments (Coolify droplet) use standard node-postgres instead.

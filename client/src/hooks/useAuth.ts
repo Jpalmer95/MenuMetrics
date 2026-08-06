@@ -1,4 +1,4 @@
-// REPLIT AUTH INTEGRATION: Authentication hook
+// Authentication hook
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 

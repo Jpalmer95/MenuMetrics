@@ -1,6 +1,6 @@
 /**
- * One-time data restoration: copies jpkorstad@gmail.com data from NEON database
- * into the current DATABASE_URL (production Replit database).
+ * One-time data restoration: copies jpkorstad@gmail.com data from the legacy
+ * hosting database (NEON_DATABASE_URL) into the current DATABASE_URL.
  *
  * Tables restored: ingredients, recipes, recipe_ingredients, recipe_sub_ingredients,
  *                  category_pricing_settings, waste_logs, density_heuristics (missing rows only)

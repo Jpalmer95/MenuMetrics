@@ -3,9 +3,9 @@ import { GoogleGenAI } from "@google/genai";
 import pRetry from "p-retry";
 
 // ── Provider configuration (modernized 2026) ───────────────────────────────
-// Standard, deployment-agnostic env vars are preferred. The legacy Replit AI
-// Integrations variables (AI_INTEGRATIONS_*) are honored as fallbacks so
-// existing deployments keep working without changes.
+// Standard, deployment-agnostic env vars are preferred. The legacy
+// AI_INTEGRATIONS_* variables are honored as fallbacks so older deployments
+// keep working without changes.
 //
 //   OpenAI:   OPENAI_API_KEY            (base URL: OPENAI_BASE_URL)
 //   Gemini:   GEMINI_API_KEY            (base URL: GEMINI_BASE_URL)

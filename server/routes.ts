@@ -3496,11 +3496,9 @@ Only return valid JSON, no other text.`;
         await storage.updateUserStripeInfo(userId, { stripeCustomerId: customerId });
       }
 
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.REPLIT_DOMAINS?.split(',')[0]
-          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'http://localhost:5000';
+      const baseUrl = process.env.APP_URL
+        ? process.env.APP_URL
+        : `https://${req.get('host') || 'localhost:5000'}`;
 
       // Create checkout session
       const session = await stripe.checkout.sessions.create({
@@ -3537,7 +3535,16 @@ Only return valid JSON, no other text.`;
   // Handle Stripe webhook for managed pricing subscriptions
   app.post("/api/managed-pricing/webhook", async (req: any, res) => {
     try {
-      const event = req.body;
+      // Verify signature against the raw body (captured by index.ts).
+      const signature = String(req.headers["stripe-signature"] || "");
+      let event: any;
+      try {
+        const { WebhookHandlers } = await import("./webhookHandlers");
+        event = await WebhookHandlers.verifyAndParse(Buffer.from(req.rawBody ?? ""), signature);
+      } catch (verifyError) {
+        console.error("Managed pricing webhook signature verification failed:", verifyError);
+        return res.status(400).json({ message: "Invalid webhook signature" });
+      }
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object;

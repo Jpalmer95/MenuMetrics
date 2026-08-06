@@ -73,16 +73,16 @@ interface ManagedPricingSubscription {
 }
 
 const providerOptions = [
-  { value: "openai", label: "OpenAI", description: "Powered by OPENAI_API_KEY (or Replit AI Integrations)", replit: true },
-  { value: "gemini", label: "Google Gemini", description: "Powered by GEMINI_API_KEY (or Replit AI Integrations)", replit: true },
-  { value: "openrouter", label: "OpenRouter", description: "One key for many models (Grok, Claude, Llama, DeepSeek…)", replit: true },
-  { value: "claude", label: "Claude Haiku (Anthropic)", description: "Via OpenRouter", replit: true },
-  { value: "llama", label: "Llama 3.3 70B (Meta)", description: "Via OpenRouter", replit: true },
-  { value: "mistral", label: "Mistral Large", description: "Via OpenRouter", replit: true },
-  { value: "grok", label: "Grok (xAI)", description: "Via OpenRouter", replit: true },
-  { value: "deepseek", label: "DeepSeek V3", description: "Via OpenRouter", replit: true },
-  { value: "huggingface", label: "HuggingFace (Custom)", description: "Bring your own API key", replit: false },
-  { value: "ollama", label: "Ollama (Local)", description: "Run AI models on your own machine", replit: false },
+  { value: "openai", label: "OpenAI", description: "Powered by OPENAI_API_KEY", managed: true },
+  { value: "gemini", label: "Google Gemini", description: "Powered by GEMINI_API_KEY", managed: true },
+  { value: "openrouter", label: "OpenRouter", description: "One key for many models (Grok, Claude, Llama, DeepSeek…)", managed: true },
+  { value: "claude", label: "Claude Haiku (Anthropic)", description: "Via OpenRouter", managed: true },
+  { value: "llama", label: "Llama 3.3 70B (Meta)", description: "Via OpenRouter", managed: true },
+  { value: "mistral", label: "Mistral Large", description: "Via OpenRouter", managed: true },
+  { value: "grok", label: "Grok (xAI)", description: "Via OpenRouter", managed: true },
+  { value: "deepseek", label: "DeepSeek V3", description: "Via OpenRouter", managed: true },
+  { value: "huggingface", label: "HuggingFace (Custom)", description: "Bring your own API key", managed: false },
+  { value: "ollama", label: "Ollama (Local)", description: "Run AI models on your own machine", managed: false },
 ];
 
 function AISettingsTab() {
